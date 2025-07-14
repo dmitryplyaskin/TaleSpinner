@@ -1,39 +1,9 @@
 import React from 'react';
-import { Container, Typography, Card, CardContent, CardActions, Button, Box, IconButton } from '@mui/material';
+import { Container, Typography, Button, Box, IconButton } from '@mui/material';
 import { ArrowBack, Castle, Computer, Home, Add } from '@mui/icons-material';
 import { navigateToScreen, selectWorld, goBack, ROUTES } from '../model/navigation';
 import type { WorldType } from '../model/navigation';
-
-interface WorldCardProps {
-	title: string;
-	description: string;
-	icon: React.ReactNode;
-	worldType: WorldType;
-	onClick: () => void;
-}
-
-const WorldCard: React.FC<WorldCardProps> = ({ title, description, icon, onClick }) => {
-	return (
-		<Card sx={{ minWidth: 280, cursor: 'pointer' }} onClick={onClick}>
-			<CardContent>
-				<Box display="flex" alignItems="center" gap={2} mb={2}>
-					{icon}
-					<Typography variant="h5" component="h3">
-						{title}
-					</Typography>
-				</Box>
-				<Typography variant="body2" color="text.secondary">
-					{description}
-				</Typography>
-			</CardContent>
-			<CardActions>
-				<Button size="large" fullWidth variant="contained">
-					Выбрать
-				</Button>
-			</CardActions>
-		</Card>
-	);
-};
+import { ActionCard } from '../ui';
 
 export const WorldSelectionScreen: React.FC = () => {
 	const handleWorldSelect = (worldType: WorldType) => {
@@ -67,28 +37,31 @@ export const WorldSelectionScreen: React.FC = () => {
 			</Typography>
 
 			<Box display="flex" gap={3} flexWrap="wrap" justifyContent="center" sx={{ mb: 6 }}>
-				<WorldCard
+				<ActionCard
 					title="Фэнтези"
 					description="Мир магии, драконов и средневековых приключений"
 					icon={<Castle color="primary" fontSize="large" />}
-					worldType="fantasy"
 					onClick={() => handleWorldSelect('fantasy')}
+					buttonText="Выбрать"
+					width={280}
 				/>
 
-				<WorldCard
+				<ActionCard
 					title="Киберпанк"
 					description="Футуристический мир высоких технологий и корпораций"
 					icon={<Computer color="primary" fontSize="large" />}
-					worldType="cyberpunk"
 					onClick={() => handleWorldSelect('cyberpunk')}
+					buttonText="Выбрать"
+					width={280}
 				/>
 
-				<WorldCard
+				<ActionCard
 					title="Повседневный"
 					description="Современный мир обычной жизни с необычными событиями"
 					icon={<Home color="primary" fontSize="large" />}
-					worldType="everyday"
 					onClick={() => handleWorldSelect('everyday')}
+					buttonText="Выбрать"
+					width={280}
 				/>
 			</Box>
 

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Container, Typography, Card, CardContent, CardActions, Button, Box, IconButton } from '@mui/material';
+import { Container, Typography, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow } from '@mui/icons-material';
 import { navigateToScreen, ROUTES } from '../model/navigation';
+import { ActionCard } from '../ui';
 
 export const WelcomeScreen: React.FC = () => {
 	const handleCreateNewWorld = () => {
@@ -30,43 +31,24 @@ export const WelcomeScreen: React.FC = () => {
 				</Typography>
 
 				<Box display="flex" gap={3} flexWrap="wrap" justifyContent="center" sx={{ mt: 4 }}>
-					<Card sx={{ minWidth: 300, cursor: 'pointer' }} onClick={handleCreateNewWorld}>
-						<CardContent>
-							<Box display="flex" alignItems="center" gap={2} mb={2}>
-								<Add color="primary" fontSize="large" />
-								<Typography variant="h5" component="h3">
-									Создать новый мир
-								</Typography>
-							</Box>
-							<Typography variant="body2" color="text.secondary">
-								Начните новое приключение в уникальном мире
-							</Typography>
-						</CardContent>
-						<CardActions>
-							<Button size="large" fullWidth variant="contained">
-								Создать
-							</Button>
-						</CardActions>
-					</Card>
+					<ActionCard
+						title="Создать новый мир"
+						description="Начните новое приключение в уникальном мире"
+						icon={<Add color="primary" fontSize="large" />}
+						onClick={handleCreateNewWorld}
+						buttonText="Создать"
+						variant="contained"
+					/>
 
-					<Card sx={{ minWidth: 300, cursor: 'pointer' }} onClick={handleContinueGame}>
-						<CardContent>
-							<Box display="flex" alignItems="center" gap={2} mb={2}>
-								<PlayArrow color="primary" fontSize="large" />
-								<Typography variant="h5" component="h3">
-									Продолжить игру
-								</Typography>
-							</Box>
-							<Typography variant="body2" color="text.secondary">
-								Вернитесь к сохранённому приключению
-							</Typography>
-						</CardContent>
-						<CardActions>
-							<Button size="large" fullWidth variant="outlined" disabled>
-								Продолжить
-							</Button>
-						</CardActions>
-					</Card>
+					<ActionCard
+						title="Продолжить игру"
+						description="Вернитесь к сохранённому приключению"
+						icon={<PlayArrow color="primary" fontSize="large" />}
+						onClick={handleContinueGame}
+						buttonText="Продолжить"
+						variant="outlined"
+						disabled={true}
+					/>
 				</Box>
 
 				<Box sx={{ mt: 4 }}>
