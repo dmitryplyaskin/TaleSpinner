@@ -3,18 +3,45 @@ import { Container, Typography, Button, Box, IconButton } from '@mui/material';
 import { ArrowBack, Castle, Computer, Home, Add } from '@mui/icons-material';
 import { navigateToScreen, selectWorld, goBack, ROUTES } from '../model/navigation';
 import type { WorldType } from '../model/navigation';
-import { ActionCard } from '../ui';
+import { ActionCard, ProgressLoader } from '../ui';
+import { useProgressLoader } from '../hooks/useProgressLoader';
+import { getWorldSetupTasks } from '../utils/mockRequests';
 
 export const WorldSelectionScreen: React.FC = () => {
-	const handleWorldSelect = (worldType: WorldType) => {
-		selectWorld(worldType);
-		navigateToScreen(ROUTES.CHARACTER_CREATION);
+	const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
+
+	const handleWorldSelect = async (worldType: WorldType) => {
+		try {
+			const tasks = getWorldSetupTasks(worldType);
+			const worldTitles: Record<WorldType, string> = {
+				fantasy: 'Создание фэнтезийного мира',
+				cyberpunk: 'Создание киберпанк мира',
+				everyday: 'Создание повседневного мира',
+				custom: 'Создание пользовательского мира',
+			};
+
+			await executeWithProgress(tasks, worldTitles[worldType]);
+
+			// Если все прошло успешно, выбираем мир и переходим дальше
+			selectWorld(worldType);
+			navigateToScreen(ROUTES.CHARACTER_CREATION);
+		} catch (error) {
+			// Ошибка или отмена - ничего не делаем, просто остаемся на текущем экране
+			console.log('Создание мира прервано:', error);
+		}
 	};
 
-	const handleCustomWorld = () => {
-		selectWorld('custom');
-		// Здесь будет переход к созданию кастомного мира
-		console.log('Создание кастомного мира');
+	const handleCustomWorld = async () => {
+		try {
+			const tasks = getWorldSetupTasks('custom');
+			await executeWithProgress(tasks, 'Создание пользовательского мира');
+
+			selectWorld('custom');
+			// Здесь будет переход к созданию кастомного мира
+			console.log('Создание кастомного мира завершено');
+		} catch (error) {
+			console.log('Создание кастомного мира прервано:', error);
+		}
 	};
 
 	const handleGoBack = () => {
@@ -44,6 +71,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					onClick={() => handleWorldSelect('fantasy')}
 					buttonText="Выбрать"
 					width={280}
+					disabled={isLoading}
 				/>
 
 				<ActionCard
@@ -53,6 +81,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					onClick={() => handleWorldSelect('cyberpunk')}
 					buttonText="Выбрать"
 					width={280}
+					disabled={isLoading}
 				/>
 
 				<ActionCard
@@ -62,14 +91,24 @@ export const WorldSelectionScreen: React.FC = () => {
 					onClick={() => handleWorldSelect('everyday')}
 					buttonText="Выбрать"
 					width={280}
+					disabled={isLoading}
 				/>
 			</Box>
 
 			<Box display="flex" justifyContent="center">
-				<Button variant="outlined" size="large" startIcon={<Add />} onClick={handleCustomWorld} sx={{ px: 4, py: 2 }}>
+				<Button
+					variant="outlined"
+					size="large"
+					startIcon={<Add />}
+					onClick={handleCustomWorld}
+					sx={{ px: 4, py: 2 }}
+					disabled={isLoading}
+				>
 					Создать свой мир
 				</Button>
 			</Box>
+
+			<ProgressLoader open={isLoading} steps={steps} currentStep={currentStep} onCancel={cancel} />
 		</Container>
 	);
 };
