@@ -1,0 +1,12 @@
+{
+  "name": "TaleSpinner",
+  "version": "0.0.1",
+  "description": "LLM RP Engine",
+  "main": "index.js",
+  "repository": "https://github.com/dmitryplyaskin/TaleSpinner.git",
+  "author": "dima28rus97@gmail.com",
+  "license": "MIT",
+  "scripts": {
+    "start": "cd ./frontend && yarn dev"
+  }
+}
