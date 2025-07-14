@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Typography, Card, CardContent, CardActions, Button, Box, IconButton } from '@mui/material';
 import { ArrowBack, Castle, Computer, Home, Add } from '@mui/icons-material';
-import { navigateToScreen, selectWorld, goBack } from '../model/navigation';
+import { navigateToScreen, selectWorld, goBack, ROUTES } from '../model/navigation';
 import type { WorldType } from '../model/navigation';
 
 interface WorldCardProps {
@@ -38,7 +38,7 @@ const WorldCard: React.FC<WorldCardProps> = ({ title, description, icon, onClick
 export const WorldSelectionScreen: React.FC = () => {
 	const handleWorldSelect = (worldType: WorldType) => {
 		selectWorld(worldType);
-		navigateToScreen('character-creation');
+		navigateToScreen(ROUTES.CHARACTER_CREATION);
 	};
 
 	const handleCustomWorld = () => {

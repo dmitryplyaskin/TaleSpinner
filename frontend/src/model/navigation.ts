@@ -1,8 +1,22 @@
-import { createEvent, createStore } from 'effector';
+import { createEvent, createStore, sample } from 'effector';
 
-export type Screen = 'welcome' | 'world-selection' | 'character-creation';
+// Константы маршрутов
+export const ROUTES = {
+	WELCOME: 'welcome',
+	WORLD_SELECTION: 'world-selection',
+	CHARACTER_CREATION: 'character-creation',
+} as const;
+
+export type Screen = (typeof ROUTES)[keyof typeof ROUTES];
 
 export type WorldType = 'fantasy' | 'cyberpunk' | 'everyday' | 'custom';
+
+// Мапа переходов "назад" - откуда куда можно вернуться
+const NAVIGATION_MAP: Record<Screen, Screen | null> = {
+	[ROUTES.WELCOME]: null, // с главного экрана некуда возвращаться
+	[ROUTES.WORLD_SELECTION]: ROUTES.WELCOME,
+	[ROUTES.CHARACTER_CREATION]: ROUTES.WORLD_SELECTION,
+};
 
 // События навигации
 export const navigateToScreen = createEvent<Screen>();
@@ -10,21 +24,18 @@ export const goBack = createEvent();
 export const selectWorld = createEvent<WorldType>();
 
 // Стор текущего экрана
-export const $currentScreen = createStore<Screen>('welcome').on(navigateToScreen, (_, screen) => screen);
-
-// История навигации для кнопки "Назад"
-export const $navigationHistory = createStore<Screen[]>(['welcome'])
-	.on(navigateToScreen, (history, screen) => [...history, screen])
-	.on(goBack, (history) => history.slice(0, -1));
+export const $currentScreen = createStore<Screen>(ROUTES.WELCOME).on(navigateToScreen, (_, screen) => screen);
 
 // Текущий выбранный мир
 export const $selectedWorld = createStore<WorldType | null>(null).on(selectWorld, (_, world) => world);
 
+// Получение предыдущего экрана на основе текущего
+const $previousScreen = $currentScreen.map((currentScreen) => NAVIGATION_MAP[currentScreen]);
+
 // Обработка кнопки "Назад"
-$navigationHistory.on(goBack, (history, _) => {
-	if (history.length > 1) {
-		const previousScreen = history[history.length - 2];
-		navigateToScreen(previousScreen);
-	}
-	return history;
+sample({
+	clock: goBack,
+	source: $previousScreen,
+	filter: (previousScreen): previousScreen is Screen => previousScreen !== null,
+	target: navigateToScreen,
 });

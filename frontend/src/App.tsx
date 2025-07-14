@@ -2,7 +2,7 @@ import React from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
-import { $currentScreen } from './model/navigation';
+import { $currentScreen, ROUTES } from './model/navigation';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { WorldSelectionScreen } from './components/WorldSelectionScreen';
 import { CharacterCreationScreen } from './components/CharacterCreationScreen';
@@ -31,11 +31,11 @@ function App() {
 
 	const renderScreen = () => {
 		switch (currentScreen) {
-			case 'welcome':
+			case ROUTES.WELCOME:
 				return <WelcomeScreen />;
-			case 'world-selection':
+			case ROUTES.WORLD_SELECTION:
 				return <WorldSelectionScreen />;
-			case 'character-creation':
+			case ROUTES.CHARACTER_CREATION:
 				return <CharacterCreationScreen />;
 			default:
 				return <WelcomeScreen />;

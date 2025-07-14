@@ -16,11 +16,11 @@ import {
 	Avatar,
 } from '@mui/material';
 import { ArrowBack, Person } from '@mui/icons-material';
-import { useStore } from 'effector-react';
+import { useUnit } from 'effector-react';
 import { goBack, $selectedWorld } from '../model/navigation';
 
 export const CharacterCreationScreen: React.FC = () => {
-	const selectedWorld = useStore($selectedWorld);
+	const selectedWorld = useUnit($selectedWorld);
 	const [characterName, setCharacterName] = useState('');
 	const [characterClass, setCharacterClass] = useState('');
 	const [characterRace, setCharacterRace] = useState('');

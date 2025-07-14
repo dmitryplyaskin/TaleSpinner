@@ -1,11 +1,11 @@
 import React from 'react';
 import { Container, Typography, Card, CardContent, CardActions, Button, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow } from '@mui/icons-material';
-import { navigateToScreen } from '../model/navigation';
+import { navigateToScreen, ROUTES } from '../model/navigation';
 
 export const WelcomeScreen: React.FC = () => {
 	const handleCreateNewWorld = () => {
-		navigateToScreen('world-selection');
+		navigateToScreen(ROUTES.WORLD_SELECTION);
 	};
 
 	const handleContinueGame = () => {
