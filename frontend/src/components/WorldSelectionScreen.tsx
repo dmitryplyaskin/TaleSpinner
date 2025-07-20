@@ -1,5 +1,5 @@
-import React from 'react';
-import { Container, Typography, Button, Box, IconButton } from '@mui/material';
+import React, { useState } from 'react';
+import { Container, Typography, Button, Box, IconButton, TextField, Collapse } from '@mui/material';
 import { ArrowBack, Castle, Computer, Home, Add } from '@mui/icons-material';
 import { navigateToScreen, selectWorld, goBack, ROUTES } from '../model/navigation';
 import type { WorldType } from '../model/navigation';
@@ -9,10 +9,19 @@ import { getWorldSetupTasks } from '../utils/mockRequests';
 
 export const WorldSelectionScreen: React.FC = () => {
 	const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
+	const [selectedWorldType, setSelectedWorldType] = useState<WorldType | null>(null);
+	const [additionalInfo, setAdditionalInfo] = useState('');
 
-	const handleWorldSelect = async (worldType: WorldType) => {
+	const handleWorldCardClick = (worldType: WorldType) => {
+		setSelectedWorldType(worldType);
+		setAdditionalInfo(''); // Сбрасываем дополнительную информацию при смене мира
+	};
+
+	const handleCreateSelectedWorld = async () => {
+		if (!selectedWorldType) return;
+
 		try {
-			const tasks = getWorldSetupTasks(worldType);
+			const tasks = getWorldSetupTasks(selectedWorldType);
 			const worldTitles: Record<WorldType, string> = {
 				fantasy: 'Создание фэнтезийного мира',
 				cyberpunk: 'Создание киберпанк мира',
@@ -20,10 +29,11 @@ export const WorldSelectionScreen: React.FC = () => {
 				custom: 'Создание пользовательского мира',
 			};
 
-			await executeWithProgress(tasks, worldTitles[worldType]);
+			await executeWithProgress(tasks, worldTitles[selectedWorldType]);
 
 			// Если все прошло успешно, выбираем мир и переходим дальше
-			selectWorld(worldType);
+			// Здесь можно использовать additionalInfo для передачи дополнительной информации
+			selectWorld(selectedWorldType);
 			navigateToScreen(ROUTES.CHARACTER_CREATION);
 		} catch (error) {
 			// Ошибка или отмена - ничего не делаем, просто остаемся на текущем экране
@@ -68,8 +78,8 @@ export const WorldSelectionScreen: React.FC = () => {
 					title="Фэнтези"
 					description="Мир магии, драконов и средневековых приключений"
 					icon={<Castle color="primary" fontSize="large" />}
-					onClick={() => handleWorldSelect('fantasy')}
-					buttonText="Выбрать"
+					onClick={() => handleWorldCardClick('fantasy')}
+					buttonText={selectedWorldType === 'fantasy' ? 'Выбрано' : 'Выбрать'}
 					width={280}
 					disabled={isLoading}
 				/>
@@ -78,8 +88,8 @@ export const WorldSelectionScreen: React.FC = () => {
 					title="Киберпанк"
 					description="Футуристический мир высоких технологий и корпораций"
 					icon={<Computer color="primary" fontSize="large" />}
-					onClick={() => handleWorldSelect('cyberpunk')}
-					buttonText="Выбрать"
+					onClick={() => handleWorldCardClick('cyberpunk')}
+					buttonText={selectedWorldType === 'cyberpunk' ? 'Выбрано' : 'Выбрать'}
 					width={280}
 					disabled={isLoading}
 				/>
@@ -88,12 +98,42 @@ export const WorldSelectionScreen: React.FC = () => {
 					title="Повседневный"
 					description="Современный мир обычной жизни с необычными событиями"
 					icon={<Home color="primary" fontSize="large" />}
-					onClick={() => handleWorldSelect('everyday')}
-					buttonText="Выбрать"
+					onClick={() => handleWorldCardClick('everyday')}
+					buttonText={selectedWorldType === 'everyday' ? 'Выбрано' : 'Выбрать'}
 					width={280}
 					disabled={isLoading}
 				/>
 			</Box>
+
+			{/* Секция с дополнительной информацией */}
+			<Collapse in={!!selectedWorldType && selectedWorldType !== 'custom'}>
+				<Box sx={{ mb: 4 }}>
+					<Typography variant="h6" gutterBottom>
+						Дополнительная информация о мире (опционально)
+					</Typography>
+					<TextField
+						fullWidth
+						multiline
+						rows={4}
+						placeholder="Опишите дополнительные детали, особенности или ограничения вашего мира..."
+						value={additionalInfo}
+						onChange={(e) => setAdditionalInfo(e.target.value)}
+						variant="outlined"
+						disabled={isLoading}
+					/>
+					<Box display="flex" justifyContent="center" mt={3}>
+						<Button
+							variant="contained"
+							size="large"
+							onClick={handleCreateSelectedWorld}
+							sx={{ px: 4, py: 2 }}
+							disabled={isLoading}
+						>
+							Создать выбранный мир
+						</Button>
+					</Box>
+				</Box>
+			</Collapse>
 
 			<Box display="flex" justifyContent="center">
 				<Button
@@ -102,7 +142,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					startIcon={<Add />}
 					onClick={handleCustomWorld}
 					sx={{ px: 4, py: 2 }}
-					disabled={isLoading}
+					disabled
 				>
 					Создать свой мир
 				</Button>
