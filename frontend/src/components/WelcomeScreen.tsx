@@ -3,6 +3,8 @@ import { Container, Typography, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow } from '@mui/icons-material';
 import { navigateToScreen, ROUTES } from '../model/navigation';
 import { ActionCard } from '../ui';
+import { SettingsModal } from './settings_modal';
+import { openSettingsModal } from '../model/settings';
 
 export const WelcomeScreen: React.FC = () => {
 	const handleCreateNewWorld = () => {
@@ -15,8 +17,7 @@ export const WelcomeScreen: React.FC = () => {
 	};
 
 	const handleSettings = () => {
-		// Пока не работает
-		console.log('Настройки');
+		openSettingsModal();
 	};
 
 	return (
@@ -68,6 +69,8 @@ export const WelcomeScreen: React.FC = () => {
 					</IconButton>
 				</Box>
 			</Box>
+
+			<SettingsModal />
 		</Container>
 	);
 };
