@@ -31,3 +31,5 @@ type Message = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type WorldType = "fantasy" | "sci-fi" | "everyday";

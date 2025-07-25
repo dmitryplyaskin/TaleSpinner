@@ -94,7 +94,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					disabled={isLoading}
 				/>
 
-				<ActionCard
+				{/* <ActionCard
 					title="Повседневный"
 					description="Современный мир обычной жизни с необычными событиями"
 					icon={<Home color="primary" fontSize="large" />}
@@ -102,7 +102,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					buttonText={selectedWorldType === 'everyday' ? 'Выбрано' : 'Выбрать'}
 					width={280}
 					disabled={isLoading}
-				/>
+				/> */}
 			</Box>
 
 			{/* Секция с дополнительной информацией */}

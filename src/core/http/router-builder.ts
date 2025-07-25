@@ -1,13 +1,13 @@
 import { Request, Response, Router } from "express";
 
-export interface EndpointConfig {
+export interface RouteConfig {
   path: string;
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   handler: (req: Request, res: Response) => Promise<void> | void;
   middleware?: Array<(req: Request, res: Response, next: Function) => void>;
 }
 
-export class EndpointFactory {
+export class RouterBuilder {
   private router: Router;
 
   constructor() {
@@ -15,9 +15,9 @@ export class EndpointFactory {
   }
 
   /**
-   * Создает энпоинт на основе конфигурации
+   * Создает роут на основе конфигурации
    */
-  createEndpoint(config: EndpointConfig): this {
+  addRoute(config: RouteConfig): this {
     const { path, method, handler, middleware = [] } = config;
 
     // Применяем middleware если есть
@@ -38,29 +38,28 @@ export class EndpointFactory {
         this.router.patch(path, ...middleware, handler);
         break;
     }
-
     return this;
   }
 
   /**
-   * Создает несколько энпоинтов сразу
+   * Создает несколько роутов сразу
    */
-  createEndpoints(configs: EndpointConfig[]): this {
-    configs.forEach((config) => this.createEndpoint(config));
+  addRoutes(configs: RouteConfig[]): this {
+    configs.forEach((config) => this.addRoute(config));
     return this;
   }
 
   /**
    * Возвращает настроенный роутер
    */
-  getRouter(): Router {
+  build(): Router {
     return this.router;
   }
 
   /**
-   * Создает базовый CRUD энпоинт
+   * Создает базовый CRUD роутер
    */
-  createCRUDEndpoint(
+  addCRUDRoutes(
     basePath: string,
     handlers: {
       create?: (req: Request, res: Response) => Promise<void> | void;
@@ -71,7 +70,7 @@ export class EndpointFactory {
     }
   ): this {
     if (handlers.create) {
-      this.createEndpoint({
+      this.addRoute({
         path: basePath,
         method: "POST",
         handler: handlers.create,
@@ -79,7 +78,7 @@ export class EndpointFactory {
     }
 
     if (handlers.read) {
-      this.createEndpoint({
+      this.addRoute({
         path: `${basePath}/:id`,
         method: "GET",
         handler: handlers.read,
@@ -87,7 +86,7 @@ export class EndpointFactory {
     }
 
     if (handlers.update) {
-      this.createEndpoint({
+      this.addRoute({
         path: `${basePath}/:id`,
         method: "PUT",
         handler: handlers.update,
@@ -95,7 +94,7 @@ export class EndpointFactory {
     }
 
     if (handlers.delete) {
-      this.createEndpoint({
+      this.addRoute({
         path: `${basePath}/:id`,
         method: "DELETE",
         handler: handlers.delete,
@@ -103,7 +102,7 @@ export class EndpointFactory {
     }
 
     if (handlers.list) {
-      this.createEndpoint({
+      this.addRoute({
         path: basePath,
         method: "GET",
         handler: handlers.list,

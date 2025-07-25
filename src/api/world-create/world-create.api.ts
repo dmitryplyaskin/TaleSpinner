@@ -3,7 +3,7 @@ import {
   ProgressStep,
   WorldCreateRequest,
   WorldCreateResponse,
-} from "../../shared/types/api";
+} from "../../../shared/types/api";
 
 // Заглушка для имитации работы с ЛЛМ
 const mockLLMTasks = (
