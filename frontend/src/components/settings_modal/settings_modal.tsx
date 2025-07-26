@@ -1,15 +1,19 @@
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Divider } from '@mui/material';
-import { useStore } from 'effector-react';
+import { useUnit } from 'effector-react';
 import { $isSettingsModalOpen, closeSettingsModal } from '../../model/settings';
 import { ApiSettingsSection } from './api_settings_section';
 import { SettingsGroup } from './settings_group';
 
 export const SettingsModal: React.FC = () => {
-	const isOpen = useStore($isSettingsModalOpen);
+	const isOpen = useUnit($isSettingsModalOpen);
 
 	const handleClose = () => {
 		closeSettingsModal();
+	};
+
+	const handleSave = () => {
+		console.log('save');
 	};
 
 	return (
@@ -39,6 +43,7 @@ export const SettingsModal: React.FC = () => {
 			</DialogContent>
 
 			<DialogActions>
+				<Button onClick={handleSave}>Сохранить</Button>
 				<Button onClick={handleClose}>Закрыть</Button>
 			</DialogActions>
 		</Dialog>

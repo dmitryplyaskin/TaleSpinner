@@ -15,6 +15,7 @@ export const resetSettings = createEvent();
 // События для модального окна
 export const openSettingsModal = createEvent();
 export const closeSettingsModal = createEvent();
+export const saveSettings = createEvent();
 
 // Стор для настроек
 export const $settings = createStore<AppSettings>(DEFAULT_SETTINGS)
@@ -55,4 +56,4 @@ export const $settings = createStore<AppSettings>(DEFAULT_SETTINGS)
 // Стор для состояния модального окна
 export const $isSettingsModalOpen = createStore<boolean>(false)
 	.on(openSettingsModal, () => true)
-	.on(closeSettingsModal, () => false);
+	.on([closeSettingsModal, saveSettings], () => false);

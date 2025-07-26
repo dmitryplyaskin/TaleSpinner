@@ -2,7 +2,11 @@ import fs from "fs/promises";
 import path from "path";
 
 export class JsonFileManager {
-  private basePath = "./data";
+  private basePath: string;
+
+  constructor(basePath?: string) {
+    this.basePath = basePath || "./data";
+  }
 
   private getFilePath(folder: string, fileName: string): string {
     return path.join(this.basePath, folder, `${fileName}.json`);
