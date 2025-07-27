@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
 import { $currentScreen, ROUTES } from './model/navigation';
+import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { WorldSelectionScreen } from './components/WorldSelectionScreen';
 import { CharacterCreationScreen } from './components/CharacterCreationScreen';
@@ -28,6 +29,11 @@ const theme = createTheme({
 
 function App() {
 	const currentScreen = useUnit($currentScreen);
+
+	// Загружаем настройки при инициализации приложения
+	useEffect(() => {
+		loadSettingsFx();
+	}, []);
 
 	const renderScreen = () => {
 		switch (currentScreen) {

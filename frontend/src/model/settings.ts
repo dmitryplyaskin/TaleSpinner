@@ -1,5 +1,15 @@
-import { createStore, createEvent } from 'effector';
+import { createStore, createEvent, createEffect, sample } from 'effector';
 import { AppSettings, DEFAULT_SETTINGS } from '../../../shared/types/settings';
+import { httpClient } from '@utils/api';
+
+// Эффекты для работы с API
+export const loadSettingsFx = createEffect(async (): Promise<AppSettings> => {
+	return await httpClient.get<AppSettings>('/api-settings');
+});
+
+export const saveSettingsFx = createEffect(async (settings: AppSettings): Promise<AppSettings> => {
+	return await httpClient.post<AppSettings, AppSettings>('/api-settings', settings);
+});
 
 // События для управления настройками
 export const updateApiToken = createEvent<string>();
@@ -19,6 +29,9 @@ export const saveSettings = createEvent();
 
 // Стор для настроек
 export const $settings = createStore<AppSettings>(DEFAULT_SETTINGS)
+	// Загрузка настроек с сервера
+	.on(loadSettingsFx.doneData, (_, settings) => settings)
+	// Обновление локальных настроек
 	.on(updateApiToken, (state, token) => ({
 		...state,
 		api: { ...state.api, token },
@@ -57,3 +70,10 @@ export const $settings = createStore<AppSettings>(DEFAULT_SETTINGS)
 export const $isSettingsModalOpen = createStore<boolean>(false)
 	.on(openSettingsModal, () => true)
 	.on([closeSettingsModal, saveSettings], () => false);
+
+sample({
+	clock: saveSettings,
+	source: $settings,
+	fn: (settings) => settings,
+	target: saveSettingsFx,
+});
