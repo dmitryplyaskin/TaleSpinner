@@ -52,6 +52,8 @@ export class JsonFileService<
   constructor(basePath: string = "./data", singleFileName?: string) {
     this.basePath = path.resolve(basePath);
     this.singleFileName = singleFileName;
+
+    this.initialize();
   }
 
   /**
