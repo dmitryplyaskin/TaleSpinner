@@ -1,6 +1,4 @@
-import { AppSettings } from '../../../shared/types/settings';
-
-export const API_BASE_URL = 'http://localhost:3000';
+export const API_BASE_URL = 'http://localhost:5000';
 
 // Универсальные HTTP методы
 export const httpClient = {

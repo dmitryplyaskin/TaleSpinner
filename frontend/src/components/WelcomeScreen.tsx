@@ -3,7 +3,7 @@ import { Container, Typography, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow } from '@mui/icons-material';
 import { navigateToScreen, ROUTES } from '../model/navigation';
 import { ActionCard } from '../ui';
-import { SettingsModal } from './settings_modal';
+import { SettingsModal } from './settings-modal';
 import { openSettingsModal } from '../model/settings';
 
 export const WelcomeScreen: React.FC = () => {

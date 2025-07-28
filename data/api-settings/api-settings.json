@@ -1,0 +1,23 @@
+{
+  "api": {
+    "apiKey": "",
+    "provider": "openrouter",
+    "model": "qwen/qwen3-235b-a22b-2507:free",
+    "token": "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"
+  },
+  "rag": {
+    "enabled": false,
+    "model": ""
+  },
+  "embedding": {
+    "enabled": false,
+    "model": ""
+  },
+  "responseGeneration": {
+    "enabled": false,
+    "model": ""
+  },
+  "id": "13033993-e2a9-4efb-83ad-d4d512b7c05a",
+  "createdAt": "2025-07-28T13:38:41.143Z",
+  "updatedAt": "2025-07-28T13:38:55.296Z"
+}
