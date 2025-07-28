@@ -1,35 +1,15 @@
-export type World = {
-  id: string;
+import { BaseFileData } from "./base-file";
+
+export type WorldType = "fantasy";
+export interface World extends BaseFileData {
   name: string;
-  description: string;
-  image: string;
-  createdAt: Date;
-  updatedAt: Date;
-  characters: Character[];
-  chats: Chats[];
-};
+  description?: string;
+  image?: string;
+  worldType: WorldType;
+  worldInfo: WorldInfo;
+}
 
-export type Character = {
-  id: string;
-  name: string;
-  description: string;
-  image: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type Chats = {
-  id: string;
-  worldId: string;
-  messages: Message[];
-};
-
-type Message = {
-  id: string;
-  chatId: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type WorldType = "fantasy" | "sci-fi" | "everyday";
+export interface WorldInfo {
+  instructions: string;
+  mainInfo: string;
+}

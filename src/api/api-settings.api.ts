@@ -1,4 +1,4 @@
-import { ApiSettingsService } from "../services/api-settings";
+import { ApiSettingsService } from "../services/api-settings.service";
 import { RouterBuilder } from "../core/http/router-builder";
 
 const router = new RouterBuilder();

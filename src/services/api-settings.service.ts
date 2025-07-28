@@ -1,7 +1,5 @@
-import {
-  BaseFileData,
-  JsonFileService,
-} from "../core/services/json-file.service";
+import { JsonFileService } from "../core/services/json-file.service";
+import { ApiSettings } from "@shared/types/api-settings";
 
 const ApiSettingsService = new JsonFileService<ApiSettings>(
   "./data/api-settings",
@@ -29,23 +27,3 @@ ApiSettingsService.createFile({
 });
 
 export { ApiSettingsService };
-
-export interface ApiSettings extends BaseFileData {
-  api: {
-    token: string;
-    provider: "openrouter";
-    model: string;
-  };
-  rag: {
-    enabled: boolean;
-    model: string;
-  };
-  embedding: {
-    enabled: boolean;
-    model: string;
-  };
-  responseGeneration: {
-    enabled: boolean;
-    model: string;
-  };
-}
