@@ -42,9 +42,13 @@ export class JsonFileService<
     const filename = this.singleFileName || options.filename || id;
     const filepath = path.join(this.basePath, `${filename}.json`);
 
-    // Проверяем, существует ли файл
-    if (!options.overwrite && (await this.fileExists(filepath))) {
-      throw new Error(`File ${filename}.json already exists`);
+    if (await this.fileExists(filepath)) {
+      if (options.skipIfExists) {
+        return (await this.readFile(filename)) as BaseFileData & T;
+      }
+      if (!options.overwrite) {
+        throw new Error(`File ${filename}.json already exists`);
+      }
     }
 
     const now = new Date().toISOString();

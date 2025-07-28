@@ -6,24 +6,29 @@ const ApiSettingsService = new JsonFileService<ApiSettings>(
   "api-settings"
 );
 
-ApiSettingsService.createFile({
-  api: {
-    token: "",
-    provider: "openrouter",
-    model: "qwen/qwen3-235b-a22b-2507:free",
+ApiSettingsService.createFile(
+  {
+    api: {
+      token: "",
+      provider: "openrouter",
+      model: "qwen/qwen3-235b-a22b-2507:free",
+    },
+    rag: {
+      enabled: false,
+      model: "",
+    },
+    embedding: {
+      enabled: false,
+      model: "",
+    },
+    responseGeneration: {
+      enabled: false,
+      model: "",
+    },
   },
-  rag: {
-    enabled: false,
-    model: "",
-  },
-  embedding: {
-    enabled: false,
-    model: "",
-  },
-  responseGeneration: {
-    enabled: false,
-    model: "",
-  },
-});
+  {
+    skipIfExists: true,
+  }
+);
 
 export { ApiSettingsService };

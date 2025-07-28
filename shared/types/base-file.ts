@@ -15,6 +15,7 @@ export interface CreateFileOptions {
   id?: string;
   filename?: string;
   overwrite?: boolean;
+  skipIfExists?: boolean;
 }
 
 /**

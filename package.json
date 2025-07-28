@@ -21,6 +21,8 @@
     "exec": "ts-node ./src/index.js"
   },
   "dependencies": {
+    "@lancedb/lancedb": "^0.21.2",
+    "apache-arrow": "^21.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
