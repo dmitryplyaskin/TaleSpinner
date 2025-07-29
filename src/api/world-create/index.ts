@@ -8,8 +8,10 @@ const worldCreateService = new WorldCreateService();
 routerBuilder.addRoute({
   path: "/world/create",
   method: "POST",
-  //@ts-expect-error
-  handler: (req, res) => worldCreateService.createWorld(req.body),
+  handler: async (req, res) => {
+    const result = await worldCreateService.createWorld(req.body);
+    res.json(result);
+  },
 });
 
 export const worldCreateRouter = routerBuilder.build();

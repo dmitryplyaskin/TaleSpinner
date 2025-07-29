@@ -5,6 +5,7 @@ export const ROUTES = {
 	WELCOME: 'welcome',
 	WORLD_SELECTION: 'world-selection',
 	CHARACTER_CREATION: 'character-creation',
+	CHOOSE_WORLD: 'choose-world',
 } as const;
 
 export type Screen = (typeof ROUTES)[keyof typeof ROUTES];
@@ -15,7 +16,8 @@ export type WorldType = 'fantasy' | 'cyberpunk' | 'everyday' | 'custom';
 const NAVIGATION_MAP: Record<Screen, Screen | null> = {
 	[ROUTES.WELCOME]: null, // с главного экрана некуда возвращаться
 	[ROUTES.WORLD_SELECTION]: ROUTES.WELCOME,
-	[ROUTES.CHARACTER_CREATION]: ROUTES.WORLD_SELECTION,
+	[ROUTES.CHOOSE_WORLD]: ROUTES.WORLD_SELECTION,
+	[ROUTES.CHARACTER_CREATION]: ROUTES.CHOOSE_WORLD,
 };
 
 // События навигации

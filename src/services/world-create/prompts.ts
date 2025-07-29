@@ -7,52 +7,63 @@ export const createWorldPrompt = (
   return `
 # RPG World Generation Prompt
 
-You are an expert Game Master and world-builder specializing in creating immersive fantasy settings for tabletop role-playing games. Your task is to craft a detailed, believable, and engaging game world that serves as the foundation for epic adventures.
+## Role and Expertise
+You are an expert Game Master and world-builder with extensive experience in creating immersive fantasy settings for tabletop role-playing games. Your expertise includes deep knowledge of mythology, history, politics, economics, and narrative design.
 
-## Your Objectives:
+## Primary Objective
+Create three distinct and compelling world synopses that will serve as foundations for full-scale RPG campaigns. Each world should be unique in tone, setting, and central conflict to provide players with diverse gameplay experiences.
 
-**Create a comprehensive world description that includes:**
+## Requirements for Each Synopsis
+- **Length**: 200-400 words
+- **Structure**: Clear description of setting, unique world features, and central conflict
+- **Style**: Engaging and immersive, written to captivate and intrigue players
+- **Uniqueness**: Each world must be dramatically different in genre, theme, and atmosphere
 
-### 1. Primary Setting Location
-- Describe the main area where adventures will take place (kingdom, continent, city-state, region, etc.)
-- Include geographical features, climate, and notable landmarks
-- Establish the scope and boundaries of the playable area
-
-### 2. World Structure & Governance
-- Political systems, ruling powers, and major factions
-- Social hierarchy and cultural dynamics
-- Economic systems and trade relationships
-- Laws, customs, and societal norms
-
-### 3. Historical Timeline
-- Key historical events that shaped the current world
-- Recent developments that create adventure opportunities
-- Ancient mysteries and forgotten civilizations
-- Current conflicts, tensions, or emerging threats
-
-### 4. Unique World Features
-- Distinctive magical systems or supernatural elements
-- Rare creatures, phenomena, or resources
-- Architectural styles and technological level
-- Cultural practices, religions, and belief systems
-- Languages and communication methods
-
-### 5. Adventure Hooks & Opportunities
-- Current problems requiring heroic intervention
-- Mysteries to uncover and secrets to discover
-- Potential allies and dangerous adversaries
-- Locations ripe for exploration
-
-## Guidelines:
-- Ensure internal consistency and logical cause-and-effect relationships
-- Create opportunities for player agency and meaningful choices
-- Balance familiar fantasy elements with original, memorable details
-- Leave room for expansion and player character integration
-- Consider how different character classes and backgrounds would fit
+## Mandatory Elements for Each World
+1. **World Name** - concise and memorable
+2. **Genre and Tone** - clear definition of atmosphere (dark fantasy, high fantasy, steampunk, etc.)
+3. **Unique Feature** - what makes this world special and distinct from standard settings 
 
 ${userPrompt ? `## User's Specific Requirements: \n${userPrompt}` : ""}
 
-## Output Format:
-Present your world description within <world> tags, organizing the information clearly and providing enough detail for immediate use in gameplay while leaving space for further development during actual play sessions.
+## Output Format
+Use exactly the following JSON format for easy parsing:
+
+<parse>
+{
+  "worlds": [
+    {
+      "id": 1,
+      "title": "World Name",
+      "genre": "Genre",
+      "tone": "Tone/Atmosphere",
+      "unique_feature": "Brief description of unique feature",
+      "synopsis": "Full world synopsis (200-400 words)", 
+    },
+    {
+      "id": 2,
+      "title": "...",
+      // similar structure
+    },
+    {
+      "id": 3,
+      "title": "...",
+      // similar structure
+    }
+  ]
+}
+</parse>
+
+## Additional Guidelines
+- Avoid clichés and overused tropes
+- Each world should offer different gameplay styles (political intrigue, exploration, combat, mystery)
+- Include elements that can lead to long-term campaigns
+- Leave enough "blank spaces" for further world development
+- Ensure conflicts can be meaningfully addressed by player actions
+- Consider diverse cultural inspirations beyond typical European medieval fantasy
+- Balance accessibility for new players with depth for experienced groups
+- You don't have to impose on the main plot directly. The player can decide to stay out of the conflict, take the evil side, or just go about their business and ignore the world around them, playing the role of an ordinary being.
+
+Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience.
 `;
 };

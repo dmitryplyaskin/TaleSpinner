@@ -19,35 +19,30 @@ export class WorldCreateService {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: apiSettings.api.token,
       // @ts-ignore
-      headers: {
-        "HTTP-Referer": "http://localhost:5000",
-        "X-Title": "TaleSpinner",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiSettings.api.token}`,
-      },
+      // headers: {
+      //   "HTTP-Referer": "http://localhost:5000",
+      //   "X-Title": "TaleSpinner",
+      //   "Content-Type": "application/json",
+      //   Authorization: `Bearer ${apiSettings.api.token}`,
+      // },
     });
-    // const openaiService = new OpenAIService({
-    //   apiKey: apiSettings.api.token,
-    //   baseURL: "https://openrouter.ai/api/v1",
-    //   headers: {
-    //     "HTTP-Referer": "http://localhost:5000",
-    //     "X-Title": "TaleSpinner",
-    //     "Content-Type": "application/json",
-    //     Authorization: `Bearer ${apiSettings.api.token}`,
-    //   },
-    // });
 
     const response = await openaiService.chat.completions.create({
       model: apiSettings.api.model,
       messages: [{ role: "user", content: prompt }],
     });
 
+    const result = response.choices[0].message.content || "";
+    const parsedResult = JSON.parse(
+      result.replace(/<parse>/g, "").replace(/<\/parse>/g, "")
+    );
+
     const worldId = uuidv4();
     WorldCreateJsonService.createFile(
-      { data: response },
+      { data: parsedResult },
       { filename: worldId, id: worldId }
     );
 
-    return response;
+    return parsedResult;
   }
 }

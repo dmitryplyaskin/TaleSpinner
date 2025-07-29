@@ -5,13 +5,15 @@ import { navigateToScreen, goBack, ROUTES } from '../model/navigation';
 
 import { ActionCard, ProgressLoader } from '../ui';
 import { useProgressLoader } from '../hooks/useProgressLoader';
-import { createWorldFx } from '@model/world-create';
+import { $worldCreateProgress, createWorldFx } from '@model/world-create';
 import { WorldType } from '@shared/types/world';
+import { useUnit } from 'effector-react';
 
 export const WorldSelectionScreen: React.FC = () => {
-	const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
+	// const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
 	const [selectedWorldType, setSelectedWorldType] = useState<WorldType | null>(null);
 	const [additionalInfo, setAdditionalInfo] = useState('');
+	const isLoading = useUnit($worldCreateProgress);
 
 	const handleWorldCardClick = (worldType: WorldType) => {
 		setSelectedWorldType(worldType);
@@ -23,7 +25,6 @@ export const WorldSelectionScreen: React.FC = () => {
 
 		try {
 			createWorldFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
-			navigateToScreen(ROUTES.CHARACTER_CREATION);
 		} catch (error) {}
 	};
 
@@ -133,7 +134,7 @@ export const WorldSelectionScreen: React.FC = () => {
 				</Button>
 			</Box>
 
-			<ProgressLoader open={isLoading} steps={steps} currentStep={currentStep} onCancel={cancel} />
+			{/* <ProgressLoader open={isLoading} steps={steps} currentStep={currentStep} onCancel={cancel} /> */}
 		</Container>
 	);
 };
