@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Container, Typography, Button, Box, IconButton, TextField, Collapse } from '@mui/material';
-import { ArrowBack, Castle, Computer, Home, Add } from '@mui/icons-material';
-import { navigateToScreen, selectWorld, goBack, ROUTES } from '../model/navigation';
-import type { WorldType } from '../model/navigation';
+import { ArrowBack, Castle, Add } from '@mui/icons-material';
+import { navigateToScreen, goBack, ROUTES } from '../model/navigation';
+
 import { ActionCard, ProgressLoader } from '../ui';
 import { useProgressLoader } from '../hooks/useProgressLoader';
-import { getWorldSetupTasks } from '../utils/mockRequests';
+import { createWorldFx } from '@model/world-create';
+import { WorldType } from '@shared/types/world';
 
 export const WorldSelectionScreen: React.FC = () => {
 	const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
@@ -21,37 +22,21 @@ export const WorldSelectionScreen: React.FC = () => {
 		if (!selectedWorldType) return;
 
 		try {
-			const tasks = getWorldSetupTasks(selectedWorldType);
-			const worldTitles: Record<WorldType, string> = {
-				fantasy: 'Создание фэнтезийного мира',
-				cyberpunk: 'Создание киберпанк мира',
-				everyday: 'Создание повседневного мира',
-				custom: 'Создание пользовательского мира',
-			};
-
-			await executeWithProgress(tasks, worldTitles[selectedWorldType]);
-
-			// Если все прошло успешно, выбираем мир и переходим дальше
-			// Здесь можно использовать additionalInfo для передачи дополнительной информации
-			selectWorld(selectedWorldType);
+			createWorldFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
 			navigateToScreen(ROUTES.CHARACTER_CREATION);
-		} catch (error) {
-			// Ошибка или отмена - ничего не делаем, просто остаемся на текущем экране
-			console.log('Создание мира прервано:', error);
-		}
+		} catch (error) {}
 	};
 
 	const handleCustomWorld = async () => {
-		try {
-			const tasks = getWorldSetupTasks('custom');
-			await executeWithProgress(tasks, 'Создание пользовательского мира');
-
-			selectWorld('custom');
-			// Здесь будет переход к созданию кастомного мира
-			console.log('Создание кастомного мира завершено');
-		} catch (error) {
-			console.log('Создание кастомного мира прервано:', error);
-		}
+		// try {
+		// 	const tasks = getWorldSetupTasks('custom');
+		// 	await executeWithProgress(tasks, 'Создание пользовательского мира');
+		// 	selectWorld('custom');
+		// 	// Здесь будет переход к созданию кастомного мира
+		// 	console.log('Создание кастомного мира завершено');
+		// } catch (error) {
+		// 	console.log('Создание кастомного мира прервано:', error);
+		// }
 	};
 
 	const handleGoBack = () => {
@@ -84,7 +69,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					disabled={isLoading}
 				/>
 
-				<ActionCard
+				{/* <ActionCard
 					title="Киберпанк"
 					description="Футуристический мир высоких технологий и корпораций"
 					icon={<Computer color="primary" fontSize="large" />}
@@ -92,7 +77,7 @@ export const WorldSelectionScreen: React.FC = () => {
 					buttonText={selectedWorldType === 'cyberpunk' ? 'Выбрано' : 'Выбрать'}
 					width={280}
 					disabled={isLoading}
-				/>
+				/> */}
 
 				{/* <ActionCard
 					title="Повседневный"

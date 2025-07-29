@@ -1,6 +1,11 @@
 import { BaseFileData } from "./base-file";
 
-export type WorldType = "fantasy";
+export type WorldCreateTask = {
+  worldType: WorldType;
+  userPrompt?: string;
+};
+
+export type WorldType = "fantasy" | "cyberpunk" | "everyday" | "custom";
 export interface World extends BaseFileData {
   name: string;
   description?: string;

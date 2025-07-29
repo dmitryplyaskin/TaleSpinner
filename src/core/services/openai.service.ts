@@ -11,6 +11,7 @@ export interface OpenAIServiceConfig {
   project?: string;
   timeout?: number;
   maxRetries?: number;
+  headers?: Record<string, string>;
 }
 
 export interface ChatCompletionParams {
@@ -50,10 +51,7 @@ export class OpenAIService {
   private client: OpenAI;
   private defaultModel: string;
 
-  constructor(
-    config: OpenAIServiceConfig,
-    defaultModel: string = "gpt-3.5-turbo"
-  ) {
+  constructor(config: OpenAIServiceConfig, defaultModel: string = "") {
     this.client = new OpenAI({
       apiKey: config.apiKey,
       baseURL: config.baseURL,
@@ -61,6 +59,7 @@ export class OpenAIService {
       project: config.project,
       timeout: config.timeout || 60000,
       maxRetries: config.maxRetries || 3,
+      defaultHeaders: config.headers,
     });
     this.defaultModel = defaultModel;
   }
