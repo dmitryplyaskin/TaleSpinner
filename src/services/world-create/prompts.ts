@@ -26,34 +26,6 @@ Create three distinct and compelling world synopses that will serve as foundatio
 
 ${userPrompt ? `## User's Specific Requirements: \n${userPrompt}` : ""}
 
-## Output Format
-Use exactly the following JSON format for easy parsing:
-
-<parse>
-{
-  "worlds": [
-    {
-      "id": 1,
-      "title": "World Name",
-      "genre": "Genre",
-      "tone": ["Tone/Atmosphere"],
-      "unique_feature": "Brief description of unique feature",
-      "synopsis": "Full world synopsis (200-400 words)", 
-    },
-    {
-      "id": 2,
-      "title": "...",
-      // similar structure
-    },
-    {
-      "id": 3,
-      "title": "...",
-      // similar structure
-    }
-  ]
-}
-</parse>
-
 ## Additional Guidelines
 - Avoid clichés and overused tropes
 - Each world should offer different gameplay styles (political intrigue, exploration, combat, mystery)
@@ -63,9 +35,82 @@ Use exactly the following JSON format for easy parsing:
 - Consider diverse cultural inspirations beyond typical European medieval fantasy
 - Balance accessibility for new players with depth for experienced groups
 - You don't have to impose on the main plot directly. The player can decide to stay out of the conflict, take the evil side, or just go about their business and ignore the world around them, playing the role of an ordinary being.
+- Don't use MD formatting in the response.
 
 Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience.
 `;
+};
+
+// `
+// ## Output Format
+// Use exactly the following JSON format for easy parsing:
+
+// <parse>
+// {
+//   "worlds": [
+//     {
+//       "id": 1,
+//       "title": "World Name",
+//       "genre": "Genre",
+//       "tone": ["Tone/Atmosphere"],
+//       "unique_feature": "Brief description of unique feature",
+//       "synopsis": "Full world synopsis (200-400 words)",
+//     },
+//     {
+//       "id": 2,
+//       "title": "...",
+//       // similar structure
+//     },
+//     {
+//       "id": 3,
+//       "title": "...",
+//       // similar structure
+//     }
+//   ]
+// }
+// </parse>`
+
+export const responseFormat = {
+  type: "json_schema",
+  json_schema: {
+    name: "rpg_worlds",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        worlds: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              title: { type: "string" },
+              genre: { type: "string" },
+              tone: {
+                type: "array",
+                items: { type: "string" },
+              },
+              unique_feature: { type: "string" },
+              synopsis: { type: "string" },
+            },
+            required: [
+              "id",
+              "title",
+              "genre",
+              "tone",
+              "unique_feature",
+              "synopsis",
+            ],
+            additionalProperties: false,
+          },
+          minItems: 3,
+          maxItems: 3,
+        },
+      },
+      required: ["worlds"],
+      additionalProperties: false,
+    },
+  },
 };
 
 export const createMoreWorldsPrompt = (userPrompt?: string) => {

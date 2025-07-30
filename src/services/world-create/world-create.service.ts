@@ -1,5 +1,9 @@
 import { World, WorldCreateTask } from "@shared/types/world";
-import { createMoreWorldsPrompt, createWorldPrompt } from "./prompts";
+import {
+  createMoreWorldsPrompt,
+  createWorldPrompt,
+  responseFormat,
+} from "./prompts";
 import { OpenAIService } from "@core/services";
 import { ApiSettingsService } from "@services/api-settings.service";
 import { v4 as uuidv4 } from "uuid";
@@ -30,20 +34,23 @@ export class WorldCreateService {
     ).chat.completions.create({
       model: apiSettings.api.model,
       messages: [{ role: "user", content: prompt }],
+      // @ts-ignore
+      response_format: responseFormat,
     });
 
     const result = response.choices[0].message.content || "";
+    console.log(result);
     const parsedResult = (
-      JSON.parse(
-        result.replace(/<parse>/g, "").replace(/<\/parse>/g, "")
-      ) as World[]
-    ).map((world) => ({
+      JSON.parse(result.replace(/<parse>/g, "").replace(/<\/parse>/g, "")) as {
+        worlds: World[];
+      }
+    )?.worlds?.map((world) => ({
       ...world,
       id: uuidv4(),
     }));
 
     const worldId = uuidv4();
-    WorldCreateJsonService.createFile(
+    const world = await WorldCreateJsonService.createFile(
       {
         data: parsedResult,
         prompt: [
@@ -54,7 +61,7 @@ export class WorldCreateService {
       { filename: worldId, id: worldId }
     );
 
-    return parsedResult;
+    return world;
   }
 
   async createMoreWorlds(data: WorldCreateTask) {
