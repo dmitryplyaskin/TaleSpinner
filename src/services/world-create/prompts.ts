@@ -36,7 +36,7 @@ Use exactly the following JSON format for easy parsing:
       "id": 1,
       "title": "World Name",
       "genre": "Genre",
-      "tone": "Tone/Atmosphere",
+      "tone": ["Tone/Atmosphere"],
       "unique_feature": "Brief description of unique feature",
       "synopsis": "Full world synopsis (200-400 words)", 
     },
@@ -65,5 +65,13 @@ Use exactly the following JSON format for easy parsing:
 - You don't have to impose on the main plot directly. The player can decide to stay out of the conflict, take the evil side, or just go about their business and ignore the world around them, playing the role of an ordinary being.
 
 Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience.
+`;
+};
+
+export const createMoreWorldsPrompt = (userPrompt?: string) => {
+  return `
+Generate 3 more variations of the game world based on the previous instructions.
+
+${userPrompt ? `User's Specific Requirements: \n${userPrompt}` : ""}
 `;
 };

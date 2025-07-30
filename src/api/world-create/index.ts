@@ -14,4 +14,13 @@ routerBuilder.addRoute({
   },
 });
 
+routerBuilder.addRoute({
+  path: "/world/create/more",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await worldCreateService.createMoreWorlds(req.body);
+    res.json(result);
+  },
+});
+
 export const worldCreateRouter = routerBuilder.build();

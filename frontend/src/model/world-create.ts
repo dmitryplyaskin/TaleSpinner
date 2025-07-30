@@ -7,9 +7,10 @@ export interface World {
 	id: number;
 	title: string;
 	genre: string;
-	tone: string;
+	tone: string[];
 	unique_feature: string;
 	synopsis: string;
+	isFavorite?: boolean;
 }
 
 export const createWorldFx = createEffect({
@@ -19,7 +20,15 @@ export const createWorldFx = createEffect({
 	},
 });
 
+export const createMoreWorldsFx = createEffect({
+	handler: async (data: WorldCreateTask) => {
+		const world = (await httpClient.post('/api/world/create/more', data)) as { worlds: World[] };
+		return world;
+	},
+});
+
 export const $worldCreateProgress = createWorldFx.pending;
+export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 
 sample({
 	clock: createWorldFx.done,
@@ -28,4 +37,6 @@ sample({
 });
 
 export const $worlds = createStore<World[]>([]);
-$worlds.on(createWorldFx.done, (_, { result }) => result.worlds);
+$worlds
+	.on(createWorldFx.done, (_, { result }) => result.worlds)
+	.on(createMoreWorldsFx.done, (state, { result }) => [...state, ...result.worlds]);

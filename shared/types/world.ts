@@ -3,6 +3,7 @@ import { BaseFileData } from "./base-file";
 export type WorldCreateTask = {
   worldType: WorldType;
   userPrompt?: string;
+  lastWorldGenerationId?: string;
 };
 
 export type WorldType = "fantasy" | "cyberpunk" | "everyday" | "custom";
