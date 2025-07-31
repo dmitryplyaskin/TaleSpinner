@@ -1,6 +1,8 @@
 import { JsonFileService } from "@core/services/json-file.service";
-import { World } from "@shared/types/world";
+import { WorldCreation } from "@shared/types/world-creation";
 
-const WorldCreateJsonService = new JsonFileService<World>("./data/worlds");
+const WorldCreateJsonService = new JsonFileService<WorldCreation>(
+  "./data/worlds"
+);
 
 export { WorldCreateJsonService };

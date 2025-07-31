@@ -6,16 +6,23 @@ export type WorldCreateTask = {
   lastWorldGenerationId?: string;
 };
 
-export type WorldType = "fantasy" | "cyberpunk" | "everyday" | "custom";
-export interface World extends BaseFileData {
-  name: string;
-  description?: string;
-  image?: string;
-  worldType: WorldType;
-  worldInfo: WorldInfo;
+interface CreatedWorld {
+  id: string;
+  title: string;
+  genre: string;
+  tone: string[];
+  unique_feature: string;
+  synopsis: string;
 }
 
-export interface WorldInfo {
-  instructions: string;
-  mainInfo: string;
+interface PromptMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export type WorldType = "fantasy" | "cyberpunk" | "everyday" | "custom";
+export interface WorldCreation extends BaseFileData {
+  data: CreatedWorld[];
+  prompt: PromptMessage[];
+  worldType: WorldType;
 }

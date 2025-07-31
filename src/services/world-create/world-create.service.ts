@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from "uuid";
 import { WorldCreateJsonService } from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
+import { WorldCreation } from "@shared/types/world-creation";
 
 export class WorldCreateService {
   createOpenAIService(apiSettings: ApiSettings) {
