@@ -1,4 +1,5 @@
 import { WorldType } from "@shared/types/world";
+import OpenAI from "openai";
 
 export const createWorldPrompt = (
   worldType: WorldType,
@@ -70,7 +71,7 @@ Create three worlds right now, following all specified requirements and ensuring
 // }
 // </parse>`
 
-export const responseFormat = {
+export const responseFormat: OpenAI.ResponseFormatJSONSchema = {
   type: "json_schema",
   json_schema: {
     name: "rpg_worlds",
