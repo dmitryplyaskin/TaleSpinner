@@ -5,7 +5,7 @@ import { navigateToScreen, goBack, ROUTES } from '../model/navigation';
 
 import { ActionCard, ProgressLoader } from '../ui';
 import { useProgressLoader } from '../hooks/useProgressLoader';
-import { $worldCreateProgress, createWorldFx } from '@model/world-create';
+import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
 import { useUnit } from 'effector-react';
 

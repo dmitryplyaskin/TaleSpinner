@@ -6,7 +6,7 @@ export type WorldCreateTask = {
   lastWorldGenerationId?: string;
 };
 
-export interface CreatedWorld {
+export interface CreatedWorldDraft {
   id: string;
   title: string;
   genre: string;
@@ -23,7 +23,7 @@ export interface PromptMessage {
 
 export type WorldType = "fantasy" | "cyberpunk" | "everyday" | "custom";
 export interface WorldCreation extends BaseFileData {
-  data: CreatedWorld[];
+  data: CreatedWorldDraft[];
   prompt: PromptMessage[];
   worldType: WorldType;
 }

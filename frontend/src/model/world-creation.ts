@@ -1,18 +1,32 @@
 import { httpClient } from '@utils/api';
 import { createEffect, createStore, sample } from 'effector';
 import { ROUTES, navigateToScreen } from './navigation';
-import { CreatedWorld, WorldCreation, WorldCreateTask } from '@shared/types/world-creation';
+import { WorldCreation, WorldCreateTask, CreatedWorldDraft } from '@shared/types/world-creation';
 
 export const createWorldFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
-		const world = (await httpClient.post('/api/world/create', data)) as WorldCreation;
+		const world = (await httpClient.post('/api/world-creation/create', data)) as WorldCreation;
 		return world;
 	},
 });
 
 export const createMoreWorldsFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
-		const world = (await httpClient.post('/api/world/create/more', data)) as WorldCreation;
+		const world = (await httpClient.post('/api/world-creation/create/more', data)) as WorldCreation;
+		return world;
+	},
+});
+
+export const selectWorldFx = createEffect({
+	handler: async (data: WorldCreateTask) => {
+		const world = (await httpClient.post('/api/world-creation/select', data)) as WorldCreation;
+		return world;
+	},
+});
+
+export const addWorldToFavoritesFx = createEffect({
+	handler: async (data: CreatedWorldDraft) => {
+		const world = (await httpClient.post('/api/world-creation/add-to-favorites', data)) as WorldCreation;
 		return world;
 	},
 });

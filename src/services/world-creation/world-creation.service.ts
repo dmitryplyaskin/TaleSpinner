@@ -5,10 +5,16 @@ import {
 } from "./prompts";
 import { ApiSettingsService } from "@services/api-settings.service";
 import { v4 as uuidv4 } from "uuid";
-import { WorldCreateJsonService } from "./files";
+import {
+  WorldCreationDraftJsonService,
+  WorldCreationSelectedDraftJsonService,
+} from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
-import { CreatedWorld, WorldCreateTask } from "@shared/types/world-creation";
+import {
+  CreatedWorldDraft,
+  WorldCreateTask,
+} from "@shared/types/world-creation";
 
 export class WorldCreateService {
   createOpenAIService(apiSettings: ApiSettings) {
@@ -34,7 +40,7 @@ export class WorldCreateService {
 
     const content = response.choices[0]?.message?.content || "";
     try {
-      return JSON.parse(content) as { worlds: CreatedWorld[] };
+      return JSON.parse(content) as { worlds: CreatedWorldDraft[] };
     } catch (error) {
       console.error("Error parsing response:", error);
       throw error;
@@ -60,7 +66,7 @@ export class WorldCreateService {
       }));
 
       const worldId = uuidv4();
-      const world = await WorldCreateJsonService.createFile(
+      const world = await WorldCreationDraftJsonService.createFile(
         {
           data: parsedResult,
           prompt: [
@@ -86,7 +92,7 @@ export class WorldCreateService {
     if (!data.lastWorldGenerationId)
       throw new Error("Last world generation id not found");
 
-    const lastWorld = await WorldCreateJsonService.readFile(
+    const lastWorld = await WorldCreationDraftJsonService.readFile(
       data.lastWorldGenerationId
     );
     if (!lastWorld) throw new Error("Last world not found");
@@ -103,7 +109,7 @@ export class WorldCreateService {
         id: uuidv4(),
       }));
 
-      const updatedWorld = await WorldCreateJsonService.updateFile(
+      const updatedWorld = await WorldCreationDraftJsonService.updateFile(
         lastWorld.id,
         {
           data: [...(lastWorld.data || []), ...parsedResult],
@@ -121,4 +127,13 @@ export class WorldCreateService {
       throw error;
     }
   }
+
+  async selectWorld(data: WorldCreateTask) {
+    // const world = await WorldCreationDraftJsonService.readFile(data.lastWorldGenerationId);
+    // if (!world) throw new Error("World not found");
+    // const selectedWorld = await WorldCreationSelectedDraftJsonService.createFile(world, { filename: world.id, id: world.id });
+    // return selectedWorld;
+  }
+
+  async addWorldToFavorites(data: CreatedWorldDraft) {}
 }

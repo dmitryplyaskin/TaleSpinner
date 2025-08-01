@@ -1,30 +1,19 @@
 import React from 'react';
 import { Container, Typography, Box, Card, CardContent, Chip, Button, IconButton, Tooltip } from '@mui/material';
 import { Public, AutoStories, Palette, Star, StarBorder } from '@mui/icons-material';
-import { $worldCreateMoreProgress, $worlds, createMoreWorldsFx, World } from '@model/world-create';
+import { $worldCreateMoreProgress, $worlds, createMoreWorldsFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
+import { CreatedWorldDraft } from '@shared/types/world-creation';
 
-interface ChooseWorldProps {
-	onWorldSelect?: (world: World) => void;
-	onToggleFavorite?: (world: World) => void;
-}
-
-export const ChooseWorld: React.FC<ChooseWorldProps> = ({ onWorldSelect, onToggleFavorite }) => {
+export const ChooseWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);
 
-	const handleWorldSelect = (world: World) => {
-		if (onWorldSelect) {
-			onWorldSelect(world);
-		}
-	};
+	const handleWorldSelect = (world: CreatedWorldDraft) => {};
 
-	const handleToggleFavorite = (world: World, event: React.MouseEvent) => {
+	const handleToggleFavorite = (world: CreatedWorldDraft, event: React.MouseEvent) => {
 		event.stopPropagation();
-		if (onToggleFavorite) {
-			onToggleFavorite(world);
-		}
 	};
 
 	return (
