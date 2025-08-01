@@ -9,7 +9,7 @@ routerBuilder.addRoute({
   path: "/world/create",
   method: "POST",
   handler: async (req, res) => {
-    const result = await worldCreateService.createWorld(req.body);
+    const result = await worldCreateService.createWorlds(req.body);
     res.json(result);
   },
 });

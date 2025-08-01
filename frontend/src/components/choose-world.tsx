@@ -10,7 +10,8 @@ interface ChooseWorldProps {
 }
 
 export const ChooseWorld: React.FC<ChooseWorldProps> = ({ onWorldSelect, onToggleFavorite }) => {
-	const worlds = useUnit($worlds);
+	const worldCreation = useUnit($worlds);
+	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);
 
 	const handleWorldSelect = (world: World) => {
@@ -37,7 +38,7 @@ export const ChooseWorld: React.FC<ChooseWorldProps> = ({ onWorldSelect, onToggl
 			</Typography>
 
 			<Box display="flex" flexDirection="column" gap={3} alignItems="center">
-				{worlds.map((world) => (
+				{data?.map((world) => (
 					<Card
 						key={world.id}
 						sx={{
@@ -141,7 +142,7 @@ export const ChooseWorld: React.FC<ChooseWorldProps> = ({ onWorldSelect, onToggl
 					disabled={createMoreWorldsProgress}
 					onClick={() =>
 						createMoreWorldsFx({
-							lastWorldGenerationId: '123',
+							lastWorldGenerationId: id,
 							worldType: 'fantasy',
 						})
 					}

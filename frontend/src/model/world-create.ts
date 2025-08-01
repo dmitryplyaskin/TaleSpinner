@@ -1,28 +1,18 @@
 import { httpClient } from '@utils/api';
 import { createEffect, createStore, sample } from 'effector';
-import { WorldCreateTask } from '@shared/types/world';
 import { ROUTES, navigateToScreen } from './navigation';
-
-export interface World {
-	id: number;
-	title: string;
-	genre: string;
-	tone: string[];
-	unique_feature: string;
-	synopsis: string;
-	isFavorite?: boolean;
-}
+import { CreatedWorld, WorldCreation, WorldCreateTask } from '@shared/types/world-creation';
 
 export const createWorldFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
-		const world = (await httpClient.post('/api/world/create', data)) as { worlds: World[] };
+		const world = (await httpClient.post('/api/world/create', data)) as WorldCreation;
 		return world;
 	},
 });
 
 export const createMoreWorldsFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
-		const world = (await httpClient.post('/api/world/create/more', data)) as { worlds: World[] };
+		const world = (await httpClient.post('/api/world/create/more', data)) as WorldCreation;
 		return world;
 	},
 });
@@ -36,7 +26,5 @@ sample({
 	target: navigateToScreen,
 });
 
-export const $worlds = createStore<World[]>([]);
-$worlds
-	.on(createWorldFx.done, (_, { result }) => result.worlds)
-	.on(createMoreWorldsFx.done, (state, { result }) => [...state, ...result.worlds]);
+export const $worlds = createStore<WorldCreation | null>(null);
+$worlds.on([createWorldFx.done, createMoreWorldsFx.done], (_, { result }) => result);

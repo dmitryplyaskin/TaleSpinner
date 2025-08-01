@@ -6,16 +6,17 @@ export type WorldCreateTask = {
   lastWorldGenerationId?: string;
 };
 
-interface CreatedWorld {
+export interface CreatedWorld {
   id: string;
   title: string;
   genre: string;
   tone: string[];
   unique_feature: string;
   synopsis: string;
+  isFavorite?: boolean;
 }
 
-interface PromptMessage {
+export interface PromptMessage {
   role: "user" | "assistant";
   content: string;
 }
