@@ -2,12 +2,12 @@ import React, { useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
-import { $currentScreen, ROUTES } from './model/navigation';
+import { $currentScreen, ROUTES } from './model/navigation_old';
 import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { WorldSelectionScreen } from './components/WorldSelectionScreen';
 import { CharacterCreationScreen } from './components/CharacterCreationScreen';
-import { ChooseWorld } from './components/choose-world';
+import { CreateWorld } from './components/world-creation/select-world';
 
 const theme = createTheme({
 	palette: {
@@ -44,8 +44,8 @@ function App() {
 				return <WorldSelectionScreen />;
 			case ROUTES.CHARACTER_CREATION:
 				return <CharacterCreationScreen />;
-			case ROUTES.CHOOSE_WORLD:
-				return <ChooseWorld />;
+			case ROUTES.CREATE_WORLD:
+				return <CreateWorld />;
 			default:
 				return <WelcomeScreen />;
 		}

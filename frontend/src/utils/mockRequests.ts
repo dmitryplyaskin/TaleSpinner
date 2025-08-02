@@ -1,4 +1,4 @@
-import type { WorldType } from '../model/navigation';
+import type { WorldType } from '../model/navigation_old';
 import { ProgressTask } from '../hooks/useProgressLoader';
 
 // Базовая функция для создания промиса с задержкой

@@ -5,7 +5,7 @@ import { $worldCreateMoreProgress, $worlds, createMoreWorldsFx } from '@model/wo
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 
-export const ChooseWorld: React.FC = () => {
+export const CreateWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);

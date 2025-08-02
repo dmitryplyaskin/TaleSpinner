@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Typography, Button, Box, IconButton, TextField, Collapse } from '@mui/material';
 import { ArrowBack, Castle, Add } from '@mui/icons-material';
-import { navigateToScreen, goBack, ROUTES } from '../model/navigation';
+import { navigateToScreen, goBack, ROUTES } from '../model/navigation_old';
 
 import { ActionCard, ProgressLoader } from '../ui';
 import { useProgressLoader } from '../hooks/useProgressLoader';

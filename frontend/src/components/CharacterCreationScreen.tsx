@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { ArrowBack, Person } from '@mui/icons-material';
 import { useUnit } from 'effector-react';
-import { goBack, $selectedWorld } from '../model/navigation';
+import { goBack, $selectedWorld } from '../model/navigation_old';
 
 export const CharacterCreationScreen: React.FC = () => {
 	const selectedWorld = useUnit($selectedWorld);
