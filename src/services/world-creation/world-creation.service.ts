@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   WorldCreationDraftJsonService,
   WorldCreationSelectedDraftJsonService,
+  WorldCreationFavoritesDraftJsonService,
 } from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
@@ -135,5 +136,34 @@ export class WorldCreateService {
     // return selectedWorld;
   }
 
-  async addWorldToFavorites(data: CreatedWorldDraft) {}
+  async addWorldToFavorites(data: {
+    worldId: string;
+    lastWorldGenerationId: string;
+  }) {
+    const lastWorld = await WorldCreationDraftJsonService.readFile(
+      data.lastWorldGenerationId
+    );
+
+    if (!lastWorld) throw new Error("Last world not found");
+
+    const world = lastWorld.data?.find((world) => world.id === data.worldId);
+    if (!world) throw new Error("World not found");
+
+    const favoritesWorld =
+      await WorldCreationFavoritesDraftJsonService.createFile(
+        { ...world, isFavorite: true },
+        {
+          filename: world.id,
+          id: world.id,
+        }
+      );
+
+    await WorldCreationDraftJsonService.updateFile(lastWorld.id, {
+      data: lastWorld.data?.map((world) =>
+        world.id === data.worldId ? { ...world, isFavorite: true } : world
+      ),
+    });
+
+    return favoritesWorld;
+  }
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Typography, Box, Card, CardContent, Chip, Button, IconButton, Tooltip } from '@mui/material';
 import { Public, AutoStories, Palette, Star, StarBorder } from '@mui/icons-material';
-import { $worldCreateMoreProgress, $worlds, createMoreWorldsFx } from '@model/world-creation';
+import { $worldCreateMoreProgress, $worlds, addWorldToFavoritesFx, createMoreWorldsFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 
@@ -9,11 +9,12 @@ export const CreateWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);
+	if (!id) return null;
 
 	const handleWorldSelect = (world: CreatedWorldDraft) => {};
 
-	const handleToggleFavorite = (world: CreatedWorldDraft, event: React.MouseEvent) => {
-		event.stopPropagation();
+	const handleToggleFavorite = (world: CreatedWorldDraft) => {
+		addWorldToFavoritesFx({ worldId: world.id, lastWorldGenerationId: id });
 	};
 
 	return (
@@ -47,7 +48,7 @@ export const CreateWorld: React.FC = () => {
 									</Typography>
 								</Box>
 								<Tooltip title="Сохранить мир в избранное">
-									<IconButton onClick={(event) => handleToggleFavorite(world, event)} color="default" size="small">
+									<IconButton onClick={() => handleToggleFavorite(world)} color="default" size="small">
 										{world.isFavorite === true ? <Star color="warning" /> : <StarBorder />}
 									</IconButton>
 								</Tooltip>

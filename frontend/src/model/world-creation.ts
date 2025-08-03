@@ -25,8 +25,8 @@ export const selectWorldFx = createEffect({
 });
 
 export const addWorldToFavoritesFx = createEffect({
-	handler: async (data: CreatedWorldDraft) => {
-		const world = (await httpClient.post('/api/world-creation/add-to-favorites', data)) as WorldCreation;
+	handler: async (data: { worldId: string; lastWorldGenerationId: string }) => {
+		const world = (await httpClient.post('/api/world-creation/add-to-favorites', data)) as CreatedWorldDraft;
 		return world;
 	},
 });
@@ -41,4 +41,13 @@ sample({
 });
 
 export const $worlds = createStore<WorldCreation | null>(null);
-$worlds.on([createWorldFx.done, createMoreWorldsFx.done], (_, { result }) => result);
+
+$worlds
+	.on([createWorldFx.done, createMoreWorldsFx.done], (_, { result }) => result)
+	.on(addWorldToFavoritesFx.done, (state, { result }) => {
+		if (!state) return null;
+		return {
+			...state,
+			data: state?.data?.map((world) => (world.id === result.id ? { ...world, isFavorite: true } : world)),
+		};
+	});
