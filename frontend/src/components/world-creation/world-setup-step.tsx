@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Typography, Button, Box, TextField, Collapse } from '@mui/material';
 import { Castle, Add } from '@mui/icons-material';
-import { ActionCard, ProgressLoader } from '../../ui';
-import { useProgressLoader } from '../../hooks/useProgressLoader';
+import { ActionCard } from '../../ui';
 import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
 import { useUnit } from 'effector-react';
-import { useWorldCreationStepper } from './world-creation-context';
+import { useWorldCreationNavigation } from './world-creation-navigation';
 import { StepNavigation } from './step-navigation';
 
 export const WorldSetupStep: React.FC = () => {
@@ -14,7 +13,7 @@ export const WorldSetupStep: React.FC = () => {
 	const [selectedWorldType, setSelectedWorldType] = useState<WorldType | null>(null);
 	const [additionalInfo, setAdditionalInfo] = useState('');
 	const isLoading = useUnit($worldCreateProgress);
-	const { nextStep, updateStep } = useWorldCreationStepper();
+	const { nextStep, updateCurrentStepData } = useWorldCreationNavigation();
 
 	const handleWorldCardClick = (worldType: WorldType) => {
 		setSelectedWorldType(worldType);
@@ -26,8 +25,12 @@ export const WorldSetupStep: React.FC = () => {
 
 		try {
 			await createWorldFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
-			// Отмечаем текущий шаг как завершенный
-			updateStep('setup', { completed: true });
+			// Сохраняем данные текущего шага
+			updateCurrentStepData({
+				worldType: selectedWorldType,
+				additionalInfo,
+				completed: true,
+			});
 			// Переходим к следующему шагу
 			nextStep();
 		} catch (error) {

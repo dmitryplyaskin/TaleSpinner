@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Button, ButtonGroup } from '@mui/material';
 import { ArrowBack, ArrowForward } from '@mui/icons-material';
-import { useWorldCreationStepper } from './world-creation-context';
+import { useWorldCreationNavigation } from './world-creation-navigation';
 
 interface StepNavigationProps {
 	showNext?: boolean;
@@ -20,7 +20,7 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
 	onNext,
 	onPrev,
 }) => {
-	const { nextStep, prevStep, canGoNext, canGoPrev } = useWorldCreationStepper();
+	const { nextStep, prevStep, canGoNext, canGoPrev } = useWorldCreationNavigation();
 
 	const handleNext = () => {
 		if (onNext) {

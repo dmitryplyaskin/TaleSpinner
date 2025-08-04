@@ -1,14 +1,14 @@
 import React from 'react';
 import { Container, Typography, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow } from '@mui/icons-material';
-import { navigateToScreen, ROUTES } from '../model/navigation_old';
+import { goToWorldCreation } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
 import { openSettingsModal } from '../model/settings';
 
 export const WelcomeScreen: React.FC = () => {
 	const handleCreateNewWorld = () => {
-		navigateToScreen(ROUTES.WORLD_SELECTION);
+		goToWorldCreation();
 	};
 
 	const handleContinueGame = () => {

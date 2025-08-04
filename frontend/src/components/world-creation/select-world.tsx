@@ -4,20 +4,23 @@ import { Public, AutoStories, Palette, Star, StarBorder } from '@mui/icons-mater
 import { $worldCreateMoreProgress, $worlds, addWorldToFavoritesFx, createMoreWorldsFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
-import { useWorldCreationStepper } from './world-creation-context';
+import { useWorldCreationNavigation } from './world-creation-navigation';
 import { StepNavigation } from './step-navigation';
 
 export const CreateWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);
-	const { nextStep, updateStep } = useWorldCreationStepper();
+	const { nextStep, updateCurrentStepData } = useWorldCreationNavigation();
 
 	if (!id) return null;
 
-	const handleWorldSelect = (_world: CreatedWorldDraft) => {
-		// Отмечаем текущий шаг как завершенный
-		updateStep('select-world', { completed: true });
+	const handleWorldSelect = (world: CreatedWorldDraft) => {
+		// Сохраняем данные выбранного мира
+		updateCurrentStepData({
+			selectedWorld: world,
+			completed: true,
+		});
 		// Переходим к следующему шагу
 		nextStep();
 	};

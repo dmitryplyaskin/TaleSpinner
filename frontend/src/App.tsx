@@ -1,13 +1,12 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
-import { $currentScreen, ROUTES } from './model/navigation_old';
+import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model/app-navigation';
 import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/WelcomeScreen';
-import { WorldSelectionScreen } from './components/WorldSelectionScreen';
-import { CharacterCreationScreen } from './components/CharacterCreationScreen';
 import { WorldCreation } from './components/world-creation';
+import { WorldCreationNavigationProvider } from './components/world-creation/world-creation-navigation';
 
 const theme = createTheme({
 	palette: {
@@ -29,23 +28,27 @@ const theme = createTheme({
 });
 
 function App() {
-	const currentScreen = useUnit($currentScreen);
+	const currentStep = useUnit($currentStep);
+	const currentScreen = getCurrentScreen(currentStep);
 
-	// Загружаем настройки при инициализации приложения
+	// Инициализация приложения
 	useEffect(() => {
 		loadSettingsFx();
+		initializeAppNavigation();
 	}, []);
 
 	const renderScreen = () => {
 		switch (currentScreen) {
-			case ROUTES.WELCOME:
+			case 'welcome':
 				return <WelcomeScreen />;
-			case ROUTES.WORLD_SELECTION:
-				return <WorldSelectionScreen />;
-			case ROUTES.CHARACTER_CREATION:
-				return <CharacterCreationScreen />;
-			case ROUTES.CREATE_WORLD:
-				return <WorldCreation />;
+			case 'world-type-selection':
+			case 'world-selection':
+			case 'world-customization':
+				return (
+					<WorldCreationNavigationProvider>
+						<WorldCreation />
+					</WorldCreationNavigationProvider>
+				);
 			default:
 				return <WelcomeScreen />;
 		}

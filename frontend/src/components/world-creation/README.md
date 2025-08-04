@@ -1,6 +1,6 @@
-# World Creation Stepper
+# World Creation с интегрированной навигацией
 
-Расширяемый степпер для процесса создания мира в TaleSpinner.
+Система создания мира, интегрированная с новой навигационной системой TaleSpinner.
 
 ## Компоненты
 
@@ -17,23 +17,34 @@
 />
 ```
 
-### WorldCreationProvider
+### WorldCreationNavigationProvider
 
-Контекст-провайдер для управления состоянием степпера.
+Провайдер навигации для World Creation, использующий новую систему навигации.
 
 ```tsx
-<WorldCreationProvider initialSteps={STEPS}>
+<WorldCreationNavigationProvider>
 	<YourComponent />
-</WorldCreationProvider>
+</WorldCreationNavigationProvider>
 ```
 
-### useWorldCreationStepper
+### useWorldCreationNavigation
 
-Хук для доступа к функциям степпера.
+Хук для доступа к функциям навигации в рамках World Creation.
 
 ```tsx
-const { currentStep, steps, goToStep, nextStep, prevStep, updateStep, canGoNext, canGoPrev } =
-	useWorldCreationStepper();
+const {
+	currentStep,
+	currentBranch,
+	currentStepIndex,
+	totalSteps,
+	canGoNext,
+	canGoPrev,
+	nextStep,
+	prevStep,
+	goToStep,
+	updateCurrentStepData,
+	isStep,
+} = useWorldCreationNavigation();
 ```
 
 ### StepNavigation
@@ -120,8 +131,28 @@ function MyComponent() {
 
 Степпер автоматически адаптируется к любому количеству шагов.
 
+## Интеграция с навигационной системой
+
+World Creation теперь использует централизованную систему навигации:
+
+- **Ветка**: `world-creation` (дочерняя от `main`)
+- **Автосохранение**: Данные каждого шага сохраняются автоматически
+- **История**: Полная история переходов между шагами
+- **Гибкость**: Возможность добавления подветок для сложных сценариев
+
 ## Текущие шаги
 
-1. **Выбор типа мира** (`WorldSetupStep`) - выбор базового типа мира (фэнтези, киберпанк и т.д.)
-2. **Выбор мира** (`CreateWorld`) - выбор конкретного мира из сгенерированных вариантов
-3. **Дополнительные настройки** - финальная настройка мира (пока заглушка)
+1. **world-type-selection** (`WorldSetupStep`) - выбор базового типа мира
+   - Сохраняет: `worldType`, `additionalInfo`, `completed`
+2. **world-selection** (`CreateWorld`) - выбор конкретного мира
+   - Сохраняет: `selectedWorld`, `completed`
+3. **world-customization** - финальная настройка мира (пока заглушка)
+   - Сохраняет: `finalSettings`
+
+## Преимущества новой системы
+
+- ✅ **Автосохранение** прогресса
+- ✅ **История навигации** с возможностью отката
+- ✅ **Данные шагов** сохраняются в централизованном хранилище
+- ✅ **Расширяемость** через подветки
+- ✅ **Унифицированная навигация** по всему приложению
