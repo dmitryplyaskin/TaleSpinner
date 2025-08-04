@@ -7,13 +7,14 @@ import { WorldCreationStepper } from './stepper';
 import { StepNavigation } from './step-navigation';
 import { StepConfig } from './types';
 import { CreateWorld } from './select-world';
+import { WorldSetupStep } from './world-setup-step';
 
 // Определяем шаги создания мира
 const WORLD_CREATION_STEPS: StepConfig[] = [
 	{
 		id: 'setup',
-		label: 'Настройка',
-		description: 'Базовые параметры мира',
+		label: 'Выбор типа мира',
+		description: 'Выберите базовый тип мира',
 	},
 	{
 		id: 'select-world',
@@ -37,19 +38,7 @@ const WorldCreationContent: React.FC = () => {
 	const renderStepContent = () => {
 		switch (currentStep) {
 			case 0:
-				return (
-					<Box>
-						<Box textAlign="center" py={8}>
-							<Typography variant="h5" gutterBottom>
-								Настройка параметров мира
-							</Typography>
-							<Typography variant="body1" color="text.secondary">
-								Этот шаг будет реализован позже
-							</Typography>
-						</Box>
-						<StepNavigation showPrev={false} />
-					</Box>
-				);
+				return <WorldSetupStep />;
 			case 1:
 				return <CreateWorld />;
 			case 2:
@@ -100,4 +89,5 @@ export const WorldCreation: React.FC = () => {
 export { WorldCreationStepper } from './stepper';
 export { WorldCreationProvider, useWorldCreationStepper } from './world-creation-context';
 export { StepNavigation } from './step-navigation';
+export { WorldSetupStep } from './world-setup-step';
 export type { StepConfig } from './types';
