@@ -1,24 +1,33 @@
 import React from 'react';
-import { Container, Typography, Box, Card, CardContent, Chip, Button, IconButton, Tooltip } from '@mui/material';
+import { Typography, Box, Card, CardContent, Chip, Button, IconButton, Tooltip } from '@mui/material';
 import { Public, AutoStories, Palette, Star, StarBorder } from '@mui/icons-material';
 import { $worldCreateMoreProgress, $worlds, addWorldToFavoritesFx, createMoreWorldsFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
+import { useWorldCreationStepper } from './world-creation-context';
+import { StepNavigation } from './step-navigation';
 
 export const CreateWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);
+	const { nextStep, updateStep } = useWorldCreationStepper();
+
 	if (!id) return null;
 
-	const handleWorldSelect = (world: CreatedWorldDraft) => {};
+	const handleWorldSelect = (_world: CreatedWorldDraft) => {
+		// Отмечаем текущий шаг как завершенный
+		updateStep('select-world', { completed: true });
+		// Переходим к следующему шагу
+		nextStep();
+	};
 
 	const handleToggleFavorite = (world: CreatedWorldDraft) => {
 		addWorldToFavoritesFx({ worldId: world.id, lastWorldGenerationId: id });
 	};
 
 	return (
-		<Container maxWidth="lg" sx={{ py: 4 }}>
+		<Box>
 			<Typography variant="h4" component="h1" textAlign="center" gutterBottom sx={{ mb: 4 }}>
 				Выберите мир для приключения
 			</Typography>
@@ -140,6 +149,8 @@ export const CreateWorld: React.FC = () => {
 					Создать еще миры
 				</Button>
 			</Box>
-		</Container>
+
+			<StepNavigation showNext={false} />
+		</Box>
 	);
 };

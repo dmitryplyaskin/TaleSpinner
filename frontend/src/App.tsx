@@ -7,7 +7,7 @@ import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { WorldSelectionScreen } from './components/WorldSelectionScreen';
 import { CharacterCreationScreen } from './components/CharacterCreationScreen';
-import { CreateWorld } from './components/world-creation/select-world';
+import { WorldCreation } from './components/world-creation';
 
 const theme = createTheme({
 	palette: {
@@ -45,7 +45,7 @@ function App() {
 			case ROUTES.CHARACTER_CREATION:
 				return <CharacterCreationScreen />;
 			case ROUTES.CREATE_WORLD:
-				return <CreateWorld />;
+				return <WorldCreation />;
 			default:
 				return <WelcomeScreen />;
 		}
