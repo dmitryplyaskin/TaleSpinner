@@ -6,7 +6,7 @@ import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model
 import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/welcome-screen';
 import { WorldCreation } from './components/world-creation';
-import { WorldCreationNavigationProvider } from './components/world-creation/world-creation-navigation';
+import { WorldCreationNavigationProvider } from './components/world-creation/navigation/navigation';
 import { theme } from './theme';
 
 function App() {

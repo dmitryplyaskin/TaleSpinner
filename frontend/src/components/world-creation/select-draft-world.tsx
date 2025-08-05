@@ -4,10 +4,10 @@ import { Public, AutoStories, Palette, Star, StarBorder } from '@mui/icons-mater
 import { $worldCreateMoreProgress, $worlds, addWorldToFavoritesFx, createMoreWorldsFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
-import { useWorldCreationNavigation } from './world-creation-navigation';
-import { StepNavigation } from './step-navigation';
+import { useWorldCreationNavigation } from './navigation/navigation';
+import { StepNavigation } from './navigation/step-navigation';
 
-export const CreateWorld: React.FC = () => {
+export const SelectDraftWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
 	const { data, id } = worldCreation || {};
 	const createMoreWorldsProgress = useUnit($worldCreateMoreProgress);

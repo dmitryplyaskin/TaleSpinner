@@ -1,7 +1,7 @@
 import React from 'react';
-import { Box, Button, ButtonGroup } from '@mui/material';
+import { Box, Button } from '@mui/material';
 import { ArrowBack, ArrowForward } from '@mui/icons-material';
-import { useWorldCreationNavigation } from './world-creation-navigation';
+import { useWorldCreationNavigation } from './navigation';
 
 interface StepNavigationProps {
 	showNext?: boolean;

@@ -5,8 +5,8 @@ import { ActionCard } from '../../ui';
 import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
 import { useUnit } from 'effector-react';
-import { useWorldCreationNavigation } from './world-creation-navigation';
-import { StepNavigation } from './step-navigation';
+import { useWorldCreationNavigation } from './navigation/navigation';
+import { StepNavigation } from './navigation/step-navigation';
 
 export const WorldSetupStep: React.FC = () => {
 	// const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
@@ -38,17 +38,7 @@ export const WorldSetupStep: React.FC = () => {
 		}
 	};
 
-	const handleCustomWorld = async () => {
-		// try {
-		// 	const tasks = getWorldSetupTasks('custom');
-		// 	await executeWithProgress(tasks, 'Создание пользовательского мира');
-		// 	selectWorld('custom');
-		// 	// Здесь будет переход к созданию кастомного мира
-		// 	console.log('Создание кастомного мира завершено');
-		// } catch (error) {
-		// 	console.log('Создание кастомного мира прервано:', error);
-		// }
-	};
+	const handleCustomWorld = async () => {};
 
 	return (
 		<Box>

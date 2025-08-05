@@ -2,11 +2,11 @@ import React from 'react';
 import { goBack } from '@model/navigation';
 import { ArrowBack } from '@mui/icons-material';
 import { Box, Container, IconButton, Typography } from '@mui/material';
-import { useWorldCreationNavigation } from './world-creation-navigation';
-import { WorldCreationStepper } from './stepper';
-import { StepNavigation } from './step-navigation';
-import { StepConfig } from './types';
-import { CreateWorld } from './select-world';
+import { useWorldCreationNavigation } from './navigation/navigation';
+import { WorldCreationStepper } from './navigation/stepper';
+import { StepNavigation } from './navigation/step-navigation';
+import { StepConfig } from './navigation/types';
+import { SelectDraftWorld } from './select-draft-world';
 import { WorldSetupStep } from './world-setup-step';
 
 const WorldCreationContent: React.FC = () => {
@@ -44,7 +44,7 @@ const WorldCreationContent: React.FC = () => {
 		}
 
 		if (isStep('world-selection')) {
-			return <CreateWorld />;
+			return <SelectDraftWorld />;
 		}
 
 		if (isStep('world-customization')) {
@@ -88,8 +88,8 @@ export const WorldCreation: React.FC = () => {
 };
 
 // Экспорты для использования в других компонентах
-export { WorldCreationStepper } from './stepper';
-export { WorldCreationNavigationProvider, useWorldCreationNavigation } from './world-creation-navigation';
-export { StepNavigation } from './step-navigation';
+export { WorldCreationStepper } from './navigation/stepper';
+export { WorldCreationNavigationProvider, useWorldCreationNavigation } from './navigation/navigation';
+export { StepNavigation } from './navigation/step-navigation';
 export { WorldSetupStep } from './world-setup-step';
-export type { StepConfig } from './types';
+export type { StepConfig } from './navigation/types';
