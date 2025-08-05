@@ -1,31 +1,13 @@
 import { useEffect } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
 import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model/app-navigation';
 import { loadSettingsFx } from './model/settings';
-import { WelcomeScreen } from './components/WelcomeScreen';
+import { WelcomeScreen } from './components/welcome-screen';
 import { WorldCreation } from './components/world-creation';
 import { WorldCreationNavigationProvider } from './components/world-creation/world-creation-navigation';
-
-const theme = createTheme({
-	palette: {
-		mode: 'dark',
-		primary: {
-			main: '#9c27b0',
-		},
-		secondary: {
-			main: '#f50057',
-		},
-		background: {
-			default: '#121212',
-			paper: '#1e1e1e',
-		},
-	},
-	typography: {
-		fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-	},
-});
+import { theme } from './theme';
 
 function App() {
 	const currentStep = useUnit($currentStep);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Typography, Button, Box, TextField, Collapse } from '@mui/material';
-import { Castle, Add } from '@mui/icons-material';
+import { Castle, Add, Computer } from '@mui/icons-material';
 import { ActionCard } from '../../ui';
 import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
@@ -67,15 +67,15 @@ export const WorldSetupStep: React.FC = () => {
 					disabled={isLoading}
 				/>
 
-				{/* <ActionCard
+				<ActionCard
 					title="Киберпанк"
 					description="Футуристический мир высоких технологий и корпораций"
 					icon={<Computer color="primary" fontSize="large" />}
 					onClick={() => handleWorldCardClick('cyberpunk')}
 					buttonText={selectedWorldType === 'cyberpunk' ? 'Выбрано' : 'Выбрать'}
 					width={280}
-					disabled={isLoading}
-				/> */}
+					disabled
+				/>
 
 				{/* <ActionCard
 					title="Повседневный"

@@ -39,6 +39,8 @@ export const initializeAppNavigation = createEffect(() => {
 			},
 		],
 	});
+
+	goToWelcome();
 });
 
 // Навигационные действия

@@ -1,6 +1,6 @@
 import { httpClient } from '@utils/api';
 import { createEffect, createStore, sample } from 'effector';
-import { ROUTES, navigateToScreen } from './navigation_old';
+
 import { WorldCreation, WorldCreateTask, CreatedWorldDraft } from '@shared/types/world-creation';
 
 export const createWorldFx = createEffect({
@@ -34,11 +34,11 @@ export const addWorldToFavoritesFx = createEffect({
 export const $worldCreateProgress = createWorldFx.pending;
 export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 
-sample({
-	clock: createWorldFx.done,
-	fn: () => ROUTES.CREATE_WORLD,
-	target: navigateToScreen,
-});
+// sample({
+// 	clock: createWorldFx.done,
+// 	fn: () => ROUTES.CREATE_WORLD,
+// 	target: navigateToScreen,
+// });
 
 export const $worlds = createStore<WorldCreation | null>(null);
 
