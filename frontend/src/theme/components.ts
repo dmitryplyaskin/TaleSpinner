@@ -144,7 +144,8 @@ export const components: Components<Omit<Theme, 'components'>> = {
 				backgroundColor: '#2a2426',
 				border: '1px solid rgba(212, 175, 55, 0.3)',
 				fontSize: '0.875rem',
-				fontFamily: '"Crimson Text", "Cormorant Garamond", "PT Serif", serif',
+				fontFamily: '"Crimson Text", "Philosopher", "Rubik", "Arial", sans-serif',
+				fontWeight: 400,
 				boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
 				color: '#f4e8d0',
 			},
@@ -169,7 +170,7 @@ export const components: Components<Omit<Theme, 'components'>> = {
 	MuiTab: {
 		styleOverrides: {
 			root: {
-				fontFamily: '"Cinzel", "Cormorant", "PT Sans", sans-serif',
+				fontFamily: '"Cinzel", "Philosopher", "Rubik", "PT Sans", sans-serif',
 				fontWeight: 500,
 				letterSpacing: '0.05em',
 				transition: 'all 0.3s ease',

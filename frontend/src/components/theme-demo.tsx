@@ -33,7 +33,24 @@ export const ThemeDemo: React.FC = () => {
 
 			<Typography variant="body1" paragraph>
 				Добро пожаловать в мир ролевых приключений! Эта тема создана специально для погружения в атмосферу фэнтези и
-				средневековых сказаний. Все шрифты теперь поддерживают кириллицу, а кнопки читаемы во всех состояниях.
+				средневековых сказаний. Шрифты оптимизированы для отличной читаемости кириллицы и латиницы, кнопки читаемы во
+				всех состояниях.
+			</Typography>
+
+			<Typography
+				variant="body2"
+				paragraph
+				sx={{ fontWeight: 500, background: 'rgba(212, 175, 55, 0.1)', p: 2, borderRadius: 2 }}
+			>
+				<strong>Тест кириллицы:</strong> АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ абвгдежзийклмнопрстуфхцчшщъыьэюя
+			</Typography>
+
+			<Typography
+				variant="body2"
+				paragraph
+				sx={{ fontWeight: 500, background: 'rgba(212, 175, 55, 0.1)', p: 2, borderRadius: 2 }}
+			>
+				<strong>Test Latin:</strong> ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz
 			</Typography>
 
 			<Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>

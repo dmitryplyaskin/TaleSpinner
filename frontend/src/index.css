@@ -16,7 +16,7 @@ body {
   min-height: 100vh;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
   color: #f4e8d0;
-  font-family: 'Crimson Text', 'Cormorant Garamond', 'PT Serif', 'Georgia', serif;
+  font-family: 'Crimson Text', 'Philosopher', 'Rubik', 'Roboto', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

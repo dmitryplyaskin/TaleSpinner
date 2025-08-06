@@ -2,20 +2,20 @@ import { ThemeOptions } from '@mui/material/styles';
 
 type TypographyOptions = ThemeOptions['typography'];
 
-// Шрифты с поддержкой кириллицы для русского текста
-const russianFontStack = '"Cormorant Garamond", "PT Serif", "Times New Roman", serif';
-const russianHeadingFontStack = '"Cormorant", "Playfair Display", "PT Serif", serif';
-const russianButtonFontStack = '"Cormorant", "PT Sans", "Arial", sans-serif';
+// Шрифты для кириллицы - более жирные и читаемые
+const cyrillicFontStack = '"Philosopher", "Rubik", "Roboto", "Arial", sans-serif';
+const cyrillicHeadingFontStack = '"Philosopher", "Rubik", "PT Sans", sans-serif';
+const cyrillicButtonFontStack = '"Rubik", "PT Sans", "Arial", sans-serif';
 
-// Английские шрифты для латинских символов
-const englishFontStack = '"Cinzel", "Cormorant Garamond", "Georgia", serif';
-const englishHeadingFontStack = '"Cinzel Decorative", "Cinzel", "Cormorant", serif';
-const englishButtonFontStack = '"Cinzel", "Cormorant", serif';
+// Шрифты для латиницы
+const latinFontStack = '"Cinzel", "Playfair Display", "Georgia", serif';
+const latinHeadingFontStack = '"Cinzel Decorative", "Cinzel", serif';
+const latinButtonFontStack = '"Cinzel", serif';
 
-// Универсальный стек шрифтов с поддержкой обоих языков
-const universalFontStack = `${englishFontStack}, ${russianFontStack}`;
-const universalHeadingFontStack = `${englishHeadingFontStack}, ${russianHeadingFontStack}`;
-const universalButtonFontStack = `${englishButtonFontStack}, ${russianButtonFontStack}`;
+// Универсальный стек шрифтов с поддержкой обоих алфавитов
+const universalFontStack = `${latinFontStack}, ${cyrillicFontStack}`;
+const universalHeadingFontStack = `${latinHeadingFontStack}, ${cyrillicHeadingFontStack}`;
+const universalButtonFontStack = `${latinButtonFontStack}, ${cyrillicButtonFontStack}`;
 
 export const typography: TypographyOptions = {
 	fontFamily: universalFontStack,
@@ -46,24 +46,26 @@ export const typography: TypographyOptions = {
 		fontWeight: 500,
 	},
 	subtitle1: {
-		fontFamily: '"Playfair Display", "Cormorant Garamond", "PT Serif", serif',
-		fontWeight: 400,
+		fontFamily: `"Playfair Display", ${cyrillicFontStack}`,
+		fontWeight: 500,
 		letterSpacing: '0.00938em',
 	},
 	subtitle2: {
-		fontFamily: '"Playfair Display", "Cormorant Garamond", "PT Serif", serif',
-		fontWeight: 500,
+		fontFamily: `"Playfair Display", ${cyrillicFontStack}`,
+		fontWeight: 600,
 		letterSpacing: '0.00714em',
 	},
 	body1: {
-		fontFamily: '"Crimson Text", "Cormorant Garamond", "PT Serif", serif',
+		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
 		fontSize: '1.05rem',
+		fontWeight: 400,
 		lineHeight: 1.7,
 		letterSpacing: '0.00938em',
 	},
 	body2: {
-		fontFamily: '"Crimson Text", "Cormorant Garamond", "PT Serif", serif',
+		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
 		fontSize: '0.95rem',
+		fontWeight: 400,
 		lineHeight: 1.6,
 		letterSpacing: '0.01071em',
 	},
@@ -74,8 +76,9 @@ export const typography: TypographyOptions = {
 		textTransform: 'uppercase',
 	},
 	caption: {
-		fontFamily: '"Crimson Text", "Cormorant Garamond", "PT Serif", serif',
+		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
 		fontSize: '0.85rem',
+		fontWeight: 400,
 		letterSpacing: '0.03333em',
 	},
 	overline: {
