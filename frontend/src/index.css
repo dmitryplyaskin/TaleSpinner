@@ -1,0 +1,248 @@
+/* Глобальные стили для TaleSpinner */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
+  color: #f4e8d0;
+  font-family: 'Crimson Text', 'Georgia', serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Кастомный скроллбар в стиле фэнтези */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1618;
+  border: 1px solid rgba(212, 175, 55, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #d4af37 0%, #b89730 100%);
+  border-radius: 6px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #e6c757 0%, #d4af37 100%);
+}
+
+/* Выделение текста */
+::selection {
+  background: rgba(212, 175, 55, 0.3);
+  color: #f4e8d0;
+}
+
+::-moz-selection {
+  background: rgba(212, 175, 55, 0.3);
+  color: #f4e8d0;
+}
+
+/* Анимация появления элементов */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.4), 0 0 30px rgba(212, 175, 55, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Магическое свечение для важных элементов */
+.magic-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+/* Эффект мерцания для текста */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #d4af37 0%,
+    #f4e8d0 40%,
+    #d4af37 100%
+  );
+  background-size: 1000px 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Стили для ссылок */
+a {
+  color: #d4af37;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+a:hover {
+  color: #e6c757;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+}
+
+/* Утилитарные классы */
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.text-gold {
+  color: #d4af37;
+}
+
+.text-mystic {
+  color: #8b4789;
+}
+
+.bg-parchment {
+  background: linear-gradient(135deg, #1a1618 0%, #221e20 100%);
+}
+
+.border-gold {
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+/* Эффект старой бумаги для контейнеров */
+.parchment-effect {
+  position: relative;
+  background: linear-gradient(135deg, #1a1618 0%, #221e20 100%);
+  border: 2px solid rgba(212, 175, 55, 0.2);
+  border-radius: 8px;
+  box-shadow: 
+    inset 0 0 30px rgba(0, 0, 0, 0.5),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.parchment-effect::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(212, 175, 55, 0.1) 50%,
+    transparent 70%
+  );
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.parchment-effect:hover::before {
+  opacity: 1;
+}
+
+/* Адаптивная типографика */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+}
+
+/* Загрузочная анимация */
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(212, 175, 55, 0.2);
+  border-top-color: #d4af37;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Tooltip стили */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip .tooltip-text {
+  visibility: hidden;
+  background-color: #2a2426;
+  color: #f4e8d0;
+  text-align: center;
+  border-radius: 6px;
+  padding: 8px 12px;
+  position: absolute;
+  z-index: 1000;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Эффект параллакса для фона */
+.parallax-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(ellipse at top, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, rgba(139, 71, 137, 0.05) 0%, transparent 50%),
+    linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
+  z-index: -1;
+}

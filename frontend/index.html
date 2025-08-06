@@ -1,13 +1,49 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/svg+xml" href="/vite.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>TaleSpinner - Ролевые игры с ИИ</title>
+
+		<!-- Шрифты для фэнтези темы -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cinzel+Decorative:wght@400;700&family=Playfair+Display:wght@400;500;600;700&family=Crimson+Text:wght@400;600&display=swap"
+			rel="stylesheet"
+		/>
+
+		<style>
+			/* Начальные стили для красивой загрузки */
+			body {
+				margin: 0;
+				padding: 0;
+				background: linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
+				min-height: 100vh;
+				font-family: 'Crimson Text', 'Georgia', serif;
+			}
+
+			#root {
+				min-height: 100vh;
+			}
+
+			/* Анимация загрузки в стиле магии */
+			.loading-magic {
+				position: fixed;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				display: none;
+			}
+
+			body:empty .loading-magic {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
 </html>
