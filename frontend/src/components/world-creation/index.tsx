@@ -4,10 +4,11 @@ import { ArrowBack } from '@mui/icons-material';
 import { Box, Container, IconButton, Typography } from '@mui/material';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldCreationStepper } from './navigation/stepper';
-import { StepNavigation } from './navigation/step-navigation';
+// import { StepNavigation } from './navigation/step-navigation';
 import { StepConfig } from './navigation/types';
 import { SelectDraftWorld } from './select-draft-world';
 import { WorldSetupStep } from './world-setup-step';
+import { WorldCustomization } from './world-customization';
 
 const WorldCreationContent: React.FC = () => {
 	const { currentStep, currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
@@ -48,19 +49,7 @@ const WorldCreationContent: React.FC = () => {
 		}
 
 		if (isStep('world-customization')) {
-			return (
-				<Box>
-					<Box textAlign="center" py={8}>
-						<Typography variant="h5" gutterBottom>
-							Дополнительные настройки
-						</Typography>
-						<Typography variant="body1" color="text.secondary">
-							Этот шаг будет реализован позже
-						</Typography>
-					</Box>
-					<StepNavigation nextLabel="Завершить" showNext={false} />
-				</Box>
-			);
+			return <WorldCustomization />;
 		}
 
 		return null;
