@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Divider } from '@mui/material';
+import { Box, Typography, Divider, Container, Paper } from '@mui/material';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { StepNavigation } from './navigation/step-navigation';
@@ -26,44 +26,69 @@ export const WorldCustomization: React.FC = () => {
 
 	if (!selectedWorld) {
 		return (
-			<Box textAlign="center" py={8}>
-				<Typography variant="h6" color="text.secondary">
-					Данные выбранного мира не найдены. Вернитесь на предыдущий шаг и выберите мир.
-				</Typography>
-				<StepNavigation showNext={false} />
-			</Box>
+			<Container maxWidth="md">
+				<Box
+					display="flex"
+					flexDirection="column"
+					alignItems="center"
+					justifyContent="center"
+					minHeight="50vh"
+					textAlign="center"
+					px={2}
+				>
+					<Typography variant="h6" color="text.secondary" gutterBottom>
+						Данные выбранного мира не найдены. Вернитесь на предыдущий шаг и выберите мир.
+					</Typography>
+					<Box mt={3}>
+						<StepNavigation showNext={false} />
+					</Box>
+				</Box>
+			</Container>
 		);
 	}
 
 	return (
-		<Box>
-			<Box textAlign="center" py={2} mb={3}>
-				<Typography variant="h5" gutterBottom>
-					Редактирование мира
-				</Typography>
-				<Typography variant="body1" color="text.secondary">
-					Вы можете отредактировать все текущие данные, полученные на предыдущем шаге.
-				</Typography>
+		<Container maxWidth="lg">
+			<Box py={3}>
+				{/* Заголовок секции */}
+				<Box textAlign="center" mb={4}>
+					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+						Редактирование мира
+					</Typography>
+					<Typography variant="body1" color="text.secondary" sx={{ maxWidth: '600px', mx: 'auto' }}>
+						Вы можете отредактировать все текущие данные, полученные на предыдущем шаге.
+					</Typography>
+				</Box>
+
+				{/* Форма редактирования основных данных мира */}
+				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
+					<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
+						Основные параметры мира
+					</Typography>
+					<WorldDraftEditForm initialWorld={selectedWorld} onSubmit={handleEditWorldSubmit} />
+				</Paper>
+
+				<Divider sx={{ my: 4 }} />
+
+				{/* Дополнительные параметры */}
+				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
+					<Box textAlign="center" mb={4}>
+						<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
+							Дополнительные параметры мира
+						</Typography>
+						<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '500px', mx: 'auto' }}>
+							Укажите опциональные разделы. Каждое поле можно включить чекбоксом.
+						</Typography>
+					</Box>
+
+					<CustomizationAdvancedForm onSubmit={handleAdvancedSubmit} />
+				</Paper>
+
+				{/* Навигация */}
+				<Box display="flex" justifyContent="center" mt={4}>
+					<StepNavigation nextLabel="Завершить" showNext={false} />
+				</Box>
 			</Box>
-
-			<WorldDraftEditForm initialWorld={selectedWorld} onSubmit={handleEditWorldSubmit} />
-
-			<Divider sx={{ my: 4 }} />
-
-			<Box textAlign="center" mb={2}>
-				<Typography variant="h6" gutterBottom>
-					Дополнительные параметры мира
-				</Typography>
-				<Typography variant="body2" color="text.secondary">
-					Укажите опциональные разделы. Каждое поле можно включить чекбоксом.
-				</Typography>
-			</Box>
-
-			<CustomizationAdvancedForm onSubmit={handleAdvancedSubmit} />
-
-			<Box mt={2}>
-				<StepNavigation nextLabel="Завершить" showNext={false} />
-			</Box>
-		</Box>
+		</Container>
 	);
 };

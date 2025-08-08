@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, Grid } from '@mui/material';
+import { Box, Button, Stack, Card, CardContent, Collapse } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { FormCheckbox, FormInput, FormTextarea } from '../../../ui/form-components';
 
@@ -41,67 +41,136 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 
 	return (
 		<Box component="form" onSubmit={handleSubmit(submit)}>
-			<Grid container spacing={2}>
-				<Grid item xs={12}>
-					<FormCheckbox form={{ name: 'magicEnabled', control }} label="Добавить раздел: Как работает магия" />
-				</Grid>
-				{magicEnabled && (
-					<Grid item xs={12}>
-						<FormTextarea form={{ name: 'magicDescription', control }} label="Как работает магия" rows={4} fullWidth />
-					</Grid>
-				)}
+			<Stack spacing={3}>
+				{/* Секция магии */}
+				<Card
+					variant="outlined"
+					sx={{
+						borderRadius: 3,
+						border: '1px solid',
+						borderColor: 'divider',
+						'&:hover': {
+							borderColor: 'primary.main',
+							boxShadow: 1,
+						},
+						transition: 'all 0.2s ease-in-out',
+					}}
+				>
+					<CardContent sx={{ pb: magicEnabled ? 3 : 2 }}>
+						<FormCheckbox form={{ name: 'magicEnabled', control }} label="Добавить раздел: Как работает магия" />
 
-				<Grid item xs={12}>
-					<FormCheckbox form={{ name: 'factionsEnabled', control }} label="Добавить раздел: Фракции" />
-				</Grid>
-				{factionsEnabled && (
-					<>
-						<Grid item xs={12} md={4}>
-							<FormInput form={{ name: 'factionsCount', control }} label="Количество фракций" type="number" fullWidth />
-						</Grid>
-						<Grid item xs={12} md={8}>
-							<FormTextarea
-								form={{ name: 'factionsDescription', control }}
-								label="Описание фракций"
-								rows={4}
-								fullWidth
-							/>
-						</Grid>
-					</>
-				)}
+						<Collapse in={magicEnabled} timeout="auto" unmountOnExit>
+							<Box mt={3}>
+								<FormTextarea
+									form={{ name: 'magicDescription', control }}
+									label="Как работает магия"
+									rows={4}
+									fullWidth
+									placeholder="Опишите систему магии в вашем мире..."
+								/>
+							</Box>
+						</Collapse>
+					</CardContent>
+				</Card>
 
-				<Grid item xs={12}>
-					<FormCheckbox form={{ name: 'charactersEnabled', control }} label="Добавить раздел: Персонажи" />
-				</Grid>
-				{charactersEnabled && (
-					<>
-						<Grid item xs={12} md={4}>
-							<FormInput
-								form={{ name: 'charactersCount', control }}
-								label="Количество персонажей"
-								type="number"
-								fullWidth
-							/>
-						</Grid>
-						<Grid item xs={12} md={8}>
-							<FormTextarea
-								form={{ name: 'charactersDescription', control }}
-								label="Описание персонажей"
-								rows={4}
-								fullWidth
-							/>
-						</Grid>
-					</>
-				)}
+				{/* Секция фракций */}
+				<Card
+					variant="outlined"
+					sx={{
+						borderRadius: 3,
+						border: '1px solid',
+						borderColor: 'divider',
+						'&:hover': {
+							borderColor: 'primary.main',
+							boxShadow: 1,
+						},
+						transition: 'all 0.2s ease-in-out',
+					}}
+				>
+					<CardContent sx={{ pb: factionsEnabled ? 3 : 2 }}>
+						<FormCheckbox form={{ name: 'factionsEnabled', control }} label="Добавить раздел: Фракции" />
 
-				<Grid item xs={12}>
-					<Box display="flex" gap={2} mt={1}>
-						<Button type="submit" variant="outlined">
-							Сохранить дополнительные настройки
-						</Button>
-					</Box>
-				</Grid>
-			</Grid>
+						<Collapse in={factionsEnabled} timeout="auto" unmountOnExit>
+							<Box mt={3}>
+								<Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '200px 1fr' }} gap={3} alignItems="start">
+									<FormInput
+										form={{ name: 'factionsCount', control }}
+										label="Количество фракций"
+										type="number"
+										fullWidth
+										placeholder="3"
+									/>
+									<FormTextarea
+										form={{ name: 'factionsDescription', control }}
+										label="Описание фракций"
+										rows={4}
+										fullWidth
+										placeholder="Опишите основные фракции и их взаимоотношения..."
+									/>
+								</Box>
+							</Box>
+						</Collapse>
+					</CardContent>
+				</Card>
+
+				{/* Секция персонажей */}
+				<Card
+					variant="outlined"
+					sx={{
+						borderRadius: 3,
+						border: '1px solid',
+						borderColor: 'divider',
+						'&:hover': {
+							borderColor: 'primary.main',
+							boxShadow: 1,
+						},
+						transition: 'all 0.2s ease-in-out',
+					}}
+				>
+					<CardContent sx={{ pb: charactersEnabled ? 3 : 2 }}>
+						<FormCheckbox form={{ name: 'charactersEnabled', control }} label="Добавить раздел: Персонажи" />
+
+						<Collapse in={charactersEnabled} timeout="auto" unmountOnExit>
+							<Box mt={3}>
+								<Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '200px 1fr' }} gap={3} alignItems="start">
+									<FormInput
+										form={{ name: 'charactersCount', control }}
+										label="Количество персонажей"
+										type="number"
+										fullWidth
+										placeholder="5"
+									/>
+									<FormTextarea
+										form={{ name: 'charactersDescription', control }}
+										label="Описание персонажей"
+										rows={4}
+										fullWidth
+										placeholder="Опишите ключевых персонажей и их роли..."
+									/>
+								</Box>
+							</Box>
+						</Collapse>
+					</CardContent>
+				</Card>
+
+				{/* Кнопки управления */}
+				<Box display="flex" justifyContent="center" pt={4}>
+					<Button
+						type="submit"
+						variant="contained"
+						size="large"
+						sx={{
+							minWidth: '300px',
+							borderRadius: 2,
+							textTransform: 'none',
+							fontSize: '1.1rem',
+							py: 1.5,
+						}}
+					>
+						Сохранить дополнительные настройки
+					</Button>
+				</Box>
+			</Stack>
 		</Box>
 	);
 };

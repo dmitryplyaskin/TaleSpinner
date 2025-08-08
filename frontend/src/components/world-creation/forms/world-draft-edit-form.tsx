@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button } from '@mui/material';
+import { Box, Button, Stack } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { FormInput, FormTextarea } from '../../../ui/form-components';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
@@ -46,46 +46,50 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ initialW
 
 	return (
 		<Box component="form" onSubmit={handleSubmit(handleFormSubmit)}>
-			<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={2}>
-				<FormInput
-					form={{ name: 'title', control, rules: { required: 'Название обязательно' } }}
-					label="Название мира"
-					fullWidth
-				/>
+			<Stack spacing={3}>
+				{/* Основная информация */}
+				<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>
+					<FormInput
+						form={{ name: 'title', control, rules: { required: 'Название обязательно' } }}
+						label="Название мира"
+						fullWidth
+					/>
 
-				<FormInput form={{ name: 'genre', control, rules: { required: 'Жанр обязателен' } }} label="Жанр" fullWidth />
+					<FormInput form={{ name: 'genre', control, rules: { required: 'Жанр обязателен' } }} label="Жанр" fullWidth />
 
-				<FormInput
-					form={{ name: 'toneText', control }}
-					label="Тон (через запятую)"
-					placeholder="напр., мрачный, героический, эпичный"
-					fullWidth
-				/>
-			</Box>
+					<Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
+						<FormInput
+							form={{ name: 'toneText', control }}
+							label="Тон (через запятую)"
+							placeholder="напр., мрачный, heroический, эпичный"
+							fullWidth
+						/>
+					</Box>
+				</Box>
 
-			<Box mt={2}>
+				{/* Уникальная особенность */}
 				<FormTextarea
 					form={{ name: 'unique_feature', control, rules: { required: 'Уникальная особенность обязательна' } }}
 					label="Уникальная особенность"
 					rows={3}
 					fullWidth
 				/>
-			</Box>
 
-			<Box mt={2}>
+				{/* Описание мира */}
 				<FormTextarea
 					form={{ name: 'synopsis', control, rules: { required: 'Описание обязательно' } }}
 					label="Описание мира"
 					rows={6}
 					fullWidth
 				/>
-			</Box>
 
-			<Box display="flex" gap={2} mt={3}>
-				<Button type="submit" variant="contained" size="large">
-					Сохранить изменения
-				</Button>
-			</Box>
+				{/* Кнопки управления */}
+				<Box display="flex" justifyContent="flex-start" pt={2}>
+					<Button type="submit" variant="contained" size="large" sx={{ minWidth: '200px' }}>
+						Сохранить изменения
+					</Button>
+				</Box>
+			</Stack>
 		</Box>
 	);
 };
