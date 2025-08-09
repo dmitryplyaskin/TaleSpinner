@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Button, Stack, Card, CardContent, Collapse } from '@mui/material';
+import { Box, Button, Stack, Card, CardContent, Collapse, IconButton, Tooltip, Typography } from '@mui/material';
+import { AutoAwesome as GenerateIcon } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { FormCheckbox, FormInput, FormTextarea } from '../../../ui/form-components';
 
@@ -16,12 +17,242 @@ export interface CustomizationAdvancedData {
 	charactersDescription?: string;
 }
 
+// Типы для JSON конфигурации
+export interface FormFieldConfig {
+	name: string;
+	type: 'input' | 'textarea';
+	label: string;
+	placeholder?: string;
+	inputType?: 'text' | 'number';
+	rows?: number;
+	fullWidth?: boolean;
+	canGenerate?: boolean;
+}
+
+export interface FormSectionConfig {
+	id: string;
+	title: string;
+	description?: string;
+	enabledFieldName: string;
+	fields: FormFieldConfig[];
+}
+
+export interface FormConfig {
+	sections: FormSectionConfig[];
+	submitButtonText: string;
+}
+
+// Интерфейс для обработчиков генерации
+export interface GenerateHandlers {
+	[fieldName: string]: () => void;
+}
+
 export interface CustomizationAdvancedFormProps {
 	defaultValues?: Partial<CustomizationAdvancedData>;
 	onSubmit: (data: CustomizationAdvancedData) => void;
+	generateHandlers?: GenerateHandlers;
+	formConfig?: FormConfig;
 }
 
-export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps> = ({ defaultValues, onSubmit }) => {
+// Компонент поля с кнопкой генерации
+interface FieldWithGenerateProps {
+	field: FormFieldConfig;
+	control: any;
+	onGenerate?: () => void;
+}
+
+const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control, onGenerate }) => {
+	const renderField = () => {
+		switch (field.type) {
+			case 'input':
+				return (
+					<FormInput
+						form={{ name: field.name, control }}
+						label={field.label}
+						type={field.inputType || 'text'}
+						fullWidth={field.fullWidth}
+						placeholder={field.placeholder}
+					/>
+				);
+			case 'textarea':
+				return (
+					<FormTextarea
+						form={{ name: field.name, control }}
+						label={field.label}
+						rows={field.rows || 4}
+						fullWidth={field.fullWidth}
+						placeholder={field.placeholder}
+					/>
+				);
+			default:
+				return null;
+		}
+	};
+
+	if (!field.canGenerate || !onGenerate) {
+		return renderField();
+	}
+
+	return (
+		<Box display="flex" alignItems="flex-end" gap={1.5} width="100%">
+			<Box flex={1}>{renderField()}</Box>
+			<Tooltip title="Сгенерировать автоматически">
+				<IconButton
+					onClick={onGenerate}
+					color="primary"
+					size="medium"
+					sx={{
+						mb: 0.5,
+						flexShrink: 0,
+						'&:hover': {
+							backgroundColor: 'primary.main',
+							color: 'primary.contrastText',
+						},
+					}}
+				>
+					<GenerateIcon />
+				</IconButton>
+			</Tooltip>
+		</Box>
+	);
+};
+
+// Компонент секции формы
+interface FormSectionProps {
+	section: FormSectionConfig;
+	control: any;
+	isExpanded: boolean;
+	generateHandlers?: GenerateHandlers;
+}
+
+const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded, generateHandlers }) => {
+	return (
+		<Card
+			variant="outlined"
+			sx={{
+				borderRadius: 3,
+				border: '1px solid',
+				borderColor: 'divider',
+				'&:hover': {
+					borderColor: 'primary.main',
+					boxShadow: 1,
+				},
+				transition: 'all 0.2s ease-in-out',
+			}}
+		>
+			<CardContent sx={{ pb: isExpanded ? 3 : 2 }}>
+				{/* Чекбокс для включения/выключения секции */}
+				<FormCheckbox form={{ name: section.enabledFieldName, control }} label={section.title} />
+
+				{/* Описание секции */}
+				{section.description && (
+					<Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0 }}>
+						{section.description}
+					</Typography>
+				)}
+
+				{/* Поля секции */}
+				<Collapse in={isExpanded} timeout="auto" unmountOnExit>
+					<Box mt={3}>
+						<Stack spacing={3}>
+							{section.fields.map((field) => (
+								<FieldWithGenerate
+									key={field.name}
+									field={field}
+									control={control}
+									onGenerate={generateHandlers?.[field.name]}
+								/>
+							))}
+						</Stack>
+					</Box>
+				</Collapse>
+			</CardContent>
+		</Card>
+	);
+};
+
+// Конфигурация формы по умолчанию
+const DEFAULT_FORM_CONFIG: FormConfig = {
+	sections: [
+		{
+			id: 'magic',
+			title: 'Добавить раздел: Как работает магия',
+			description: 'Опишите систему магии в вашем мире, её правила и ограничения',
+			enabledFieldName: 'magicEnabled',
+			fields: [
+				{
+					name: 'magicDescription',
+					type: 'textarea',
+					label: 'Как работает магия',
+					rows: 4,
+					fullWidth: true,
+					placeholder: 'Опишите систему магии в вашем мире...',
+					canGenerate: true,
+				},
+			],
+		},
+		{
+			id: 'factions',
+			title: 'Добавить раздел: Фракции',
+			description: 'Определите основные группировки и их взаимоотношения в мире',
+			enabledFieldName: 'factionsEnabled',
+			fields: [
+				{
+					name: 'factionsCount',
+					type: 'input',
+					label: 'Количество фракций',
+					inputType: 'number',
+					fullWidth: true,
+					placeholder: '3',
+					canGenerate: true,
+				},
+				{
+					name: 'factionsDescription',
+					type: 'textarea',
+					label: 'Описание фракций',
+					rows: 4,
+					fullWidth: true,
+					placeholder: 'Опишите основные фракции и их взаимоотношения...',
+					canGenerate: true,
+				},
+			],
+		},
+		{
+			id: 'characters',
+			title: 'Добавить раздел: Персонажи',
+			description: 'Создайте ключевых персонажей и определите их роли в истории',
+			enabledFieldName: 'charactersEnabled',
+			fields: [
+				{
+					name: 'charactersCount',
+					type: 'input',
+					label: 'Количество персонажей',
+					inputType: 'number',
+					fullWidth: true,
+					placeholder: '5',
+					canGenerate: true,
+				},
+				{
+					name: 'charactersDescription',
+					type: 'textarea',
+					label: 'Описание персонажей',
+					rows: 4,
+					fullWidth: true,
+					placeholder: 'Опишите ключевых персонажей и их роли...',
+					canGenerate: true,
+				},
+			],
+		},
+	],
+	submitButtonText: 'Сохранить дополнительные настройки',
+};
+
+export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps> = ({
+	defaultValues,
+	onSubmit,
+	generateHandlers,
+	formConfig = DEFAULT_FORM_CONFIG,
+}) => {
 	const { control, handleSubmit, watch } = useForm<CustomizationAdvancedData>({
 		defaultValues: {
 			magicEnabled: false,
@@ -31,9 +262,11 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 		},
 	});
 
-	const magicEnabled = watch('magicEnabled');
-	const factionsEnabled = watch('factionsEnabled');
-	const charactersEnabled = watch('charactersEnabled');
+	// Динамически создаем watch для всех enabled полей
+	const watchedValues = formConfig.sections.reduce((acc, section) => {
+		acc[section.enabledFieldName] = watch(section.enabledFieldName as keyof CustomizationAdvancedData) as boolean;
+		return acc;
+	}, {} as Record<string, boolean>);
 
 	const submit = (data: CustomizationAdvancedData) => {
 		onSubmit(data);
@@ -42,116 +275,16 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 	return (
 		<Box component="form" onSubmit={handleSubmit(submit)}>
 			<Stack spacing={3}>
-				{/* Секция магии */}
-				<Card
-					variant="outlined"
-					sx={{
-						borderRadius: 3,
-						border: '1px solid',
-						borderColor: 'divider',
-						'&:hover': {
-							borderColor: 'primary.main',
-							boxShadow: 1,
-						},
-						transition: 'all 0.2s ease-in-out',
-					}}
-				>
-					<CardContent sx={{ pb: magicEnabled ? 3 : 2 }}>
-						<FormCheckbox form={{ name: 'magicEnabled', control }} label="Добавить раздел: Как работает магия" />
-
-						<Collapse in={magicEnabled} timeout="auto" unmountOnExit>
-							<Box mt={3}>
-								<FormTextarea
-									form={{ name: 'magicDescription', control }}
-									label="Как работает магия"
-									rows={4}
-									fullWidth
-									placeholder="Опишите систему магии в вашем мире..."
-								/>
-							</Box>
-						</Collapse>
-					</CardContent>
-				</Card>
-
-				{/* Секция фракций */}
-				<Card
-					variant="outlined"
-					sx={{
-						borderRadius: 3,
-						border: '1px solid',
-						borderColor: 'divider',
-						'&:hover': {
-							borderColor: 'primary.main',
-							boxShadow: 1,
-						},
-						transition: 'all 0.2s ease-in-out',
-					}}
-				>
-					<CardContent sx={{ pb: factionsEnabled ? 3 : 2 }}>
-						<FormCheckbox form={{ name: 'factionsEnabled', control }} label="Добавить раздел: Фракции" />
-
-						<Collapse in={factionsEnabled} timeout="auto" unmountOnExit>
-							<Box mt={3}>
-								<Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '200px 1fr' }} gap={3} alignItems="start">
-									<FormInput
-										form={{ name: 'factionsCount', control }}
-										label="Количество фракций"
-										type="number"
-										fullWidth
-										placeholder="3"
-									/>
-									<FormTextarea
-										form={{ name: 'factionsDescription', control }}
-										label="Описание фракций"
-										rows={4}
-										fullWidth
-										placeholder="Опишите основные фракции и их взаимоотношения..."
-									/>
-								</Box>
-							</Box>
-						</Collapse>
-					</CardContent>
-				</Card>
-
-				{/* Секция персонажей */}
-				<Card
-					variant="outlined"
-					sx={{
-						borderRadius: 3,
-						border: '1px solid',
-						borderColor: 'divider',
-						'&:hover': {
-							borderColor: 'primary.main',
-							boxShadow: 1,
-						},
-						transition: 'all 0.2s ease-in-out',
-					}}
-				>
-					<CardContent sx={{ pb: charactersEnabled ? 3 : 2 }}>
-						<FormCheckbox form={{ name: 'charactersEnabled', control }} label="Добавить раздел: Персонажи" />
-
-						<Collapse in={charactersEnabled} timeout="auto" unmountOnExit>
-							<Box mt={3}>
-								<Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '200px 1fr' }} gap={3} alignItems="start">
-									<FormInput
-										form={{ name: 'charactersCount', control }}
-										label="Количество персонажей"
-										type="number"
-										fullWidth
-										placeholder="5"
-									/>
-									<FormTextarea
-										form={{ name: 'charactersDescription', control }}
-										label="Описание персонажей"
-										rows={4}
-										fullWidth
-										placeholder="Опишите ключевых персонажей и их роли..."
-									/>
-								</Box>
-							</Box>
-						</Collapse>
-					</CardContent>
-				</Card>
+				{/* Динамически генерируем секции на основе конфигурации */}
+				{formConfig.sections.map((section) => (
+					<FormSection
+						key={section.id}
+						section={section}
+						control={control}
+						isExpanded={watchedValues[section.enabledFieldName] || false}
+						generateHandlers={generateHandlers}
+					/>
+				))}
 
 				{/* Кнопки управления */}
 				<Box display="flex" justifyContent="center" pt={4}>
@@ -167,7 +300,7 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 							py: 1.5,
 						}}
 					>
-						Сохранить дополнительные настройки
+						{formConfig.submitButtonText}
 					</Button>
 				</Box>
 			</Stack>
