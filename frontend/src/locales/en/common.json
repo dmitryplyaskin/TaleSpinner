@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "TaleSpinner",
+    "welcome": "Welcome"
+  },
+  "navigation": {
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "language": {
+    "switch": "Language",
+    "english": "English",
+    "russian": "Russian"
+  }
+}
