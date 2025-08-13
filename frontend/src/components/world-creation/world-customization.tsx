@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, Typography, Divider, Container, Paper } from '@mui/material';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
-import { StepNavigation } from './navigation/step-navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
 import { CustomizationAdvancedForm, CustomizationAdvancedData } from './forms/customization-advanced-form';
 
@@ -39,9 +38,6 @@ export const WorldCustomization: React.FC = () => {
 					<Typography variant="h6" color="text.secondary" gutterBottom>
 						Данные выбранного мира не найдены. Вернитесь на предыдущий шаг и выберите мир.
 					</Typography>
-					<Box mt={3}>
-						<StepNavigation showNext={false} />
-					</Box>
 				</Box>
 			</Container>
 		);
@@ -83,11 +79,6 @@ export const WorldCustomization: React.FC = () => {
 
 					<CustomizationAdvancedForm onSubmit={handleAdvancedSubmit} />
 				</Paper>
-
-				{/* Навигация */}
-				<Box display="flex" justifyContent="center" mt={4}>
-					<StepNavigation nextLabel="Завершить" showNext={false} />
-				</Box>
 			</Box>
 		</Container>
 	);

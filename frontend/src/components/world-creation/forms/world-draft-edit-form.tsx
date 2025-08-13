@@ -82,13 +82,6 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ initialW
 					rows={6}
 					fullWidth
 				/>
-
-				{/* Кнопки управления */}
-				<Box display="flex" justifyContent="flex-start" pt={2}>
-					<Button type="submit" variant="contained" size="large" sx={{ minWidth: '200px' }}>
-						Сохранить изменения
-					</Button>
-				</Box>
 			</Stack>
 		</Box>
 	);

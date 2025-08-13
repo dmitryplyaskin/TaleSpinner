@@ -121,8 +121,6 @@ export const WorldSetupStep: React.FC = () => {
 				</Button>
 			</Box>
 
-			<StepNavigation showPrev={false} showNext={false} />
-
 			{/* <ProgressLoader open={isLoading} steps={steps} currentStep={currentStep} onCancel={cancel} /> */}
 		</Box>
 	);
