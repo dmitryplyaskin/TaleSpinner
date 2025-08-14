@@ -1,11 +1,11 @@
 import { httpClient } from '@utils/api';
-import { createEffect, createStore, sample } from 'effector';
+import { createEffect, createStore } from 'effector';
 
 import { WorldCreation, WorldCreateTask, CreatedWorldDraft } from '@shared/types/world-creation';
 
-export const createWorldFx = createEffect({
+export const createDraftWorldsFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
-		const world = (await httpClient.post('/api/world-creation/create', data)) as WorldCreation;
+		const world = (await httpClient.post('/api/world-creation/create/draft', data)) as WorldCreation;
 		return world;
 	},
 });
@@ -30,8 +30,14 @@ export const addWorldToFavoritesFx = createEffect({
 		return world;
 	},
 });
+export const createWorldFx = createEffect({
+	handler: async (data: any) => {
+		const world = (await httpClient.post('/api/world-creation/create-world', data)) as CreatedWorldDraft;
+		return world;
+	},
+});
 
-export const $worldCreateProgress = createWorldFx.pending;
+export const $worldCreateProgress = createDraftWorldsFx.pending;
 export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 
 // sample({
@@ -43,7 +49,7 @@ export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 export const $worlds = createStore<WorldCreation | null>(null);
 
 $worlds
-	.on([createWorldFx.done, createMoreWorldsFx.done], (_, { result }) => result)
+	.on([createDraftWorldsFx.done, createMoreWorldsFx.done], (_, { result }) => result)
 	.on(addWorldToFavoritesFx.done, (state, { result }) => {
 		if (!state) return null;
 		return {

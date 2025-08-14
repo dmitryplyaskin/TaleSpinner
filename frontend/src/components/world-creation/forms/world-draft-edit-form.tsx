@@ -46,11 +46,7 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 		<Box>
 			<Stack spacing={3}>
 				<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>
-					<FormInput
-						form={{ name: 'title', control, rules: { required: 'Название обязательно' } }}
-						label="Название мира"
-						fullWidth
-					/>
+					<FormInput form={{ name: 'title', control }} label="Название мира" fullWidth />
 
 					<FormInput form={{ name: 'genre', control, rules: { required: 'Жанр обязателен' } }} label="Жанр" fullWidth />
 
@@ -64,19 +60,9 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 					</Box>
 				</Box>
 
-				<FormTextarea
-					form={{ name: 'unique_feature', control, rules: { required: 'Уникальная особенность обязательна' } }}
-					label="Уникальная особенность"
-					rows={3}
-					fullWidth
-				/>
+				<FormTextarea form={{ name: 'unique_feature', control }} label="Уникальная особенность" rows={3} fullWidth />
 
-				<FormTextarea
-					form={{ name: 'synopsis', control, rules: { required: 'Описание обязательно' } }}
-					label="Описание мира"
-					rows={6}
-					fullWidth
-				/>
+				<FormTextarea form={{ name: 'synopsis', control }} label="Описание мира" rows={6} fullWidth />
 			</Stack>
 		</Box>
 	);

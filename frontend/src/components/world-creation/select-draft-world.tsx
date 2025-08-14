@@ -36,7 +36,8 @@ export const SelectDraftWorld: React.FC = () => {
 			</Typography>
 
 			<Typography variant="h6" component="h2" textAlign="center" color="text.secondary" gutterBottom sx={{ mb: 6 }}>
-				Каждый мир предлагает уникальную атмосферу и возможности для создания незабываемых историй
+				Вы сможете отредактировать мир на следующем шаге. Выберите тот который подходит вам или выберете случайный и
+				вручную опишите то что желаете.
 			</Typography>
 
 			<Box display="flex" flexDirection="column" gap={3} alignItems="center">

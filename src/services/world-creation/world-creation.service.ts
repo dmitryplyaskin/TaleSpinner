@@ -174,7 +174,7 @@ export class WorldCreateService {
     return favoritesWorld;
   }
 
-  async createWorld(data: WorldCreateTask) {
+  async createWorld(data: any) {
     // const world = await WorldCreationDraftJsonService.readFile(data.lastWorldGenerationId);
     // if (!world) throw new Error("World not found");
     // return world;

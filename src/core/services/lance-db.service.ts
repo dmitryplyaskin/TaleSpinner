@@ -1,13 +1,5 @@
-import { connect, Connection, Table, WriteMode } from "@lancedb/lancedb";
-import {
-  Schema,
-  Field,
-  Float32,
-  Utf8,
-  Int32,
-  Bool,
-  FixedSizeList,
-} from "apache-arrow";
+import * as lancedb from "@lancedb/lancedb";
+import { Schema, Field, Float32, Utf8, FixedSizeList } from "apache-arrow";
 
 export interface GameDocument {
   id: string;
@@ -27,13 +19,9 @@ export interface SearchOptions {
   refine_factor?: number;
 }
 
-export interface UpsertOptions {
-  mode?: WriteMode;
-}
-
 export class LanceDBService {
-  private connection: Connection | null = null;
-  private tables: Map<string, Table> = new Map();
+  private connection: lancedb.Connection | null = null;
+  private tables: Map<string, lancedb.Table> = new Map();
   private readonly dbPath: string;
   private readonly vectorDimensions: number;
 
@@ -47,7 +35,7 @@ export class LanceDBService {
    */
   async initialize(): Promise<void> {
     try {
-      this.connection = await connect(this.dbPath);
+      this.connection = await lancedb.connect(this.dbPath);
       console.log(`✅ LanceDB connected at: ${this.dbPath}`);
     } catch (error) {
       console.error("❌ Failed to connect to LanceDB:", error);
@@ -80,7 +68,7 @@ export class LanceDBService {
   /**
    * Создание или получение таблицы
    */
-  async getOrCreateTable(tableName: string): Promise<Table> {
+  async getOrCreateTable(tableName: string): Promise<lancedb.Table> {
     if (!this.connection) {
       throw new Error("Database not initialized. Call initialize() first.");
     }
@@ -93,7 +81,7 @@ export class LanceDBService {
       // Проверяем, существует ли таблица
       const existingTables = await this.connection.tableNames();
 
-      let table: Table;
+      let table: lancedb.Table;
       if (existingTables.includes(tableName)) {
         table = await this.connection.openTable(tableName);
         console.log(`📖 Opened existing table: ${tableName}`);
@@ -113,13 +101,9 @@ export class LanceDBService {
   }
 
   /**
-   * Добавление или обновление документов
+   * Добавление или обновление документов (upsert)
    */
-  async upsert(
-    tableName: string,
-    documents: GameDocument[],
-    options: UpsertOptions = {}
-  ): Promise<void> {
+  async upsert(tableName: string, documents: GameDocument[]): Promise<void> {
     const table = await this.getOrCreateTable(tableName);
 
     try {
@@ -135,7 +119,11 @@ export class LanceDBService {
         updated_at: doc.updated_at.toISOString(),
       }));
 
-      await table.add(data, { mode: options.mode || WriteMode.Append });
+      // Используем mergeInsert для upsert по id
+      const builder = table.mergeInsert(["id"]);
+      builder.whenMatchedUpdateAll();
+      builder.whenNotMatchedInsertAll();
+      await builder.execute(data);
 
       console.log(`✅ Upserted ${documents.length} documents to ${tableName}`);
     } catch (error) {
@@ -290,13 +278,26 @@ export class LanceDBService {
     const table = await this.getOrCreateTable(tableName);
 
     try {
-      const results = await table.search().toArray();
-      const categories = [...new Set(results.map((r) => r.category))];
+      const count = await table.countRows();
+      const results = await table.search().select(["category"]).toArray();
+      const categories = [
+        ...new Set(
+          results
+            .map((r: any) => r.category)
+            .filter((c: any) => c !== undefined && c !== null)
+        ),
+      ];
+
+      // Примерная оценка размера (не точная, но для демонстрации)
+      const allResults = await table.search().toArray();
+      const size = `${(JSON.stringify(allResults).length / 1024 / 1024).toFixed(
+        2
+      )} MB`;
 
       return {
-        count: results.length,
+        count,
         categories,
-        size: `${(JSON.stringify(results).length / 1024 / 1024).toFixed(2)} MB`,
+        size,
       };
     } catch (error) {
       console.error(`❌ Failed to get table stats for ${tableName}:`, error);
@@ -344,117 +345,11 @@ export class LanceDBService {
       id: result.id,
       content: result.content,
       metadata: JSON.parse(result.metadata || "{}"),
-      vector: Array.from(result.vector),
+      vector: Array.from(result.vector || []),
       category: result.category,
       tags: JSON.parse(result.tags || "[]"),
       created_at: new Date(result.created_at),
       updated_at: new Date(result.updated_at),
     };
-  }
-}
-
-// Пример использования и вспомогательные утилиты
-export class GameLoreService extends LanceDBService {
-  private readonly CHARACTERS_TABLE = "characters";
-  private readonly LOCATIONS_TABLE = "locations";
-  private readonly STORY_TABLE = "story_events";
-  private readonly DIALOGUES_TABLE = "dialogues";
-
-  /**
-   * Добавление персонажа
-   */
-  async addCharacter(character: {
-    name: string;
-    description: string;
-    traits: string[];
-    backstory: string;
-    vector: number[];
-  }): Promise<void> {
-    const document: GameDocument = {
-      id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      content: `${character.name}: ${character.description}\nBackstory: ${character.backstory}`,
-      metadata: {
-        name: character.name,
-        traits: character.traits,
-        type: "character",
-      },
-      vector: character.vector,
-      category: "character",
-      tags: ["character", ...character.traits],
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    await this.upsert(this.CHARACTERS_TABLE, [document]);
-  }
-
-  /**
-   * Поиск персонажей по описанию
-   */
-  async findSimilarCharacters(
-    queryVector: number[],
-    limit: number = 5
-  ): Promise<GameDocument[]> {
-    return this.similaritySearch(this.CHARACTERS_TABLE, queryVector, { limit });
-  }
-
-  /**
-   * Добавление локации
-   */
-  async addLocation(location: {
-    name: string;
-    description: string;
-    atmosphere: string;
-    connections: string[];
-    vector: number[];
-  }): Promise<void> {
-    const document: GameDocument = {
-      id: `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      content: `${location.name}: ${location.description}\nAtmosphere: ${location.atmosphere}`,
-      metadata: {
-        name: location.name,
-        connections: location.connections,
-        type: "location",
-      },
-      vector: location.vector,
-      category: "location",
-      tags: ["location", location.atmosphere],
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    await this.upsert(this.LOCATIONS_TABLE, [document]);
-  }
-
-  /**
-   * Поиск контекста для RAG на основе текущей ситуации в игре
-   */
-  async getRelevantContext(
-    queryVector: number[],
-    currentLocation?: string,
-    involvedCharacters?: string[],
-    limit: number = 10
-  ): Promise<{
-    characters: GameDocument[];
-    locations: GameDocument[];
-    events: GameDocument[];
-    dialogues: GameDocument[];
-  }> {
-    const [characters, locations, events, dialogues] = await Promise.all([
-      this.similaritySearch(this.CHARACTERS_TABLE, queryVector, {
-        limit: Math.ceil(limit * 0.3),
-      }),
-      this.similaritySearch(this.LOCATIONS_TABLE, queryVector, {
-        limit: Math.ceil(limit * 0.2),
-      }),
-      this.similaritySearch(this.STORY_TABLE, queryVector, {
-        limit: Math.ceil(limit * 0.3),
-      }),
-      this.similaritySearch(this.DIALOGUES_TABLE, queryVector, {
-        limit: Math.ceil(limit * 0.2),
-      }),
-    ]);
-
-    return { characters, locations, events, dialogues };
   }
 }

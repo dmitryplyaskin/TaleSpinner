@@ -3,8 +3,9 @@ import { Box, Typography, Divider, Container, Paper, Button } from '@mui/materia
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
-import { CustomizationAdvancedForm, CustomizationAdvancedData } from './forms/customization-advanced-form';
+import { CustomizationAdvancedForm } from './forms/customization-advanced-form';
 import { useForm } from 'react-hook-form';
+import { createWorldFx } from '@model/world-creation';
 
 export const WorldCustomization: React.FC = () => {
 	const { currentBranch, currentStepIndex, updateCurrentStepData } = useWorldCreationNavigation();
@@ -21,15 +22,11 @@ export const WorldCustomization: React.FC = () => {
 		},
 	});
 
-	const handleAdvancedSubmit = (data: CustomizationAdvancedData) => {
+	const handleCreateWorld = (data: any) => {
 		// eslint-disable-next-line no-console
-		console.log('Advanced customization (stub submit):', data);
+		console.log('Create world (stub submit)', data);
+		createWorldFx(data);
 		updateCurrentStepData({ advancedCustomization: data });
-	};
-
-	const handleCreateWorld = () => {
-		// eslint-disable-next-line no-console
-		console.log('Create world (stub submit)');
 	};
 
 	if (!selectedWorld) {

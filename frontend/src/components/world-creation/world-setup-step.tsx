@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Typography, Button, Box, TextField, Collapse } from '@mui/material';
 import { Castle, Add, Computer } from '@mui/icons-material';
 import { ActionCard } from '../../ui';
-import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
+import { $worldCreateProgress, createDraftWorldsFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
 import { useUnit } from 'effector-react';
 import { useWorldCreationNavigation } from './navigation/navigation';
@@ -23,7 +23,7 @@ export const WorldSetupStep: React.FC = () => {
 		if (!selectedWorldType) return;
 
 		try {
-			await createWorldFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
+			await createDraftWorldsFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
 			// Сохраняем данные текущего шага
 			updateCurrentStepData({
 				worldType: selectedWorldType,
