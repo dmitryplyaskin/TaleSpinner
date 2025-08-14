@@ -1,7 +1,6 @@
 import React from 'react';
-import { Box, Button, Stack, Card, CardContent, Collapse, IconButton, Tooltip, Typography } from '@mui/material';
-import { AutoAwesome as GenerateIcon } from '@mui/icons-material';
-import { useForm } from 'react-hook-form';
+import { Box, Stack, Card, CardContent, Collapse, Typography } from '@mui/material';
+import { Control, UseFormWatch } from 'react-hook-form';
 import { FormCheckbox, FormInput, FormTextarea } from '../../../ui/form-components';
 
 export interface CustomizationAdvancedData {
@@ -26,7 +25,6 @@ export interface FormFieldConfig {
 	inputType?: 'text' | 'number';
 	rows?: number;
 	fullWidth?: boolean;
-	canGenerate?: boolean;
 }
 
 export interface FormSectionConfig {
@@ -48,19 +46,19 @@ export interface GenerateHandlers {
 
 export interface CustomizationAdvancedFormProps {
 	defaultValues?: Partial<CustomizationAdvancedData>;
-	onSubmit: (data: CustomizationAdvancedData) => void;
 	generateHandlers?: GenerateHandlers;
 	formConfig?: FormConfig;
+	control: Control<any>;
+	watch: UseFormWatch<any>;
 }
 
 // Компонент поля с кнопкой генерации
 interface FieldWithGenerateProps {
 	field: FormFieldConfig;
 	control: any;
-	onGenerate?: () => void;
 }
 
-const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control, onGenerate }) => {
+const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control }) => {
 	const renderField = () => {
 		switch (field.type) {
 			case 'input':
@@ -88,32 +86,7 @@ const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control, o
 		}
 	};
 
-	if (!field.canGenerate || !onGenerate) {
-		return renderField();
-	}
-
-	return (
-		<Box display="flex" alignItems="flex-end" gap={1.5} width="100%">
-			<Box flex={1}>{renderField()}</Box>
-			<Tooltip title="Сгенерировать автоматически">
-				<IconButton
-					onClick={onGenerate}
-					color="primary"
-					size="medium"
-					sx={{
-						mb: 0.5,
-						flexShrink: 0,
-						'&:hover': {
-							backgroundColor: 'primary.main',
-							color: 'primary.contrastText',
-						},
-					}}
-				>
-					<GenerateIcon />
-				</IconButton>
-			</Tooltip>
-		</Box>
-	);
+	return renderField();
 };
 
 // Компонент секции формы
@@ -124,7 +97,7 @@ interface FormSectionProps {
 	generateHandlers?: GenerateHandlers;
 }
 
-const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded, generateHandlers }) => {
+const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded }) => {
 	return (
 		<Card
 			variant="outlined"
@@ -155,12 +128,7 @@ const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded,
 					<Box mt={3}>
 						<Stack spacing={3}>
 							{section.fields.map((field) => (
-								<FieldWithGenerate
-									key={field.name}
-									field={field}
-									control={control}
-									onGenerate={generateHandlers?.[field.name]}
-								/>
+								<FieldWithGenerate key={field.name} field={field} control={control} />
 							))}
 						</Stack>
 					</Box>
@@ -209,7 +177,6 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 					rows: 4,
 					fullWidth: true,
 					placeholder: 'Опишите основные события и развитие мира...',
-					canGenerate: true,
 				},
 			],
 		},
@@ -227,7 +194,7 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 		// 			rows: 4,
 		// 			fullWidth: true,
 		// 			placeholder: 'Опишите систему магии в вашем мире...',
-		// 			canGenerate: true,
+
 		// 		},
 		// 	],
 		// },
@@ -245,7 +212,6 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 					inputType: 'number',
 					fullWidth: true,
 					placeholder: '3',
-					canGenerate: true,
 				},
 				{
 					name: 'factionsDescription',
@@ -254,7 +220,6 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 					rows: 4,
 					fullWidth: true,
 					placeholder: 'Опишите основные фракции и их взаимоотношения...',
-					canGenerate: true,
 				},
 			],
 		},
@@ -280,7 +245,6 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 					rows: 4,
 					fullWidth: true,
 					placeholder: 'Опишите основные локации, точки интереса, города, страны...',
-					canGenerate: true,
 				},
 			],
 		},
@@ -288,19 +252,18 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 };
 
 export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps> = ({
-	defaultValues,
-	onSubmit,
-	generateHandlers,
+	control,
+	watch,
 	formConfig = DEFAULT_FORM_CONFIG,
 }) => {
-	const { control, handleSubmit, watch } = useForm<CustomizationAdvancedData>({
-		defaultValues: {
-			magicEnabled: false,
-			factionsEnabled: false,
-			charactersEnabled: false,
-			...defaultValues,
-		},
-	});
+	// const { control, watch } = useForm<CustomizationAdvancedData>({
+	// 	defaultValues: {
+	// 		magicEnabled: false,
+	// 		factionsEnabled: false,
+	// 		charactersEnabled: false,
+	// 		...defaultValues,
+	// 	},
+	// });
 
 	// Динамически создаем watch для всех enabled полей
 	const watchedValues = formConfig.sections.reduce((acc, section) => {
@@ -308,12 +271,8 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 		return acc;
 	}, {} as Record<string, boolean>);
 
-	const submit = (data: CustomizationAdvancedData) => {
-		onSubmit(data);
-	};
-
 	return (
-		<Box component="form" onSubmit={handleSubmit(submit)}>
+		<Box>
 			<Stack spacing={3}>
 				{/* Динамически генерируем секции на основе конфигурации */}
 				{formConfig.sections.map((section) => (
@@ -322,7 +281,6 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 						section={section}
 						control={control}
 						isExpanded={watchedValues[section.enabledFieldName] || false}
-						generateHandlers={generateHandlers}
 					/>
 				))}
 			</Stack>

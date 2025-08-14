@@ -12,7 +12,7 @@ export const WorldCustomization: React.FC = () => {
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const selectedWorld = (previousStep?.data?.selectedWorld || null) as CreatedWorldDraft | null;
 
-	const { control, handleSubmit } = useForm({
+	const { control, handleSubmit, watch } = useForm({
 		values: {
 			title: selectedWorld?.title,
 			genre: selectedWorld?.genre,
@@ -88,7 +88,7 @@ export const WorldCustomization: React.FC = () => {
 						</Typography>
 					</Box>
 
-					<CustomizationAdvancedForm onSubmit={handleAdvancedSubmit} />
+					<CustomizationAdvancedForm control={control} watch={watch} />
 				</Paper>
 
 				<Divider sx={{ my: 4 }} />

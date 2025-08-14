@@ -1,8 +1,7 @@
 import React from 'react';
-import { Box, Button, Stack } from '@mui/material';
-import { Control, useForm } from 'react-hook-form';
+import { Box, Stack } from '@mui/material';
+import { Control } from 'react-hook-form';
 import { FormInput, FormTextarea } from '../../../ui/form-components';
-import { CreatedWorldDraft } from '@shared/types/world-creation';
 
 export interface WorldDraftEditFormProps {
 	control: Control<any>;
@@ -46,7 +45,6 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 	return (
 		<Box>
 			<Stack spacing={3}>
-				{/* Основная информация */}
 				<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>
 					<FormInput
 						form={{ name: 'title', control, rules: { required: 'Название обязательно' } }}
@@ -66,7 +64,6 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 					</Box>
 				</Box>
 
-				{/* Уникальная особенность */}
 				<FormTextarea
 					form={{ name: 'unique_feature', control, rules: { required: 'Уникальная особенность обязательна' } }}
 					label="Уникальная особенность"
@@ -74,7 +71,6 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 					fullWidth
 				/>
 
-				{/* Описание мира */}
 				<FormTextarea
 					form={{ name: 'synopsis', control, rules: { required: 'Описание обязательно' } }}
 					label="Описание мира"
