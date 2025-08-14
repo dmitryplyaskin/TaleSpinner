@@ -1,12 +1,11 @@
 import React from 'react';
 import { Box, Button, Stack } from '@mui/material';
-import { useForm } from 'react-hook-form';
+import { Control, useForm } from 'react-hook-form';
 import { FormInput, FormTextarea } from '../../../ui/form-components';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 
 export interface WorldDraftEditFormProps {
-	initialWorld: CreatedWorldDraft;
-	onSubmit: (world: CreatedWorldDraft) => void;
+	control: Control<any>;
 }
 
 type EditableWorldFormData = {
@@ -17,35 +16,35 @@ type EditableWorldFormData = {
 	synopsis: string;
 };
 
-export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ initialWorld, onSubmit }) => {
-	const { control, handleSubmit } = useForm<EditableWorldFormData>({
-		values: {
-			title: initialWorld.title,
-			genre: initialWorld.genre,
-			toneText: (initialWorld.tone || []).join(', '),
-			unique_feature: initialWorld.unique_feature,
-			synopsis: initialWorld.synopsis,
-		},
-	});
+export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control }) => {
+	// const { control, handleSubmit } = useForm<EditableWorldFormData>({
+	// 	values: {
+	// 		title: initialWorld.title,
+	// 		genre: initialWorld.genre,
+	// 		toneText: (initialWorld.tone || []).join(', '),
+	// 		unique_feature: initialWorld.unique_feature,
+	// 		synopsis: initialWorld.synopsis,
+	// 	},
+	// });
 
-	const handleFormSubmit = (data: EditableWorldFormData) => {
-		const updated: CreatedWorldDraft = {
-			id: initialWorld.id,
-			title: data.title,
-			genre: data.genre,
-			tone: data.toneText
-				.split(',')
-				.map((s) => s.trim())
-				.filter(Boolean),
-			unique_feature: data.unique_feature,
-			synopsis: data.synopsis,
-			isFavorite: initialWorld.isFavorite,
-		};
-		onSubmit(updated);
-	};
+	// const handleFormSubmit = (data: EditableWorldFormData) => {
+	// 	const updated: CreatedWorldDraft = {
+	// 		id: initialWorld.id,
+	// 		title: data.title,
+	// 		genre: data.genre,
+	// 		tone: data.toneText
+	// 			.split(',')
+	// 			.map((s) => s.trim())
+	// 			.filter(Boolean),
+	// 		unique_feature: data.unique_feature,
+	// 		synopsis: data.synopsis,
+	// 		isFavorite: initialWorld.isFavorite,
+	// 	};
+	// 	onSubmit(updated);
+	// };
 
 	return (
-		<Box component="form" onSubmit={handleSubmit(handleFormSubmit)}>
+		<Box>
 			<Stack spacing={3}>
 				{/* Основная информация */}
 				<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>

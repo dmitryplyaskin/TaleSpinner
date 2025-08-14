@@ -4,6 +4,7 @@ import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
 import { CustomizationAdvancedForm, CustomizationAdvancedData } from './forms/customization-advanced-form';
+import { useForm } from 'react-hook-form';
 
 export const WorldCustomization: React.FC = () => {
 	const { currentBranch, currentStepIndex, updateCurrentStepData } = useWorldCreationNavigation();
@@ -11,16 +12,24 @@ export const WorldCustomization: React.FC = () => {
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const selectedWorld = (previousStep?.data?.selectedWorld || null) as CreatedWorldDraft | null;
 
-	const handleEditWorldSubmit = (updated: CreatedWorldDraft) => {
-		// eslint-disable-next-line no-console
-		console.log('Updated world draft (stub submit):', updated);
-		updateCurrentStepData({ updatedWorld: updated, completed: true });
-	};
+	const { control, handleSubmit } = useForm({
+		values: {
+			title: selectedWorld?.title,
+			genre: selectedWorld?.genre,
+			toneText: (selectedWorld?.tone || []).join(', '),
+			synopsis: selectedWorld?.synopsis,
+		},
+	});
 
 	const handleAdvancedSubmit = (data: CustomizationAdvancedData) => {
 		// eslint-disable-next-line no-console
 		console.log('Advanced customization (stub submit):', data);
 		updateCurrentStepData({ advancedCustomization: data });
+	};
+
+	const handleCreateWorld = () => {
+		// eslint-disable-next-line no-console
+		console.log('Create world (stub submit)');
 	};
 
 	if (!selectedWorld) {
@@ -61,7 +70,7 @@ export const WorldCustomization: React.FC = () => {
 					<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
 						Основные параметры мира
 					</Typography>
-					<WorldDraftEditForm initialWorld={selectedWorld} onSubmit={handleEditWorldSubmit} />
+					<WorldDraftEditForm control={control} />
 				</Paper>
 
 				<Divider sx={{ my: 4 }} />
@@ -90,7 +99,7 @@ export const WorldCustomization: React.FC = () => {
 							Нажав на кнопку ниже, начнется процесс создания мира, это может занять некоторое время. <br /> На
 							следующем шаге вы сможете просмотреть и отредактировать полученный результат.
 						</Typography>
-						<Button variant="contained" color="primary" onClick={() => {}}>
+						<Button variant="contained" color="primary" onClick={handleSubmit(handleCreateWorld)}>
 							Создать мир
 						</Button>
 					</Box>
