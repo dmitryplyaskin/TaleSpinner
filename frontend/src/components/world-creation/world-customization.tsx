@@ -72,8 +72,10 @@ export const WorldCustomization: React.FC = () => {
 						<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
 							Дополнительные параметры мира
 						</Typography>
-						<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '500px', mx: 'auto' }}>
-							Укажите опциональные разделы. Каждое поле можно включить чекбоксом.
+						<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '800px', mx: 'auto' }}>
+							Укажите опциональные разделы. Каждое поле можно включить чекбоксом. Чем больше выбрано параметров, тем
+							глубже будет мир, но тем больше токенов будет потрачено. Некоторые разделы будут дополняться автоматически
+							по мере игры.
 						</Typography>
 					</Box>
 

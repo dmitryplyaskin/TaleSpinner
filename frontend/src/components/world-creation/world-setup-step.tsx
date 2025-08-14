@@ -6,7 +6,6 @@ import { $worldCreateProgress, createWorldFx } from '@model/world-creation';
 import { WorldType } from '@shared/types/world';
 import { useUnit } from 'effector-react';
 import { useWorldCreationNavigation } from './navigation/navigation';
-import { StepNavigation } from './navigation/step-navigation';
 
 export const WorldSetupStep: React.FC = () => {
 	// const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();

@@ -174,10 +174,32 @@ const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded,
 const DEFAULT_FORM_CONFIG: FormConfig = {
 	sections: [
 		{
+			id: 'races',
+			title: 'Добавить раздел: Расы',
+			description: 'Определите основные расы, вы можете описать подробно, либо оставить на усмотрение генератора',
+			enabledFieldName: 'racesEnabled',
+			fields: [
+				{
+					name: 'racesCount',
+					type: 'input',
+					label: 'Количество рас',
+					inputType: 'number',
+					fullWidth: true,
+				},
+				{
+					name: 'racesDescription',
+					type: 'textarea',
+					label: 'Описание рас',
+					rows: 4,
+					fullWidth: true,
+				},
+			],
+		},
+		{
 			id: 'timeline',
-			title: 'Добавить раздел: История мира',
+			title: 'Добавить раздел: Предыстория мира',
 			description:
-				'Опишите основные события развитие мира, вы можете описать подробно, либо оставить на усмотрение генератора',
+				'Опишите события, которые произошли до начала игры, вы можете описать подробно, либо оставить на усмотрение генератора',
 			enabledFieldName: 'timelineEnabled',
 			fields: [
 				{
@@ -191,24 +213,24 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 				},
 			],
 		},
-		{
-			id: 'magic',
-			title: 'Добавить раздел: Как работает магия',
-			description:
-				'Опишите систему магии в вашем мире, её правила и ограничения, вы можете описать подробно, либо оставить на усмотрение генератора',
-			enabledFieldName: 'magicEnabled',
-			fields: [
-				{
-					name: 'magicDescription',
-					type: 'textarea',
-					label: 'Как работает магия',
-					rows: 4,
-					fullWidth: true,
-					placeholder: 'Опишите систему магии в вашем мире...',
-					canGenerate: true,
-				},
-			],
-		},
+		// {
+		// 	id: 'magic',
+		// 	title: 'Добавить раздел: Как работает магия',
+		// 	description:
+		// 		'Опишите систему магии в вашем мире, её правила и ограничения, вы можете описать подробно, либо оставить на усмотрение генератора',
+		// 	enabledFieldName: 'magicEnabled',
+		// 	fields: [
+		// 		{
+		// 			name: 'magicDescription',
+		// 			type: 'textarea',
+		// 			label: 'Как работает магия',
+		// 			rows: 4,
+		// 			fullWidth: true,
+		// 			placeholder: 'Опишите систему магии в вашем мире...',
+		// 			canGenerate: true,
+		// 		},
+		// 	],
+		// },
 		{
 			id: 'factions',
 			title: 'Добавить раздел: Фракции',
