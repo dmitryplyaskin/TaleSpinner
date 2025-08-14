@@ -120,8 +120,6 @@ export const WorldSetupStep: React.FC = () => {
 					Создать свой мир
 				</Button>
 			</Box>
-
-			{/* <ProgressLoader open={isLoading} steps={steps} currentStep={currentStep} onCancel={cancel} /> */}
 		</Box>
 	);
 };

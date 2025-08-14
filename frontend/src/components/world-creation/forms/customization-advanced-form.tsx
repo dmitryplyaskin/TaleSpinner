@@ -39,7 +39,6 @@ export interface FormSectionConfig {
 
 export interface FormConfig {
 	sections: FormSectionConfig[];
-	submitButtonText: string;
 }
 
 // Интерфейс для обработчиков генерации
@@ -175,9 +174,28 @@ const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded,
 const DEFAULT_FORM_CONFIG: FormConfig = {
 	sections: [
 		{
+			id: 'timeline',
+			title: 'Добавить раздел: История мира',
+			description:
+				'Опишите основные события развитие мира, вы можете описать подробно, либо оставить на усмотрение генератора',
+			enabledFieldName: 'timelineEnabled',
+			fields: [
+				{
+					name: 'timelineDescription',
+					type: 'textarea',
+					label: 'Описание истории мира',
+					rows: 4,
+					fullWidth: true,
+					placeholder: 'Опишите основные события и развитие мира...',
+					canGenerate: true,
+				},
+			],
+		},
+		{
 			id: 'magic',
 			title: 'Добавить раздел: Как работает магия',
-			description: 'Опишите систему магии в вашем мире, её правила и ограничения',
+			description:
+				'Опишите систему магии в вашем мире, её правила и ограничения, вы можете описать подробно, либо оставить на усмотрение генератора',
 			enabledFieldName: 'magicEnabled',
 			fields: [
 				{
@@ -194,7 +212,8 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 		{
 			id: 'factions',
 			title: 'Добавить раздел: Фракции',
-			description: 'Определите основные группировки и их взаимоотношения в мире',
+			description:
+				'Определите основные группировки и их взаимоотношения в мире, вы можете описать подробно, либо оставить на усмотрение генератора',
 			enabledFieldName: 'factionsEnabled',
 			fields: [
 				{
@@ -218,33 +237,32 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 			],
 		},
 		{
-			id: 'characters',
-			title: 'Добавить раздел: Персонажи',
-			description: 'Создайте ключевых персонажей и определите их роли в истории',
-			enabledFieldName: 'charactersEnabled',
+			id: 'locations',
+			title: 'Добавить раздел: Локации',
+			description:
+				'Определите основные локации, точки интереса, города, страны, вы можете описать подробно, либо оставить на усмотрение генератора',
+			enabledFieldName: 'locationsEnabled',
 			fields: [
 				{
-					name: 'charactersCount',
+					name: 'locationsCount',
 					type: 'input',
-					label: 'Количество персонажей',
+					label: 'Количество локаций',
 					inputType: 'number',
 					fullWidth: true,
-					placeholder: '5',
-					canGenerate: true,
+					placeholder: '3',
 				},
 				{
-					name: 'charactersDescription',
+					name: 'locationsDescription',
 					type: 'textarea',
-					label: 'Описание персонажей',
+					label: 'Описание локаций',
 					rows: 4,
 					fullWidth: true,
-					placeholder: 'Опишите ключевых персонажей и их роли...',
+					placeholder: 'Опишите основные локации, точки интереса, города, страны...',
 					canGenerate: true,
 				},
 			],
 		},
 	],
-	submitButtonText: 'Сохранить дополнительные настройки',
 };
 
 export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps> = ({
@@ -285,24 +303,6 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 						generateHandlers={generateHandlers}
 					/>
 				))}
-
-				{/* Кнопки управления */}
-				<Box display="flex" justifyContent="center" pt={4}>
-					<Button
-						type="submit"
-						variant="contained"
-						size="large"
-						sx={{
-							minWidth: '300px',
-							borderRadius: 2,
-							textTransform: 'none',
-							fontSize: '1.1rem',
-							py: 1.5,
-						}}
-					>
-						{formConfig.submitButtonText}
-					</Button>
-				</Box>
 			</Stack>
 		</Box>
 	);

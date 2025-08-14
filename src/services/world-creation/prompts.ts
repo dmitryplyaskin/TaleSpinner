@@ -42,35 +42,6 @@ Create three worlds right now, following all specified requirements and ensuring
 `;
 };
 
-// `
-// ## Output Format
-// Use exactly the following JSON format for easy parsing:
-
-// <parse>
-// {
-//   "worlds": [
-//     {
-//       "id": 1,
-//       "title": "World Name",
-//       "genre": "Genre",
-//       "tone": ["Tone/Atmosphere"],
-//       "unique_feature": "Brief description of unique feature",
-//       "synopsis": "Full world synopsis (200-400 words)",
-//     },
-//     {
-//       "id": 2,
-//       "title": "...",
-//       // similar structure
-//     },
-//     {
-//       "id": 3,
-//       "title": "...",
-//       // similar structure
-//     }
-//   ]
-// }
-// </parse>`
-
 export const responseFormat: OpenAI.ResponseFormatJSONSchema = {
   type: "json_schema",
   json_schema: {

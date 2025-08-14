@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Divider, Container, Paper } from '@mui/material';
+import { Box, Typography, Divider, Container, Paper, Button } from '@mui/material';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
@@ -78,6 +78,20 @@ export const WorldCustomization: React.FC = () => {
 					</Box>
 
 					<CustomizationAdvancedForm onSubmit={handleAdvancedSubmit} />
+				</Paper>
+
+				<Divider sx={{ my: 4 }} />
+
+				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
+					<Box display="flex" justifyContent="center" flexDirection="column" alignItems="center">
+						<Typography variant="body1" color="text.secondary" textAlign="center" sx={{ mb: 4 }}>
+							Нажав на кнопку ниже, начнется процесс создания мира, это может занять некоторое время. <br /> На
+							следующем шаге вы сможете просмотреть и отредактировать полученный результат.
+						</Typography>
+						<Button variant="contained" color="primary" onClick={() => {}}>
+							Создать мир
+						</Button>
+					</Box>
 				</Paper>
 			</Box>
 		</Container>

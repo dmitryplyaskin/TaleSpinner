@@ -5,10 +5,10 @@ const routerBuilder = new RouterBuilder();
 const worldCreateService = new WorldCreateService();
 
 routerBuilder.addRoute({
-  path: "/world-creation/create",
+  path: "/world-creation/create/draft",
   method: "POST",
   handler: async (req, res) => {
-    const result = await worldCreateService.createWorlds(req.body);
+    const result = await worldCreateService.createDraftWorlds(req.body);
     res.json(result);
   },
 });
@@ -36,6 +36,15 @@ routerBuilder.addRoute({
   method: "POST",
   handler: async (req, res) => {
     const result = await worldCreateService.addWorldToFavorites(req.body);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/create-world",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await worldCreateService.createWorld(req.body);
     res.json(result);
   },
 });
