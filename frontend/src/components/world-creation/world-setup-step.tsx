@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Typography, Button, Box, TextField, Collapse } from '@mui/material';
+import { Typography, Button, Box, TextField, Collapse, Container } from '@mui/material';
 import { Castle, Add, Computer } from '@mui/icons-material';
 import { ActionCard } from '../../ui';
 import { $worldCreateProgress, createDraftWorldsFx } from '@model/world-creation';
@@ -37,13 +37,17 @@ export const WorldSetupStep: React.FC = () => {
 		}
 	};
 
-	const handleCustomWorld = async () => {};
-
 	return (
-		<Box>
-			<Typography variant="h5" component="h2" gutterBottom sx={{ mb: 4 }}>
-				Готовые миры
-			</Typography>
+		<Container maxWidth="lg">
+			<Box textAlign="center" mb={4}>
+				<Typography variant="h4" component="h4" gutterBottom>
+					Готовый сеттинг
+				</Typography>
+
+				<Typography variant="body1" color="text.secondary" gutterBottom>
+					Выберите сеттинг для вашего приключения.
+				</Typography>
+			</Box>
 
 			<Box display="flex" gap={3} flexWrap="wrap" justifyContent="center" sx={{ mb: 6 }}>
 				<ActionCard
@@ -107,7 +111,7 @@ export const WorldSetupStep: React.FC = () => {
 				</Box>
 			</Collapse>
 
-			<Box display="flex" justifyContent="center" sx={{ mb: 4 }}>
+			{/* <Box display="flex" justifyContent="center" sx={{ mb: 4 }}>
 				<Button
 					variant="outlined"
 					size="large"
@@ -118,7 +122,7 @@ export const WorldSetupStep: React.FC = () => {
 				>
 					Создать свой мир
 				</Button>
-			</Box>
-		</Box>
+			</Box> */}
+		</Container>
 	);
 };
