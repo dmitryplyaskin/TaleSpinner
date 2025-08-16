@@ -1,7 +1,7 @@
 import {
   createMoreWorldsPrompt,
-  createWorldPrompt,
-  responseFormat,
+  createDraftWorldsPrompt,
+  createWorldsPrompt,
 } from "./prompts";
 import { ApiSettingsService } from "@services/api-settings.service";
 import { v4 as uuidv4 } from "uuid";
@@ -15,7 +15,12 @@ import { ApiSettings } from "@shared/types/api-settings";
 import {
   CreatedWorldDraft,
   WorldCreateTask,
+  WorldCustomizationData,
 } from "@shared/types/world-creation";
+import {
+  createDraftWorldsResponseFormat,
+  createWorldsResponseFormat,
+} from "./schemas";
 
 export class WorldCreateService {
   createOpenAIService(apiSettings: ApiSettings) {
@@ -27,16 +32,17 @@ export class WorldCreateService {
     return openaiService;
   }
 
-  private async callModel(
-    apiSettings: ApiSettings,
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-    model: string
-  ) {
-    const openai = this.createOpenAIService(apiSettings);
+  private async callModel(data: {
+    apiSettings: ApiSettings;
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    model: string;
+    responseFormat: OpenAI.ResponseFormatJSONSchema;
+  }) {
+    const openai = this.createOpenAIService(data.apiSettings);
     const response = await openai.chat.completions.create({
-      model,
-      messages,
-      response_format: responseFormat,
+      model: data.model,
+      messages: data.messages,
+      response_format: data.responseFormat,
     });
 
     const content = response.choices[0]?.message?.content || "";
@@ -56,17 +62,18 @@ export class WorldCreateService {
       return mockWorld;
     }
 
-    const prompt = createWorldPrompt(data.worldType, data.userPrompt);
+    const prompt = createDraftWorldsPrompt(data.worldType, data.userPrompt);
     const apiSettings = await ApiSettingsService.readFile("api-settings");
 
     if (!apiSettings) throw new Error("API settings not found");
 
     try {
-      const result = await this.callModel(
+      const result = await this.callModel({
         apiSettings,
-        [{ role: "user", content: prompt }],
-        apiSettings.api.model
-      );
+        messages: [{ role: "user", content: prompt }],
+        model: apiSettings.api.model,
+        responseFormat: createDraftWorldsResponseFormat,
+      });
 
       const parsedResult = result.worlds.map((world) => ({
         ...world,
@@ -106,11 +113,12 @@ export class WorldCreateService {
     if (!lastWorld) throw new Error("Last world not found");
 
     try {
-      const result = await this.callModel(
+      const result = await this.callModel({
         apiSettings,
-        [...lastWorld.prompt, { role: "user", content: prompt }],
-        apiSettings.api.model
-      );
+        messages: [...lastWorld.prompt, { role: "user", content: prompt }],
+        model: apiSettings.api.model,
+        responseFormat: createDraftWorldsResponseFormat,
+      });
 
       const parsedResult = result.worlds.map((world) => ({
         ...world,
@@ -174,9 +182,26 @@ export class WorldCreateService {
     return favoritesWorld;
   }
 
-  async createWorld(data: any) {
-    // const world = await WorldCreationDraftJsonService.readFile(data.lastWorldGenerationId);
-    // if (!world) throw new Error("World not found");
-    // return world;
+  async createWorld(data: WorldCustomizationData) {
+    const prompt = createWorldsPrompt(data);
+    const apiSettings = await ApiSettingsService.readFile("api-settings");
+    console.log(prompt);
+
+    if (!apiSettings) throw new Error("API settings not found");
+
+    try {
+      const result = await this.callModel({
+        apiSettings,
+        messages: [{ role: "user", content: prompt }],
+        model: apiSettings.api.model,
+        responseFormat: createWorldsResponseFormat,
+      });
+
+      console.log(result);
+      return result;
+    } catch (error) {
+      console.error("Error creating world:", error);
+      throw error;
+    }
   }
 }

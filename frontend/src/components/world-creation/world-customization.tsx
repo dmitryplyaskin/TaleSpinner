@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Divider, Container, Paper, Button } from '@mui/material';
-import { CreatedWorldDraft } from '@shared/types/world-creation';
+import { CreatedWorldDraft, WorldCustomizationData } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
 import { CustomizationAdvancedForm } from './forms/customization-advanced-form';
@@ -13,16 +13,16 @@ export const WorldCustomization: React.FC = () => {
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const selectedWorld = (previousStep?.data?.selectedWorld || null) as CreatedWorldDraft | null;
 
-	const { control, handleSubmit, watch } = useForm({
+	const { control, handleSubmit, watch } = useForm<WorldCustomizationData>({
 		values: {
-			title: selectedWorld?.title,
-			genre: selectedWorld?.genre,
+			title: selectedWorld?.title || '',
+			genre: selectedWorld?.genre || '',
 			toneText: (selectedWorld?.tone || []).join(', '),
-			synopsis: selectedWorld?.synopsis,
+			synopsis: selectedWorld?.synopsis || '',
 		},
 	});
 
-	const handleCreateWorld = (data: any) => {
+	const handleCreateWorld = (data: WorldCustomizationData) => {
 		// eslint-disable-next-line no-console
 		console.log('Create world (stub submit)', data);
 		createWorldFx(data);

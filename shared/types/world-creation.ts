@@ -27,3 +27,24 @@ export interface WorldCreation extends BaseFileData {
   prompt: PromptMessage[];
   worldType: WorldType;
 }
+
+export type WorldCustomizationData = {
+  title: string;
+  genre: string;
+  toneText: string;
+  synopsis: string;
+
+  racesEnabled?: boolean;
+  racesCount?: number;
+  racesDescription?: string;
+
+  timelineEnabled?: boolean;
+  timelineDescription?: string;
+
+  magicEnabled?: boolean;
+  magicDescription?: string;
+
+  factionsEnabled?: boolean;
+  factionsCount?: number;
+  factionsDescription?: string;
+};

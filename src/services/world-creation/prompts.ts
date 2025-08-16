@@ -1,7 +1,7 @@
 import { WorldType } from "@shared/types/world";
-import OpenAI from "openai";
+import { WorldCustomizationData } from "@shared/types/world-creation";
 
-export const createWorldPrompt = (
+export const createDraftWorldsPrompt = (
   worldType: WorldType,
   userPrompt?: string
 ) => {
@@ -42,53 +42,21 @@ Create three worlds right now, following all specified requirements and ensuring
 `;
 };
 
-export const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-  type: "json_schema",
-  json_schema: {
-    name: "rpg_worlds",
-    strict: true,
-    schema: {
-      type: "object",
-      properties: {
-        worlds: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "integer" },
-              title: { type: "string" },
-              genre: { type: "string" },
-              tone: {
-                type: "array",
-                items: { type: "string" },
-              },
-              unique_feature: { type: "string" },
-              synopsis: { type: "string" },
-            },
-            required: [
-              "id",
-              "title",
-              "genre",
-              "tone",
-              "unique_feature",
-              "synopsis",
-            ],
-            additionalProperties: false,
-          },
-          minItems: 3,
-          maxItems: 3,
-        },
-      },
-      required: ["worlds"],
-      additionalProperties: false,
-    },
-  },
-};
-
 export const createMoreWorldsPrompt = (userPrompt?: string) => {
   return `
 Generate 3 more variations of the game world based on the previous instructions.
 
 ${userPrompt ? `User's Specific Requirements: \n${userPrompt}` : ""}
 `;
+};
+
+export const createWorldsPrompt = (data: WorldCustomizationData) => {
+  return `
+  # RPG World Generation Prompt
+
+  ## Role and Expertise
+  You are an expert Game Master and world-builder with extensive experience in creating immersive fantasy settings for tabletop role-playing games. Your expertise includes deep knowledge of mythology, history, politics, economics, and narrative design.
+
+  ## Primary Objective
+  `;
 };

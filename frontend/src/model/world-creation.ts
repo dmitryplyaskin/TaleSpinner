@@ -1,7 +1,12 @@
 import { httpClient } from '@utils/api';
 import { createEffect, createStore } from 'effector';
 
-import { WorldCreation, WorldCreateTask, CreatedWorldDraft } from '@shared/types/world-creation';
+import {
+	WorldCreation,
+	WorldCreateTask,
+	CreatedWorldDraft,
+	WorldCustomizationData,
+} from '@shared/types/world-creation';
 
 export const createDraftWorldsFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
@@ -31,7 +36,7 @@ export const addWorldToFavoritesFx = createEffect({
 	},
 });
 export const createWorldFx = createEffect({
-	handler: async (data: any) => {
+	handler: async (data: WorldCustomizationData) => {
 		const world = (await httpClient.post('/api/world-creation/create-world', data)) as CreatedWorldDraft;
 		return world;
 	},
