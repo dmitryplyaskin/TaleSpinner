@@ -19,6 +19,16 @@ export const WorldCustomization: React.FC = () => {
 			genre: selectedWorld?.genre || '',
 			toneText: (selectedWorld?.tone || []).join(', '),
 			synopsis: selectedWorld?.synopsis || '',
+			racesEnabled: false,
+			racesCount: 3,
+			racesDescription: '',
+			timelineEnabled: false,
+			timelineDescription: '',
+			magicEnabled: false,
+			magicDescription: '',
+			factionsEnabled: false,
+			factionsCount: 3,
+			factionsDescription: '',
 		},
 	});
 

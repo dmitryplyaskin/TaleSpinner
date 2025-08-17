@@ -51,6 +51,14 @@ ${userPrompt ? `User's Specific Requirements: \n${userPrompt}` : ""}
 };
 
 export const createWorldsPrompt = (data: WorldCustomizationData) => {
+  const { title, genre, toneText, synopsis } = data;
+  const tone = toneText.split(",").map((t) => t.trim());
+
+  const racesEnabled = data.racesEnabled;
+  const timelineEnabled = data.timelineEnabled;
+  const magicEnabled = data.magicEnabled;
+  const factionsEnabled = data.factionsEnabled;
+
   return `
   # RPG World Generation Prompt
 
@@ -58,5 +66,19 @@ export const createWorldsPrompt = (data: WorldCustomizationData) => {
   You are an expert Game Master and world-builder with extensive experience in creating immersive fantasy settings for tabletop role-playing games. Your expertise includes deep knowledge of mythology, history, politics, economics, and narrative design.
 
   ## Primary Objective
+
+  ## Races
+  ${racesEnabled ? `Races: ${data.racesCount}` : ""}
+  ${racesEnabled ? `Description: ${data.racesDescription}` : ""}
+
+  ## Timeline
+  ${timelineEnabled ? `Timeline: ${data.timelineDescription}` : ""}
+
+  ## Magic
+  ${magicEnabled ? `Magic: ${data.magicDescription}` : ""}
+
+  ## Factions
+  ${factionsEnabled ? `Factions: ${data.factionsCount}` : ""}
+  ${factionsEnabled ? `Description: ${data.factionsDescription}` : ""}
   `;
 };
