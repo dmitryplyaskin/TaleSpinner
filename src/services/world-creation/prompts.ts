@@ -55,9 +55,23 @@ export const createWorldsPrompt = (data: WorldCustomizationData) => {
   const tone = toneText.split(",").map((t) => t.trim());
 
   const racesEnabled = data.racesEnabled;
+
+  const racesPrompt = racesEnabled
+    ? `Races: ${data.racesCount} \n Description: ${data.racesDescription}`
+    : "";
+
   const timelineEnabled = data.timelineEnabled;
+  const timelinePrompt = timelineEnabled
+    ? `Timeline: ${data.timelineDescription}`
+    : "";
+
   const magicEnabled = data.magicEnabled;
+  const magicPrompt = magicEnabled ? `Magic: ${data.magicDescription}` : "";
+
   const factionsEnabled = data.factionsEnabled;
+  const factionsPrompt = factionsEnabled
+    ? `Factions: ${data.factionsCount} \n Description: ${data.factionsDescription}`
+    : "";
 
   return `
   # RPG World Generation Prompt
@@ -68,17 +82,15 @@ export const createWorldsPrompt = (data: WorldCustomizationData) => {
   ## Primary Objective
 
   ## Races
-  ${racesEnabled ? `Races: ${data.racesCount}` : ""}
-  ${racesEnabled ? `Description: ${data.racesDescription}` : ""}
+  ${racesPrompt}
 
   ## Timeline
-  ${timelineEnabled ? `Timeline: ${data.timelineDescription}` : ""}
+  ${timelinePrompt}
 
   ## Magic
-  ${magicEnabled ? `Magic: ${data.magicDescription}` : ""}
+  ${magicPrompt}
 
   ## Factions
-  ${factionsEnabled ? `Factions: ${data.factionsCount}` : ""}
-  ${factionsEnabled ? `Description: ${data.factionsDescription}` : ""}
+  ${factionsPrompt}
   `;
 };
