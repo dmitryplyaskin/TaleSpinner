@@ -57,40 +57,89 @@ export const createWorldsPrompt = (data: WorldCustomizationData) => {
   const racesEnabled = data.racesEnabled;
 
   const racesPrompt = racesEnabled
-    ? `Races: ${data.racesCount} \n Description: ${data.racesDescription}`
+    ? `## Races
+Name ${
+        data.racesCount || 3
+      }  of the most prominent peoples or species. Briefly describe their fundamental relationship to the world's central conflict or unique feature. Who are the rulers, the oppressed, the forgotten?
+${data.racesDescription ? `Description: ${data.racesDescription}` : ""}
+`
     : "";
 
   const timelineEnabled = data.timelineEnabled;
   const timelinePrompt = timelineEnabled
-    ? `Timeline: ${data.timelineDescription}`
+    ? `## World History
+Briefly explain the pivotal historical context that shaped the world into what is described in the synopsis. Answer the question "How did things get this way?" in a concise, narrative form.
+World History: ${data.timelineDescription}`
     : "";
 
-  const magicEnabled = data.magicEnabled;
-  const magicPrompt = magicEnabled ? `Magic: ${data.magicDescription}` : "";
+  const locationsEnabled = data.locationsEnabled;
+  const locationsPrompt = locationsEnabled
+    ? `## Locations
+Name ${
+        data.locationsCount || 3
+      }  significant locations by name and state their importance. What is the center of power, a place of ancient mystery, or a hotbed of conflict?
+${data.locationsDescription ? `Description: ${data.locationsDescription}` : ""}
+`
+    : "";
 
   const factionsEnabled = data.factionsEnabled;
   const factionsPrompt = factionsEnabled
-    ? `Factions: ${data.factionsCount} \n Description: ${data.factionsDescription}`
+    ? `## Factions
+Name ${
+        data.factionsCount || 3
+      }  key groups, orders, or organizations. Summarize their core motivation or role in the world in a single phrase. Who holds the power, who rebels, who seeks forbidden knowledge?
+${data.factionsDescription ? `Description: ${data.factionsDescription}` : ""}
+`
     : "";
 
+  const elements_to_introduce = [
+    ...(racesEnabled ? ["Races"] : []),
+    ...(timelineEnabled ? ["Timeline"] : []),
+    ...(locationsEnabled ? ["Locations"] : []),
+    ...(factionsEnabled ? ["Factions"] : []),
+  ];
+
   return `
-  # RPG World Generation Prompt
+# RPG World Primer Generation Prompt
 
-  ## Role and Expertise
-  You are an expert Game Master and world-builder with extensive experience in creating immersive fantasy settings for tabletop role-playing games. Your expertise includes deep knowledge of mythology, history, politics, economics, and narrative design.
+## Role and Expertise
+You are a master world-builder and narrative designer. Your core skill is to take a high-level concept and enrich it with foundational lore, creating a cohesive and evocative "World Primer." This primer serves as the definitive source of truth for all future, more detailed world-building.
 
-  ## Primary Objective
+## Primary Objective
+Your task is to expand the user's provided world synopsis into a single, flowing narrative text of about 800-1000 words. This new text, the "World Primer," must seamlessly integrate brief introductions to the key elements selected by the user (Races, History, Factions, Locations). The goal is NOT to create detailed lists, but to weave these concepts into a richer world description that establishes the core truths of the setting.
 
-  ## Races
+## Input Data
+1.  **Core World Data:**
+    *   **Name:** ${title}
+    *   **Genre:** ${genre}
+    *   **Tone:** ${tone.join(", ")}
+    *   **Synopsis:** ${synopsis}
+
+2.  **Elements to Introduce:**
+    *   ${elements_to_introduce.join(", ")}
+
+## Guiding Principles
+
+1.  **From Synopsis to Primer:** The **Synopsis** is your starting point. The **World Primer** you create will be the new, expanded source of truth. Every sentence you write must build upon the original idea and align with the established **Genre** and **Tone**.
+2.  **Integration, Not Enumeration:** Your primary goal is to create a holistic and readable description of the world. **DO NOT** create bullet points or separate sections for Races, Factions, etc. Instead, mention them organically within the narrative. For example, "The oppressive rule of the [Faction Name] is a direct result of [Historical Event], and is enforced primarily in the capital city of [Location Name], where the subservient [Race Name] toil..."
+3.  **Brevity and Intrigue:** For each element you introduce, provide just enough information to establish its existence and importance, creating intrigue and leaving room for future detail. A name and a one-sentence descriptor is often enough (e.g., "...the reclusive Star-Gazers, a faction who believe the calamity was a divine punishment...").
+4.  **Establish Connections:** Use this opportunity to explicitly link the different parts of the world. Show cause and effect. History should explain the factions' origins. Locations should be controlled by certain groups or be significant to a particular race.
+
+
+## Core Generation Task: Weaving the World Primer
+
+Based on the **Elements to Introduce**, incorporate the following concepts into your narrative:
   ${racesPrompt}
 
-  ## Timeline
   ${timelinePrompt}
 
-  ## Magic
-  ${magicPrompt}
+  ${locationsPrompt}
 
-  ## Factions
   ${factionsPrompt}
-  `;
+
+Your final output must be a single, cohesive text that reads like a chapter from a campaign setting guide, setting the stage for adventure.
+
+## Final Instruction
+Generate the **World Primer** as a single block of text, following all instructions. The output should be structured as a simple JSON object containing this text. Do not use MD formatting in the response.
+`;
 };

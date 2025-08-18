@@ -9,6 +9,7 @@ import {
   WorldCreationDraftJsonService,
   WorldCreationSelectedDraftJsonService,
   WorldCreationFavoritesDraftJsonService,
+  WorldCreationPrimerJsonService,
 } from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
@@ -19,7 +20,7 @@ import {
 } from "@shared/types/world-creation";
 import {
   createDraftWorldsResponseFormat,
-  createWorldsResponseFormat,
+  createWorldPrimerResponseFormat,
 } from "./schemas";
 
 export class WorldCreateService {
@@ -194,9 +195,12 @@ export class WorldCreateService {
         apiSettings,
         messages: [{ role: "user", content: prompt }],
         model: apiSettings.api.model,
-        responseFormat: createWorldsResponseFormat,
+        responseFormat: createWorldPrimerResponseFormat(data),
       });
-
+      await WorldCreationPrimerJsonService.createFile(result, {
+        filename: uuidv4(),
+        id: uuidv4(),
+      });
       console.log(result);
       return result;
     } catch (error) {

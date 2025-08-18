@@ -9,3 +9,7 @@ export const WorldCreationSelectedDraftJsonService =
 
 export const WorldCreationFavoritesDraftJsonService =
   new JsonFileService<CreatedWorldDraft>("./data/worlds-creation/favorites");
+
+export const WorldCreationPrimerJsonService = new JsonFileService<any>(
+  "./data/worlds-creation/primer"
+);

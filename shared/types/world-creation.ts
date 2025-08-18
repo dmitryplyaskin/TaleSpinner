@@ -44,6 +44,10 @@ export type WorldCustomizationData = {
   magicEnabled?: boolean;
   magicDescription?: string;
 
+  locationsEnabled?: boolean;
+  locationsCount?: number;
+  locationsDescription?: string;
+
   factionsEnabled?: boolean;
   factionsCount?: number;
   factionsDescription?: string;
