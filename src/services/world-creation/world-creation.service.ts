@@ -56,12 +56,12 @@ export class WorldCreateService {
   }
 
   async createDraftWorlds(data: WorldCreateTask) {
-    if (process.env.DEV_MOCK_WORLD_CREATION === "true") {
-      const mockId = "5fa858bf-90ab-4bf6-b664-1ae967c3ddfa";
-      const mockWorld = await WorldCreationDraftJsonService.readFile(mockId);
-      if (!mockWorld) throw new Error("Mock world not found");
-      return mockWorld;
-    }
+    // if (process.env.DEV_MOCK_WORLD_CREATION === "true") {
+    //   const mockId = "5fa858bf-90ab-4bf6-b664-1ae967c3ddfa";
+    //   const mockWorld = await WorldCreationDraftJsonService.readFile(mockId);
+    //   if (!mockWorld) throw new Error("Mock world not found");
+    //   return mockWorld;
+    // }
 
     const prompt = createDraftWorldsPrompt(data.worldType, data.userPrompt);
     const apiSettings = await ApiSettingsService.readFile("api-settings");

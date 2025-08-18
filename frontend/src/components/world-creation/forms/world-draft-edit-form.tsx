@@ -48,7 +48,7 @@ export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control 
 				<Box display="grid" gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>
 					<FormInput form={{ name: 'title', control }} label="Название мира" fullWidth />
 
-					<FormInput form={{ name: 'genre', control, rules: { required: 'Жанр обязателен' } }} label="Жанр" fullWidth />
+					<FormInput form={{ name: 'genre', control }} label="Жанр" fullWidth />
 
 					<Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
 						<FormInput

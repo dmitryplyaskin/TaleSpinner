@@ -18,6 +18,7 @@ export const WorldCustomization: React.FC = () => {
 			title: selectedWorld?.title || '',
 			genre: selectedWorld?.genre || '',
 			toneText: (selectedWorld?.tone || []).join(', '),
+			unique_feature: selectedWorld?.unique_feature || '',
 			synopsis: selectedWorld?.synopsis || '',
 			racesEnabled: false,
 			racesCount: 3,

@@ -33,6 +33,7 @@ export type WorldCustomizationData = {
   genre: string;
   toneText: string;
   synopsis: string;
+  unique_feature: string;
 
   racesEnabled?: boolean;
   racesCount?: number;
