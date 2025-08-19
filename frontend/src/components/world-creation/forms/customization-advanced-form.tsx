@@ -69,6 +69,16 @@ const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control })
 						type={field.inputType || 'text'}
 						fullWidth={field.fullWidth}
 						placeholder={field.placeholder}
+						slotProps={{
+							input:
+								field.inputType === 'number'
+									? {
+											inputProps: {
+												min: 1,
+											},
+									  }
+									: {},
+						}}
 					/>
 				);
 			case 'textarea':
@@ -256,15 +266,6 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 	watch,
 	formConfig = DEFAULT_FORM_CONFIG,
 }) => {
-	// const { control, watch } = useForm<CustomizationAdvancedData>({
-	// 	defaultValues: {
-	// 		magicEnabled: false,
-	// 		factionsEnabled: false,
-	// 		charactersEnabled: false,
-	// 		...defaultValues,
-	// 	},
-	// });
-
 	// Динамически создаем watch для всех enabled полей
 	const watchedValues = formConfig.sections.reduce((acc, section) => {
 		acc[section.enabledFieldName] = watch(section.enabledFieldName as keyof CustomizationAdvancedData) as boolean;

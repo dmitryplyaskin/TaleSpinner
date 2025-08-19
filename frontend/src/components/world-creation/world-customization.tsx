@@ -30,6 +30,9 @@ export const WorldCustomization: React.FC = () => {
 			factionsEnabled: false,
 			factionsCount: 3,
 			factionsDescription: '',
+			locationsEnabled: false,
+			locationsCount: 3,
+			locationsDescription: '',
 		},
 	});
 
