@@ -59,21 +59,21 @@ export type WorldPrimer = {
   genre: string;
   tone: string;
   world_primer: string;
-  locations: Array<{
+  locations?: Array<{
     name: string;
     description: string;
   }>;
-  races: Array<{
+  races?: Array<{
     name: string;
     description: string;
   }>;
-  factions: Array<{
+  factions?: Array<{
     name: string;
     description: string;
   }>;
-  history: string;
+  history?: string;
   detailed_elements: {
-    races: {
+    races?: {
       races: Array<{
         name: string;
         description: string;
@@ -82,7 +82,7 @@ export type WorldPrimer = {
         social_structure: string;
       }>;
     };
-    timeline: {
+    timeline?: {
       historical_events: Array<{
         name: string;
         timeframe: string;
@@ -90,7 +90,7 @@ export type WorldPrimer = {
         impact_on_present: string;
       }>;
     };
-    locations: {
+    locations?: {
       locations: Array<{
         name: string;
         type: string;
@@ -102,7 +102,7 @@ export type WorldPrimer = {
         adventure_opportunities: string;
       }>;
     };
-    factions: {
+    factions?: {
       factions: Array<{
         name: string;
         type: string;

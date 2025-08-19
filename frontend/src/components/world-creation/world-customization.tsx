@@ -5,10 +5,12 @@ import { useWorldCreationNavigation } from './navigation/navigation';
 import { WorldDraftEditForm } from './forms/world-draft-edit-form';
 import { CustomizationAdvancedForm } from './forms/customization-advanced-form';
 import { useForm } from 'react-hook-form';
-import { createWorldFx } from '@model/world-creation';
+import { $worldCreatePrimerProgress, createWorldFx } from '@model/world-creation';
+import { useStore } from 'effector-react';
 
 export const WorldCustomization: React.FC = () => {
 	const { currentBranch, currentStepIndex, updateCurrentStepData } = useWorldCreationNavigation();
+	const isLoading = useStore($worldCreatePrimerProgress);
 
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const selectedWorld = (previousStep?.data?.selectedWorld || null) as CreatedWorldDraft | null;
@@ -110,7 +112,7 @@ export const WorldCustomization: React.FC = () => {
 							Нажав на кнопку ниже, начнется процесс создания мира, это может занять некоторое время. <br /> На
 							следующем шаге вы сможете просмотреть и отредактировать полученный результат.
 						</Typography>
-						<Button variant="contained" color="primary" onClick={handleSubmit(handleCreateWorld)}>
+						<Button variant="contained" color="primary" onClick={handleSubmit(handleCreateWorld)} disabled={isLoading}>
 							Создать мир
 						</Button>
 					</Box>

@@ -44,6 +44,7 @@ export const createWorldFx = createEffect({
 
 export const $worldCreateProgress = createDraftWorldsFx.pending;
 export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
+export const $worldCreatePrimerProgress = createWorldFx.pending;
 
 // sample({
 // 	clock: createWorldFx.done,

@@ -9,6 +9,7 @@ import { StepConfig } from './navigation/types';
 import { SelectDraftWorld } from './select-draft-world';
 import { WorldSetupStep } from './world-setup-step';
 import { WorldCustomization } from './world-customization';
+import { WorldPrimerEditExample } from './world-primer-edit-example';
 
 const WorldCreationContent: React.FC = () => {
 	const { currentStep, currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
@@ -52,6 +53,10 @@ const WorldCreationContent: React.FC = () => {
 			return <WorldCustomization />;
 		}
 
+		if (isStep('world-primer-edit')) {
+			return <WorldPrimerEditExample />;
+		}
+
 		return null;
 	};
 
@@ -81,4 +86,5 @@ export { WorldCreationStepper } from './navigation/stepper';
 export { WorldCreationNavigationProvider, useWorldCreationNavigation } from './navigation/navigation';
 export { StepNavigation } from './navigation/step-navigation';
 export { WorldSetupStep } from './world-setup-step';
+export { WorldPrimerEdit } from './world-primer-edit';
 export type { StepConfig } from './navigation/types';
