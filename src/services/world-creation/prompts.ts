@@ -37,8 +37,9 @@ ${userPrompt ? `## User's Specific Requirements: \n${userPrompt}` : ""}
 - Balance accessibility for new players with depth for experienced groups
 - You don't have to impose on the main plot directly. The player can decide to stay out of the conflict, take the evil side, or just go about their business and ignore the world around them, playing the role of an ordinary being.
 - Don't use MD formatting in the response.
+- Your response must be formatted as valid JSON according to the specified schema.
 
-Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience.
+Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience. Return the result as a JSON object with the specified structure.
 `;
 };
 
@@ -47,6 +48,8 @@ export const createMoreWorldsPrompt = (userPrompt?: string) => {
 Generate 3 more variations of the game world based on the previous instructions.
 
 ${userPrompt ? `User's Specific Requirements: \n${userPrompt}` : ""}
+
+Your response must be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -140,7 +143,7 @@ Based on the **Elements to Introduce**, incorporate the following concepts into 
 Your final output must be a single, cohesive text that reads like a chapter from a campaign setting guide, setting the stage for adventure.
 
 ## Final Instruction
-Generate the **World Primer** as a single block of text, following all instructions. The output should be structured as a simple JSON object containing this text. Do not use MD formatting in the response.
+Generate the **World Primer** as a single block of text, following all instructions. The output should be structured as a simple JSON object containing this text. Do not use MD formatting in the response. Your response must be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -175,6 +178,9 @@ ${worldPrimer}
 5. Социальную структуру и место в мире
 
 Расы должны органично вписываться в установленный тон и жанр мира.
+
+## Формат ответа
+Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
 `;
 };
 
@@ -208,6 +214,9 @@ ${worldPrimer}
 4. Объяснение того, как история привела к текущему конфликту
 
 История должна объяснить "Как все дошло до этого?" и создать глубину мира.
+
+## Формат ответа
+Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
 `;
 };
 
@@ -240,6 +249,9 @@ ${worldPrimer}
 7. Известные магические артефакты или места силы
 
 Магическая система должна быть логичной и соответствовать тону мира.
+
+## Формат ответа
+Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
 `;
 };
 
@@ -275,6 +287,9 @@ ${worldPrimer}
 7. Возможности для приключений
 
 Локации должны быть разнообразными и создавать возможности для различных типов игрового процесса.
+
+## Формат ответа
+Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
 `;
 };
 
@@ -311,5 +326,8 @@ ${worldPrimer}
 8. Ресурсы и влияние
 
 Фракции должны создавать динамичные отношения и возможности для политических интриг.
+
+## Формат ответа
+Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
 `;
 };

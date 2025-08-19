@@ -53,3 +53,70 @@ export type WorldCustomizationData = {
   factionsCount?: number;
   factionsDescription?: string;
 };
+
+export type WorldPrimer = {
+  name: string;
+  genre: string;
+  tone: string;
+  world_primer: string;
+  locations: Array<{
+    name: string;
+    description: string;
+  }>;
+  races: Array<{
+    name: string;
+    description: string;
+  }>;
+  factions: Array<{
+    name: string;
+    description: string;
+  }>;
+  history: string;
+  detailed_elements: {
+    races: {
+      races: Array<{
+        name: string;
+        description: string;
+        relationship_to_conflict: string;
+        special_abilities: string;
+        social_structure: string;
+      }>;
+    };
+    timeline: {
+      historical_events: Array<{
+        name: string;
+        timeframe: string;
+        description: string;
+        impact_on_present: string;
+      }>;
+    };
+    locations: {
+      locations: Array<{
+        name: string;
+        type: string;
+        appearance: string;
+        history: string;
+        inhabitants: string;
+        significance: string;
+        features_and_secrets: string;
+        adventure_opportunities: string;
+      }>;
+    };
+    factions: {
+      factions: Array<{
+        name: string;
+        type: string;
+        ideology_and_goals: string;
+        structure: string;
+        key_leaders: string;
+        methods: string;
+        relationships: string;
+        role_in_conflict: string;
+        resources_and_influence: string;
+      }>;
+    };
+  };
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+};
