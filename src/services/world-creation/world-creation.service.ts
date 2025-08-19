@@ -55,10 +55,10 @@ export class WorldCreateService {
       messages: data.messages,
       response_format: data.responseFormat,
       // @ts-ignore
-      provider: {
-        order: ["fireworks/fp8"],
-        allow_fallbacks: false,
-      },
+      // provider: {
+      //   order: ["fireworks/fp8"],
+      //   allow_fallbacks: false,
+      // },
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -244,7 +244,7 @@ export class WorldCreateService {
           ],
           model: apiSettings.api.model,
           responseFormat: createRacesResponseFormat,
-        }).then((result) => ({ type: "races", data: result }));
+        });
         additionalCalls.push(racesCall);
       }
 
@@ -256,7 +256,7 @@ export class WorldCreateService {
           ],
           model: apiSettings.api.model,
           responseFormat: createTimelineResponseFormat,
-        }).then((result) => ({ type: "timeline", data: result }));
+        });
         additionalCalls.push(timelineCall);
       }
 
@@ -268,7 +268,7 @@ export class WorldCreateService {
           ],
           model: apiSettings.api.model,
           responseFormat: createMagicResponseFormat,
-        }).then((result) => ({ type: "magic", data: result }));
+        });
         additionalCalls.push(magicCall);
       }
 
@@ -280,7 +280,7 @@ export class WorldCreateService {
           ],
           model: apiSettings.api.model,
           responseFormat: createLocationsResponseFormat,
-        }).then((result) => ({ type: "locations", data: result }));
+        });
         additionalCalls.push(locationsCall);
       }
 
@@ -292,7 +292,7 @@ export class WorldCreateService {
           ],
           model: apiSettings.api.model,
           responseFormat: createFactionsResponseFormat,
-        }).then((result) => ({ type: "factions", data: result }));
+        });
         additionalCalls.push(factionsCall);
       }
 
@@ -302,7 +302,10 @@ export class WorldCreateService {
 
         // Добавляем результаты к основному объекту
         additionalResults.forEach((result) => {
-          detailedWorld.detailed_elements[result.type] = result.data;
+          detailedWorld.detailed_elements = {
+            ...detailedWorld.detailed_elements,
+            ...result.data,
+          };
         });
       }
 
