@@ -5,28 +5,32 @@ import { useForm } from 'react-hook-form';
 import { WorldPrimerBasicForm } from './forms/world-primer-basic-form';
 import { WorldPrimerSimpleArraysForm } from './forms/world-primer-simple-arrays-form';
 import { WorldPrimerDetailedElementsForm } from './forms/world-primer-detailed-elements-form';
+import { useWorldCreationNavigation } from './navigation/navigation';
 
 export interface WorldPrimerEditProps {
-	worldPrimer: WorldPrimer;
 	onSave?: (updatedPrimer: WorldPrimer) => void;
 	onCancel?: () => void;
 }
 
-export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ worldPrimer, onSave, onCancel }) => {
+export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCancel }) => {
 	const [activeTab, setActiveTab] = React.useState(0);
+	const { currentBranch, currentStepIndex } = useWorldCreationNavigation();
+
+	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
+	const worldPrimer = (previousStep?.data?.worldPrimer || null) as WorldPrimer;
 
 	const { control, handleSubmit, reset } = useForm<WorldPrimer>({
 		values: {
-			...worldPrimer,
+			...(worldPrimer || {}),
 			// Убеждаемся, что все массивы инициализированы
-			locations: worldPrimer.locations || [],
-			races: worldPrimer.races || [],
-			factions: worldPrimer.factions || [],
+			locations: worldPrimer?.locations || [],
+			races: worldPrimer?.races || [],
+			factions: worldPrimer?.factions || [],
 			detailed_elements: {
-				races: worldPrimer.detailed_elements?.races || { races: [] },
-				timeline: worldPrimer.detailed_elements?.timeline || { historical_events: [] },
-				locations: worldPrimer.detailed_elements?.locations || { locations: [] },
-				factions: worldPrimer.detailed_elements?.factions || { factions: [] },
+				races: worldPrimer?.detailed_elements?.races || { races: [] },
+				timeline: worldPrimer?.detailed_elements?.timeline || { historical_events: [] },
+				locations: worldPrimer?.detailed_elements?.locations || { locations: [] },
+				factions: worldPrimer?.detailed_elements?.factions || { factions: [] },
 			},
 		},
 	});
@@ -34,8 +38,8 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ worldPrimer, o
 	const handleSave = (data: WorldPrimer) => {
 		const updatedPrimer: WorldPrimer = {
 			...data,
-			id: worldPrimer.id,
-			createdAt: worldPrimer.createdAt,
+			id: worldPrimer?.id || '',
+			createdAt: worldPrimer?.createdAt || '',
 			updatedAt: new Date().toISOString(),
 		};
 

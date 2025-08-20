@@ -22,6 +22,8 @@ const WorldCreationContent: React.FC = () => {
 				return 'Выберите подходящий мир';
 			case 'world-customization':
 				return 'Дополнительные настройки';
+			case 'world-primer-edit':
+				return 'Редактирование мира';
 			default:
 				return '';
 		}

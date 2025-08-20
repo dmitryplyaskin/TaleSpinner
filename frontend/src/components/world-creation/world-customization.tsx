@@ -6,11 +6,11 @@ import { WorldDraftEditForm } from './forms/world-draft-edit-form';
 import { CustomizationAdvancedForm } from './forms/customization-advanced-form';
 import { useForm } from 'react-hook-form';
 import { $worldCreatePrimerProgress, createWorldFx } from '@model/world-creation';
-import { useStore } from 'effector-react';
+import { useUnit } from 'effector-react';
 
 export const WorldCustomization: React.FC = () => {
-	const { currentBranch, currentStepIndex, updateCurrentStepData } = useWorldCreationNavigation();
-	const isLoading = useStore($worldCreatePrimerProgress);
+	const { currentBranch, currentStepIndex, updateCurrentStepData, nextStep } = useWorldCreationNavigation();
+	const isLoading = useUnit($worldCreatePrimerProgress);
 
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const selectedWorld = (previousStep?.data?.selectedWorld || null) as CreatedWorldDraft | null;
@@ -38,11 +38,12 @@ export const WorldCustomization: React.FC = () => {
 		},
 	});
 
-	const handleCreateWorld = (data: WorldCustomizationData) => {
+	const handleCreateWorld = async (data: WorldCustomizationData) => {
 		// eslint-disable-next-line no-console
 		console.log('Create world (stub submit)', data);
-		createWorldFx(data);
-		updateCurrentStepData({ advancedCustomization: data });
+		const world = await createWorldFx(data);
+		updateCurrentStepData({ worldPrimer: world });
+		nextStep();
 	};
 
 	if (!selectedWorld) {

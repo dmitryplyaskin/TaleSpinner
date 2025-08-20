@@ -37,6 +37,11 @@ export const initializeAppNavigation = createEffect(() => {
 				name: 'Настройка мира',
 				data: {},
 			},
+			{
+				id: 'world-primer-edit',
+				name: 'Редактирование мира',
+				data: {},
+			},
 		],
 	});
 
@@ -64,7 +69,12 @@ export const goToWorldCustomization = createEffect(() => {
 export { $currentStep, $currentBranch };
 
 // Типы для удобства
-export type AppScreen = 'welcome' | 'world-type-selection' | 'world-selection' | 'world-customization';
+export type AppScreen =
+	| 'welcome'
+	| 'world-type-selection'
+	| 'world-selection'
+	| 'world-customization'
+	| 'world-primer-edit';
 
 // Утилита для определения текущего экрана
 export const getCurrentScreen = (step: any): AppScreen | null => {

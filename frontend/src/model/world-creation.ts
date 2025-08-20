@@ -6,6 +6,7 @@ import {
 	WorldCreateTask,
 	CreatedWorldDraft,
 	WorldCustomizationData,
+	WorldPrimer,
 } from '@shared/types/world-creation';
 
 export const createDraftWorldsFx = createEffect({
@@ -37,7 +38,7 @@ export const addWorldToFavoritesFx = createEffect({
 });
 export const createWorldFx = createEffect({
 	handler: async (data: WorldCustomizationData) => {
-		const world = (await httpClient.post('/api/world-creation/create-world', data)) as CreatedWorldDraft;
+		const world = (await httpClient.post('/api/world-creation/create-world', data)) as WorldPrimer;
 		return world;
 	},
 });
