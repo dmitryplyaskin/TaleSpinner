@@ -42,6 +42,11 @@ export const initializeAppNavigation = createEffect(() => {
 				name: 'Редактирование мира',
 				data: {},
 			},
+			{
+				id: 'character-creation',
+				name: 'Создание персонажа',
+				data: {},
+			},
 		],
 	});
 
@@ -74,7 +79,8 @@ export type AppScreen =
 	| 'world-type-selection'
 	| 'world-selection'
 	| 'world-customization'
-	| 'world-primer-edit';
+	| 'world-primer-edit'
+	| 'character-creation';
 
 // Утилита для определения текущего экрана
 export const getCurrentScreen = (step: any): AppScreen | null => {

@@ -1,58 +1,88 @@
 import React from 'react';
 import { Box, Typography, Divider, Container, Paper, Button, Tab, Tabs } from '@mui/material';
-import { WorldPrimer } from '@shared/types/world-creation';
+import { Character } from '@shared/types/character';
 import { useForm } from 'react-hook-form';
-import { WorldPrimerBasicForm } from './forms/world-primer-basic-form';
-import { WorldPrimerDetailedElementsForm } from './forms/world-primer-detailed-elements-form';
+import { CharacterBasicForm } from './forms/character-basic-form';
+import { CharacterDetailedForm } from './forms/character-detailed-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
 
-export interface WorldPrimerEditProps {
-	onSave?: (updatedPrimer: WorldPrimer) => void;
+export interface CharacterCreationProps {
+	onSave?: (character: Character) => void;
 	onCancel?: () => void;
 }
 
-export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCancel }) => {
+export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, onCancel }) => {
 	const [activeTab, setActiveTab] = React.useState(0);
-	const { currentBranch, currentStepIndex, updateCurrentStepData, nextStep } = useWorldCreationNavigation();
+	const { currentBranch, currentStepIndex, nextStep, updateCurrentStepData } = useWorldCreationNavigation();
 
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
-	const worldPrimer = (previousStep?.data?.worldPrimer || null) as WorldPrimer;
+	const worldPrimer = previousStep?.data?.worldPrimer;
 
-	const { control, handleSubmit, reset } = useForm<WorldPrimer>({
-		values: {
-			...(worldPrimer || {}),
-			// Убеждаемся, что все массивы инициализированы
-			locations: worldPrimer?.locations || [],
-			races: worldPrimer?.races || [],
-			factions: worldPrimer?.factions || [],
-			detailed_elements: {
-				races: worldPrimer?.detailed_elements?.races || { races: [] },
-				timeline: worldPrimer?.detailed_elements?.timeline || { historical_events: [] },
-				locations: worldPrimer?.detailed_elements?.locations || { locations: [] },
-				factions: worldPrimer?.detailed_elements?.factions || { factions: [] },
+	const { control, handleSubmit, reset } = useForm<Character>({
+		defaultValues: {
+			name: '',
+			race: '',
+			gender: '',
+			age: 18,
+			occupation: '',
+			appearance: {
+				height: '',
+				weight: '',
+				hair_color: '',
+				eye_color: '',
+				skin_color: '',
+				distinctive_features: '',
+				description: '',
+			},
+			personality: {
+				traits: [''],
+				background: '',
+				motivations: [''],
+				fears: [''],
+				strengths: [''],
+				weaknesses: [''],
+			},
+			skills: {
+				combat_skills: [''],
+				social_skills: [''],
+				knowledge_skills: [''],
+				magical_skills: [],
+				special_abilities: [''],
+			},
+			equipment: {
+				weapons: [''],
+				armor: '',
+				items: [''],
+				clothing: '',
+			},
+			background: {
+				family: '',
+				occupation: '',
+				history: '',
+				relationships: [{ name: '', relation: '', description: '' }],
 			},
 		},
 	});
 
-	const handleSave = (data: WorldPrimer) => {
-		const updatedPrimer: WorldPrimer = {
+	const handleSave = (data: Character) => {
+		const character: Character = {
 			...data,
-			id: worldPrimer?.id || '',
-			createdAt: worldPrimer?.createdAt || '',
+			id: `character_${Date.now()}`,
+			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
 
-		// Сохраняем данные текущего шага
+		// Сохраняем данные персонажа в текущем шаге
 		updateCurrentStepData({
-			worldPrimer: updatedPrimer,
+			character,
 			completed: true,
 		});
 
 		if (onSave) {
-			onSave(updatedPrimer);
+			onSave(character);
 		}
 
-		// Переходим к созданию персонажа
+		// Переходим к следующему шагу
 		nextStep();
 	};
 
@@ -70,10 +100,11 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 				{/* Заголовок секции */}
 				<Box textAlign="center" mb={4}>
 					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-						Редактирование мира
+						Создание персонажа
 					</Typography>
 					<Typography variant="body1" color="text.secondary" sx={{ maxWidth: '600px', mx: 'auto' }}>
-						Редактируйте все аспекты вашего мира. Используйте вкладки для навигации между различными разделами.
+						Создайте уникального персонажа для вашего мира. Заполните основную информацию и добавьте детали для более
+						глубокой проработки.
 					</Typography>
 				</Box>
 
@@ -90,7 +121,7 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 						}}
 					>
 						<Tab label="Основная информация" />
-						<Tab label="Детализированные элементы" />
+						<Tab label="Детальные характеристики" />
 					</Tabs>
 				</Paper>
 
@@ -100,25 +131,25 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 					{activeTab === 0 && (
 						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 							<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
-								Основная информация о мире
+								Основная информация о персонаже
 							</Typography>
-							<WorldPrimerBasicForm control={control} />
+							<CharacterBasicForm control={control} />
 						</Paper>
 					)}
 
-					{/* Детализированные элементы */}
+					{/* Детальные характеристики */}
 					{activeTab === 1 && (
 						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 							<Box textAlign="center" mb={4}>
 								<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
-									Детализированные элементы мира
+									Детальные характеристики персонажа
 								</Typography>
 								<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '800px', mx: 'auto' }}>
-									Создайте подробные описания рас, исторических событий, локаций и фракций. Эти детали помогут создать
-									более живой и проработанный мир.
+									Добавьте подробные черты характера, навыки, экипировку и связи. Эти детали сделают вашего персонажа
+									более живым и интересным.
 								</Typography>
 							</Box>
-							<WorldPrimerDetailedElementsForm control={control} />
+							<CharacterDetailedForm control={control} />
 						</Paper>
 					)}
 				</Box>
@@ -129,7 +160,7 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 					<Box display="flex" justifyContent="center" gap={2} flexWrap="wrap">
 						<Button variant="outlined" color="secondary" onClick={handleReset} sx={{ minWidth: 120 }}>
-							Сбросить изменения
+							Очистить форму
 						</Button>
 
 						{onCancel && (
@@ -139,7 +170,7 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 						)}
 
 						<Button variant="contained" color="primary" onClick={handleSubmit(handleSave)} sx={{ minWidth: 120 }}>
-							Сохранить изменения
+							Создать персонажа
 						</Button>
 					</Box>
 				</Paper>

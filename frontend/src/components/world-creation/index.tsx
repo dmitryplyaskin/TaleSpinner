@@ -10,6 +10,7 @@ import { SelectDraftWorld } from './select-draft-world';
 import { WorldSetupStep } from './world-setup-step';
 import { WorldCustomization } from './world-customization';
 import { WorldPrimerEdit } from './world-primer-edit';
+import { CharacterCreation } from './character-creation';
 
 const WorldCreationContent: React.FC = () => {
 	const { currentStep, currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
@@ -24,6 +25,8 @@ const WorldCreationContent: React.FC = () => {
 				return 'Дополнительные настройки';
 			case 'world-primer-edit':
 				return 'Редактирование мира';
+			case 'character-creation':
+				return 'Создание персонажа';
 			default:
 				return '';
 		}
@@ -57,6 +60,10 @@ const WorldCreationContent: React.FC = () => {
 
 		if (isStep('world-primer-edit')) {
 			return <WorldPrimerEdit />;
+		}
+
+		if (isStep('character-creation')) {
+			return <CharacterCreation />;
 		}
 
 		return null;
