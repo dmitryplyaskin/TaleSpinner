@@ -3,7 +3,6 @@ import { Box, Typography, Divider, Container, Paper, Button, Tab, Tabs } from '@
 import { WorldPrimer } from '@shared/types/world-creation';
 import { useForm } from 'react-hook-form';
 import { WorldPrimerBasicForm } from './forms/world-primer-basic-form';
-import { WorldPrimerSimpleArraysForm } from './forms/world-primer-simple-arrays-form';
 import { WorldPrimerDetailedElementsForm } from './forms/world-primer-detailed-elements-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
 
@@ -82,7 +81,6 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 						}}
 					>
 						<Tab label="Основная информация" />
-						<Tab label="Базовые элементы" />
 						<Tab label="Детализированные элементы" />
 					</Tabs>
 				</Paper>
@@ -99,24 +97,8 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 						</Paper>
 					)}
 
-					{/* Базовые элементы */}
-					{activeTab === 1 && (
-						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
-							<Box textAlign="center" mb={4}>
-								<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
-									Базовые элементы мира
-								</Typography>
-								<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '800px', mx: 'auto' }}>
-									Добавьте и отредактируйте основные локации, расы и фракции вашего мира. Эти элементы будут служить
-									основой для более детального описания.
-								</Typography>
-							</Box>
-							<WorldPrimerSimpleArraysForm control={control} />
-						</Paper>
-					)}
-
 					{/* Детализированные элементы */}
-					{activeTab === 2 && (
+					{activeTab === 1 && (
 						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 							<Box textAlign="center" mb={4}>
 								<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>

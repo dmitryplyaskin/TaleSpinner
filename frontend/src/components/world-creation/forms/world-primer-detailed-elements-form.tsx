@@ -116,7 +116,6 @@ const DetailedRacesSection: React.FC<{ control: Control<any> }> = ({ control }) 
 						border: '2px dashed',
 						borderColor: 'divider',
 						borderRadius: 2,
-						backgroundColor: 'grey.50',
 					}}
 				>
 					<Typography variant="body2" color="text.secondary" mb={2}>
@@ -220,7 +219,6 @@ const TimelineSection: React.FC<{ control: Control<any> }> = ({ control }) => {
 						border: '2px dashed',
 						borderColor: 'divider',
 						borderRadius: 2,
-						backgroundColor: 'grey.50',
 					}}
 				>
 					<Typography variant="body2" color="text.secondary" mb={2}>
@@ -352,7 +350,6 @@ const DetailedLocationsSection: React.FC<{ control: Control<any> }> = ({ control
 						border: '2px dashed',
 						borderColor: 'divider',
 						borderRadius: 2,
-						backgroundColor: 'grey.50',
 					}}
 				>
 					<Typography variant="body2" color="text.secondary" mb={2}>
@@ -491,7 +488,6 @@ const DetailedFactionsSection: React.FC<{ control: Control<any> }> = ({ control 
 						border: '2px dashed',
 						borderColor: 'divider',
 						borderRadius: 2,
-						backgroundColor: 'grey.50',
 					}}
 				>
 					<Typography variant="body2" color="text.secondary" mb={2}>

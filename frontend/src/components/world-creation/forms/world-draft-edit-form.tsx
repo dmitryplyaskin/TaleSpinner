@@ -7,41 +7,7 @@ export interface WorldDraftEditFormProps {
 	control: Control<any>;
 }
 
-type EditableWorldFormData = {
-	title: string;
-	genre: string;
-	toneText: string;
-	unique_feature: string;
-	synopsis: string;
-};
-
 export const WorldDraftEditForm: React.FC<WorldDraftEditFormProps> = ({ control }) => {
-	// const { control, handleSubmit } = useForm<EditableWorldFormData>({
-	// 	values: {
-	// 		title: initialWorld.title,
-	// 		genre: initialWorld.genre,
-	// 		toneText: (initialWorld.tone || []).join(', '),
-	// 		unique_feature: initialWorld.unique_feature,
-	// 		synopsis: initialWorld.synopsis,
-	// 	},
-	// });
-
-	// const handleFormSubmit = (data: EditableWorldFormData) => {
-	// 	const updated: CreatedWorldDraft = {
-	// 		id: initialWorld.id,
-	// 		title: data.title,
-	// 		genre: data.genre,
-	// 		tone: data.toneText
-	// 			.split(',')
-	// 			.map((s) => s.trim())
-	// 			.filter(Boolean),
-	// 		unique_feature: data.unique_feature,
-	// 		synopsis: data.synopsis,
-	// 		isFavorite: initialWorld.isFavorite,
-	// 	};
-	// 	onSubmit(updated);
-	// };
-
 	return (
 		<Box>
 			<Stack spacing={3}>

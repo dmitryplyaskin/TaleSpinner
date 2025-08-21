@@ -153,34 +153,32 @@ export const createRacesPrompt = (
   worldPrimer: string
 ) => {
   return `
-# Детализация Рас Мира
+# World Races Detailing
 
-## Контекст
-Ты мастер-создатель миров. Тебе предоставлен базовый Primer мира, и теперь нужно детально проработать расы этого мира.
+## Context
+You are a master world creator. You have been provided with a basic world primer, and now you need to develop the races of this world in detail.
 
-## Базовый Primer мира:
+## Basic World Primer:
 ${worldPrimer}
 
-## Исходные данные о расах:
-- Количество рас: ${data.racesCount || 3}
-- Описание от пользователя: ${
-    data.racesDescription || "Нет специальных требований"
-  }
+## Initial race data:
+- Number of races: ${data.racesCount || 3}
+- User description: ${data.racesDescription || "No special requirements"}
 
-## Задача
-Создай детальное описание ${
+## Task
+Create a detailed description of ${
     data.racesCount || 3
-  } рас этого мира. Каждая раса должна:
-1. Иметь уникальное название
-2. Подробное описание внешности и культуры (200-300 слов)
-3. Отношение к центральному конфликту мира
-4. Особые способности или характеристики
-5. Социальную структуру и место в мире
+  } races for this world. Each race should:
+1. Have a unique name
+2. Detailed description of appearance and culture (200-300 words)
+3. Relationship to the world's central conflict
+4. Special abilities or characteristics
+5. Social structure and place in the world
 
-Расы должны органично вписываться в установленный тон и жанр мира.
+The races should organically fit into the established tone and genre of the world.
 
-## Формат ответа
-Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
+## Response Format
+The response should be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -189,34 +187,32 @@ export const createTimelinePrompt = (
   worldPrimer: string
 ) => {
   return `
-# Детализация Истории Мира
+# World History Detailing
 
-## Контекст
-Ты мастер-создатель миров. Тебе предоставлен базовый Primer мира, и теперь нужно детально проработать историю этого мира.
+## Context
+You are a master world creator. You have been provided with a basic world primer, and now you need to develop the history of this world in detail.
 
-## Базовый Primer мира:
+## Basic World Primer:
 ${worldPrimer}
 
-## Исходные данные об истории:
-- Описание от пользователя: ${
-    data.timelineDescription || "Нет специальных требований"
-  }
+## Initial history data:
+- User description: ${data.timelineDescription || "No special requirements"}
 
-## Задача
-Создай детальную временную линию истории мира, включающую:
-1. 5-7 ключевых исторических периодов или событий
-2. Каждое событие должно включать:
-   - Название периода/события
-   - Временные рамки (если применимо)
-   - Подробное описание (150-200 слов)
-   - Влияние на текущее состояние мира
-3. Логическую связь между событиями
-4. Объяснение того, как история привела к текущему конфликту
+## Task
+Create a detailed timeline of the world's history, including:
+1. 5-7 key historical periods or events
+2. Each event should include:
+   - Name of the period/event
+   - Time frame (if applicable)
+   - Detailed description (150-200 words)
+   - Impact on the current state of the world
+3. Logical connection between events
+4. Explanation of how history led to the current conflict
 
-История должна объяснить "Как все дошло до этого?" и создать глубину мира.
+The history should explain "How did it all come to this?" and create depth for the world.
 
-## Формат ответа
-Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
+## Response Format
+The response should be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -225,33 +221,31 @@ export const createMagicPrompt = (
   worldPrimer: string
 ) => {
   return `
-# Детализация Магической Системы
+# Magic System Detailing
 
-## Контекст
-Ты мастер-создатель миров. Тебе предоставлен базовый Primer мира, и теперь нужно детально проработать магическую систему этого мира.
+## Context
+You are a master world creator. You have been provided with a basic world primer, and now you need to develop the magic system of this world in detail.
 
-## Базовый Primer мира:
+## Basic World Primer:
 ${worldPrimer}
 
-## Исходные данные о магии:
-- Описание от пользователя: ${
-    data.magicDescription || "Нет специальных требований"
-  }
+## Initial magic data:
+- User description: ${data.magicDescription || "No special requirements"}
 
-## Задача
-Создай детальную магическую систему, включающую:
-1. Основы магии - что это такое в этом мире
-2. Источники магической силы
-3. 3-5 школ или типов магии с описанием
-4. Ограничения и цена использования магии
-5. Отношение общества к магии и магам
-6. Роль магии в центральном конфликте мира
-7. Известные магические артефакты или места силы
+## Task
+Create a detailed magic system, including:
+1. Fundamentals of magic - what it is in this world
+2. Sources of magical power
+3. 3-5 schools or types of magic with descriptions
+4. Limitations and cost of using magic
+5. Society's attitude towards magic and mages
+6. Role of magic in the world's central conflict
+7. Known magical artifacts or places of power
 
-Магическая система должна быть логичной и соответствовать тону мира.
+The magic system should be logical and match the tone of the world.
 
-## Формат ответа
-Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
+## Response Format
+The response should be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -260,36 +254,34 @@ export const createLocationsPrompt = (
   worldPrimer: string
 ) => {
   return `
-# Детализация Локаций Мира
+# World Locations Detailing
 
-## Контекст
-Ты мастер-создатель миров. Тебе предоставлен базовый Primer мира, и теперь нужно детально проработать ключевые локации этого мира.
+## Context
+You are a master world creator. You have been provided with a basic world primer, and now you need to develop the key locations of this world in detail.
 
-## Базовый Primer мира:
+## Basic World Primer:
 ${worldPrimer}
 
-## Исходные данные о локациях:
-- Количество локаций: ${data.locationsCount || 3}
-- Описание от пользователя: ${
-    data.locationsDescription || "Нет специальных требований"
-  }
+## Initial location data:
+- Number of locations: ${data.locationsCount || 3}
+- User description: ${data.locationsDescription || "No special requirements"}
 
-## Задача
-Создай детальное описание ${
+## Task
+Create a detailed description of ${
     data.locationsCount || 3
-  } ключевых локаций мира. Каждая локация должна включать:
-1. Название и тип локации (город, руины, природная зона и т.д.)
-2. Подробное описание внешнего вида (200-300 слов)
-3. История локации
-4. Текущие обитатели и их занятия
-5. Значение для центрального конфликта мира
-6. Интересные особенности или тайны
-7. Возможности для приключений
+  } key locations in the world. Each location should include:
+1. Name and type of location (city, ruins, natural area, etc.)
+2. Detailed description of appearance (200-300 words)
+3. History of the location
+4. Current inhabitants and their activities
+5. Significance to the world's central conflict
+6. Interesting features or secrets
+7. Adventure opportunities
 
-Локации должны быть разнообразными и создавать возможности для различных типов игрового процесса.
+Locations should be diverse and create opportunities for different types of gameplay.
 
-## Формат ответа
-Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
+## Response Format
+The response should be formatted as valid JSON according to the specified schema.
 `;
 };
 
@@ -298,36 +290,34 @@ export const createFactionsPrompt = (
   worldPrimer: string
 ) => {
   return `
-# Детализация Фракций Мира
+# World Factions Detailing
 
-## Контекст
-Ты мастер-создатель миров. Тебе предоставлен базовый Primer мира, и теперь нужно детально проработать фракции этого мира.
+## Context
+You are a master world creator. You have been provided with a basic world primer, and now you need to develop the factions of this world in detail.
 
-## Базовый Primer мира:
+## Basic World Primer:
 ${worldPrimer}
 
-## Исходные данные о фракциях:
-- Количество фракций: ${data.factionsCount || 3}
-- Описание от пользователя: ${
-    data.factionsDescription || "Нет специальных требований"
-  }
+## Initial faction data:
+- Number of factions: ${data.factionsCount || 3}
+- User description: ${data.factionsDescription || "No special requirements"}
 
-## Задача
-Создай детальное описание ${
+## Task
+Create a detailed description of ${
     data.factionsCount || 3
-  } ключевых фракций мира. Каждая фракция должна включать:
-1. Название и тип организации
-2. Основную идеологию и цели (150-200 слов)
-3. Структуру и иерархию
-4. Ключевых лидеров и их характеристики
-5. Методы достижения целей
-6. Отношения с другими фракциями
-7. Роль в центральном конфликте мира
-8. Ресурсы и влияние
+  } key factions in the world. Each faction should include:
+1. Name and type of organization
+2. Core ideology and goals (150-200 words)
+3. Structure and hierarchy
+4. Key leaders and their characteristics
+5. Methods of achieving goals
+6. Relationships with other factions
+7. Role in the world's central conflict
+8. Resources and influence
 
-Фракции должны создавать динамичные отношения и возможности для политических интриг.
+Factions should create dynamic relationships and opportunities for political intrigue.
 
-## Формат ответа
-Ответ должен быть отформатирован как валидный JSON согласно указанной схеме.
+## Response Format
+The response should be formatted as valid JSON according to the specified schema.
 `;
 };
