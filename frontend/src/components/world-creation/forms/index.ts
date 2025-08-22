@@ -5,6 +5,7 @@ export { WorldPrimerSimpleArraysForm } from './world-primer-simple-arrays-form';
 export { WorldPrimerDetailedElementsForm } from './world-primer-detailed-elements-form';
 export { CharacterBasicForm } from './character-basic-form';
 export { CharacterDetailedForm } from './character-detailed-form';
+export { CharacterSimpleForm } from './character-simple-form';
 
 export type { WorldDraftEditFormProps } from './world-draft-edit-form';
 export type { CustomizationAdvancedFormProps } from './customization-advanced-form';
@@ -13,3 +14,4 @@ export type { WorldPrimerSimpleArraysFormProps } from './world-primer-simple-arr
 export type { WorldPrimerDetailedElementsFormProps } from './world-primer-detailed-elements-form';
 export type { CharacterBasicFormProps } from './character-basic-form';
 export type { CharacterDetailedFormProps } from './character-detailed-form';
+export type { CharacterSimpleFormProps } from './character-simple-form';

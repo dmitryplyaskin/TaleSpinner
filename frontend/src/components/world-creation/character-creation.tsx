@@ -1,9 +1,8 @@
 import React from 'react';
-import { Box, Typography, Divider, Container, Paper, Button, Tab, Tabs } from '@mui/material';
+import { Box, Typography, Container, Paper, Button } from '@mui/material';
 import { Character } from '@shared/types/character';
 import { useForm } from 'react-hook-form';
-import { CharacterBasicForm } from './forms/character-basic-form';
-import { CharacterDetailedForm } from './forms/character-detailed-form';
+import { CharacterSimpleForm } from './forms/character-simple-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
 
 export interface CharacterCreationProps {
@@ -12,55 +11,16 @@ export interface CharacterCreationProps {
 }
 
 export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, onCancel }) => {
-	const [activeTab, setActiveTab] = React.useState(0);
-	const { currentBranch, currentStepIndex, nextStep, updateCurrentStepData } = useWorldCreationNavigation();
-
-	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
-	const worldPrimer = previousStep?.data?.worldPrimer;
+	const { nextStep, updateCurrentStepData } = useWorldCreationNavigation();
 
 	const { control, handleSubmit, reset } = useForm<Character>({
 		defaultValues: {
 			name: '',
-			race: '',
-			gender: '',
-			age: 18,
-			occupation: '',
-			appearance: {
-				height: '',
-				weight: '',
-				hair_color: '',
-				eye_color: '',
-				skin_color: '',
-				distinctive_features: '',
-				description: '',
-			},
-			personality: {
-				traits: [''],
-				background: '',
-				motivations: [''],
-				fears: [''],
-				strengths: [''],
-				weaknesses: [''],
-			},
-			skills: {
-				combat_skills: [''],
-				social_skills: [''],
-				knowledge_skills: [''],
-				magical_skills: [],
-				special_abilities: [''],
-			},
-			equipment: {
-				weapons: [''],
-				armor: '',
-				items: [''],
-				clothing: '',
-			},
-			background: {
-				family: '',
-				occupation: '',
-				history: '',
-				relationships: [{ name: '', relation: '', description: '' }],
-			},
+			description: '',
+			appearance: '',
+			personality: '',
+			clothing: '',
+			equipment: '',
 		},
 	});
 
@@ -90,86 +50,71 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 		reset();
 	};
 
-	const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-		setActiveTab(newValue);
-	};
-
 	return (
 		<Container maxWidth="lg">
-			<Box py={3}>
+			<Box py={4}>
 				{/* Заголовок секции */}
-				<Box textAlign="center" mb={4}>
-					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+				<Box textAlign="center" mb={5}>
+					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
 						Создание персонажа
 					</Typography>
-					<Typography variant="body1" color="text.secondary" sx={{ maxWidth: '600px', mx: 'auto' }}>
-						Создайте уникального персонажа для вашего мира. Заполните основную информацию и добавьте детали для более
-						глубокой проработки.
+					<Typography variant="body1" color="text.secondary" sx={{ maxWidth: '500px', mx: 'auto', lineHeight: 1.6 }}>
+						Создайте уникального персонажа для вашего мира. Опишите его внешность, характер и снаряжение.
 					</Typography>
 				</Box>
 
-				{/* Навигационные вкладки */}
-				<Paper elevation={1} sx={{ mb: 4, borderRadius: 2 }}>
-					<Tabs
-						value={activeTab}
-						onChange={handleTabChange}
-						variant="fullWidth"
-						sx={{
-							'& .MuiTabs-indicator': {
-								height: 3,
-							},
-						}}
-					>
-						<Tab label="Основная информация" />
-						<Tab label="Детальные характеристики" />
-					</Tabs>
+				{/* Форма создания персонажа */}
+				<Paper elevation={3} sx={{ p: 5, mb: 4, borderRadius: 3, backgroundColor: 'background.paper' }}>
+					<CharacterSimpleForm control={control} />
 				</Paper>
 
-				{/* Содержимое вкладок */}
-				<Box>
-					{/* Основная информация */}
-					{activeTab === 0 && (
-						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
-							<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
-								Основная информация о персонаже
-							</Typography>
-							<CharacterBasicForm control={control} />
-						</Paper>
-					)}
-
-					{/* Детальные характеристики */}
-					{activeTab === 1 && (
-						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
-							<Box textAlign="center" mb={4}>
-								<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
-									Детальные характеристики персонажа
-								</Typography>
-								<Typography variant="body2" color="text.secondary" sx={{ maxWidth: '800px', mx: 'auto' }}>
-									Добавьте подробные черты характера, навыки, экипировку и связи. Эти детали сделают вашего персонажа
-									более живым и интересным.
-								</Typography>
-							</Box>
-							<CharacterDetailedForm control={control} />
-						</Paper>
-					)}
-				</Box>
-
-				<Divider sx={{ my: 4 }} />
-
 				{/* Кнопки управления */}
-				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
-					<Box display="flex" justifyContent="center" gap={2} flexWrap="wrap">
-						<Button variant="outlined" color="secondary" onClick={handleReset} sx={{ minWidth: 120 }}>
+				<Paper elevation={2} sx={{ p: 4, borderRadius: 3, backgroundColor: 'grey.50' }}>
+					<Box display="flex" justifyContent="center" gap={3} flexWrap="wrap">
+						<Button
+							variant="outlined"
+							color="secondary"
+							onClick={handleReset}
+							sx={{
+								minWidth: 140,
+								py: 1.5,
+								borderRadius: 2,
+								textTransform: 'none',
+								fontSize: '1rem',
+							}}
+						>
 							Очистить форму
 						</Button>
 
 						{onCancel && (
-							<Button variant="outlined" onClick={onCancel} sx={{ minWidth: 120 }}>
+							<Button
+								variant="outlined"
+								onClick={onCancel}
+								sx={{
+									minWidth: 140,
+									py: 1.5,
+									borderRadius: 2,
+									textTransform: 'none',
+									fontSize: '1rem',
+								}}
+							>
 								Отменить
 							</Button>
 						)}
 
-						<Button variant="contained" color="primary" onClick={handleSubmit(handleSave)} sx={{ minWidth: 120 }}>
+						<Button
+							variant="contained"
+							color="primary"
+							onClick={handleSubmit(handleSave)}
+							sx={{
+								minWidth: 140,
+								py: 1.5,
+								borderRadius: 2,
+								textTransform: 'none',
+								fontSize: '1rem',
+								fontWeight: 600,
+							}}
+						>
 							Создать персонажа
 						</Button>
 					</Box>
