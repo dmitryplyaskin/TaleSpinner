@@ -56,10 +56,10 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 				{/* Заголовок секции */}
 				<Box textAlign="center" mb={5}>
 					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
-						Создание персонажа
+						Создание вашего персонажа
 					</Typography>
 					<Typography variant="body1" color="text.secondary" sx={{ maxWidth: '500px', mx: 'auto', lineHeight: 1.6 }}>
-						Создайте уникального персонажа для вашего мира. Опишите его внешность, характер и снаряжение.
+						Создайте персонажа, за которого вы будете играть. Опишите его внешность, характер и снаряжение.
 					</Typography>
 				</Box>
 
