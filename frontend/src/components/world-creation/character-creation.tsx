@@ -2,16 +2,14 @@ import React from 'react';
 import { Box, Typography, Container, Paper, Button } from '@mui/material';
 import { Character } from '@shared/types/character';
 import { useForm } from 'react-hook-form';
+import { useUnit } from 'effector-react';
 import { CharacterSimpleForm } from './forms/character-simple-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
+import { saveCharacterFx, $characterSaveProgress } from '../../model/world-creation';
 
-export interface CharacterCreationProps {
-	onSave?: (character: Character) => void;
-	onCancel?: () => void;
-}
-
-export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, onCancel }) => {
+export const CharacterCreation: React.FC = ({}) => {
 	const { nextStep, updateCurrentStepData } = useWorldCreationNavigation();
+	const isLoading = useUnit($characterSaveProgress);
 
 	const { control, handleSubmit, reset } = useForm<Character>({
 		defaultValues: {
@@ -24,7 +22,7 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 		},
 	});
 
-	const handleSave = (data: Character) => {
+	const handleSave = async (data: Character) => {
 		const character: Character = {
 			...data,
 			id: `character_${Date.now()}`,
@@ -32,18 +30,25 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 			updatedAt: new Date().toISOString(),
 		};
 
-		// Сохраняем данные персонажа в текущем шаге
-		updateCurrentStepData({
-			character,
-			completed: true,
-		});
+		try {
+			// Сохраняем персонажа через API
+			const savedCharacter = await saveCharacterFx({
+				character,
+				worldId: undefined, // Можно добавить поддержку worldId позже
+			});
 
-		if (onSave) {
-			onSave(character);
+			// Сохраняем данные персонажа в текущем шаге
+			updateCurrentStepData({
+				character: savedCharacter,
+				completed: true,
+			});
+
+			// Переходим к следующему шагу
+			nextStep();
+		} catch (error) {
+			console.error('Ошибка сохранения персонажа:', error);
+			// Здесь можно добавить уведомление об ошибке
 		}
-
-		// Переходим к следующему шагу
-		nextStep();
 	};
 
 	const handleReset = () => {
@@ -86,7 +91,7 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 							Очистить форму
 						</Button>
 
-						{onCancel && (
+						{/* {onCancel && (
 							<Button
 								variant="outlined"
 								onClick={onCancel}
@@ -100,12 +105,13 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 							>
 								Отменить
 							</Button>
-						)}
+						)} */}
 
 						<Button
 							variant="contained"
 							color="primary"
 							onClick={handleSubmit(handleSave)}
+							disabled={isLoading}
 							sx={{
 								minWidth: 140,
 								py: 1.5,
@@ -115,7 +121,7 @@ export const CharacterCreation: React.FC<CharacterCreationProps> = ({ onSave, on
 								fontWeight: 600,
 							}}
 						>
-							Создать персонажа
+							{isLoading ? 'Сохранение...' : 'Создать персонажа'}
 						</Button>
 					</Box>
 				</Paper>

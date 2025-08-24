@@ -8,6 +8,7 @@ import {
 	WorldCustomizationData,
 	WorldPrimer,
 } from '@shared/types/world-creation';
+import { Character, CharacterCreationData } from '@shared/types/character';
 
 export const createDraftWorldsFx = createEffect({
 	handler: async (data: WorldCreateTask) => {
@@ -43,9 +44,17 @@ export const createWorldFx = createEffect({
 	},
 });
 
+export const saveCharacterFx = createEffect({
+	handler: async (data: CharacterCreationData) => {
+		const character = (await httpClient.post('/api/world-creation/save-character', data)) as Character;
+		return character;
+	},
+});
+
 export const $worldCreateProgress = createDraftWorldsFx.pending;
 export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 export const $worldCreatePrimerProgress = createWorldFx.pending;
+export const $characterSaveProgress = saveCharacterFx.pending;
 
 // sample({
 // 	clock: createWorldFx.done,

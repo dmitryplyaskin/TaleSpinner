@@ -15,6 +15,7 @@ import {
   WorldCreationSelectedDraftJsonService,
   WorldCreationFavoritesDraftJsonService,
   WorldCreationPrimerJsonService,
+  CharactersJsonService,
 } from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
@@ -23,6 +24,7 @@ import {
   WorldCreateTask,
   WorldCustomizationData,
 } from "@shared/types/world-creation";
+import { Character, CharacterCreationData } from "@shared/types/character";
 import {
   createDraftWorldsResponseFormat,
   createWorldPrimerResponseFormat,
@@ -316,6 +318,26 @@ export class WorldCreateService {
       return detailedWorld;
     } catch (error) {
       console.error("Error creating world:", error);
+      throw error;
+    }
+  }
+
+  async saveCharacter(data: CharacterCreationData): Promise<Character> {
+    try {
+      console.log("Сохранение персонажа:", data.character);
+
+      // Сохраняем персонажа в файл
+      const savedCharacter = await CharactersJsonService.createFile(
+        data.character,
+        {
+          filename: data.character.id,
+          id: data.character.id,
+        }
+      );
+
+      return savedCharacter;
+    } catch (error) {
+      console.error("Error saving character:", error);
       throw error;
     }
   }

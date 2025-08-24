@@ -49,4 +49,13 @@ routerBuilder.addRoute({
   },
 });
 
+routerBuilder.addRoute({
+  path: "/world-creation/save-character",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await worldCreateService.saveCharacter(req.body);
+    res.json(result);
+  },
+});
+
 export const worldCreateRouter = routerBuilder.build();
