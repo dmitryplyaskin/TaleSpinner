@@ -5,10 +5,3 @@ export interface StepConfig {
 	completed?: boolean;
 	disabled?: boolean;
 }
-
-export interface WorldCreationStep {
-	id: string;
-	component: React.ComponentType;
-	label: string;
-	description?: string;
-}

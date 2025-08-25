@@ -4,22 +4,11 @@ import { ArrowBack, ArrowForward } from '@mui/icons-material';
 import { useWorldCreationNavigation } from './navigation';
 
 interface StepNavigationProps {
-	showNext?: boolean;
-	showPrev?: boolean;
-	nextLabel?: string;
-	prevLabel?: string;
 	onNext?: () => void;
 	onPrev?: () => void;
 }
 
-export const StepNavigation: React.FC<StepNavigationProps> = ({
-	showNext = true,
-	showPrev = true,
-	nextLabel = 'Далее',
-	prevLabel = 'Назад',
-	onNext,
-	onPrev,
-}) => {
+export const StepNavigation: React.FC<StepNavigationProps> = ({ onNext, onPrev }) => {
 	const { nextStep, prevStep, canGoNext, canGoPrev } = useWorldCreationNavigation();
 
 	const handleNext = () => {
@@ -41,19 +30,15 @@ export const StepNavigation: React.FC<StepNavigationProps> = ({
 	return (
 		<Box display="flex" justifyContent="space-between" mt={4}>
 			<Box>
-				{showPrev && (
-					<Button variant="outlined" startIcon={<ArrowBack />} onClick={handlePrev} disabled={!canGoPrev}>
-						{prevLabel}
-					</Button>
-				)}
+				<Button variant="outlined" startIcon={<ArrowBack />} onClick={handlePrev} disabled={!canGoPrev}>
+					Назад
+				</Button>
 			</Box>
 
 			<Box>
-				{showNext && (
-					<Button variant="contained" endIcon={<ArrowForward />} onClick={handleNext} disabled={!canGoNext}>
-						{nextLabel}
-					</Button>
-				)}
+				<Button variant="contained" endIcon={<ArrowForward />} onClick={handleNext} disabled={!canGoNext}>
+					Далее
+				</Button>
 			</Box>
 		</Box>
 	);

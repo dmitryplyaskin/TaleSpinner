@@ -5,22 +5,14 @@ import { StepConfig } from './types';
 interface WorldCreationStepperProps {
 	steps: StepConfig[];
 	activeStep: number;
-	orientation?: 'horizontal' | 'vertical';
-	alternativeLabel?: boolean;
 }
 
-export const WorldCreationStepper: React.FC<WorldCreationStepperProps> = ({
-	steps,
-	activeStep,
-	orientation = 'horizontal',
-	alternativeLabel = false,
-}) => {
+export const WorldCreationStepper: React.FC<WorldCreationStepperProps> = ({ steps, activeStep }) => {
 	return (
 		<Box sx={{ width: '100%', mb: 4 }}>
 			<Stepper
 				activeStep={activeStep}
-				orientation={orientation}
-				alternativeLabel={alternativeLabel}
+				alternativeLabel
 				sx={{
 					'& .MuiStepLabel-root .Mui-completed': {
 						color: 'success.main',

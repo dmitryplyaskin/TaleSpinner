@@ -2,10 +2,7 @@ import React from 'react';
 import { goBack } from '@model/navigation';
 import { ArrowBack } from '@mui/icons-material';
 import { Box, Container, IconButton, Typography } from '@mui/material';
-import { useWorldCreationNavigation } from './navigation/navigation';
-import { WorldCreationStepper } from './navigation/stepper';
-// import { StepNavigation } from './navigation/step-navigation';
-import { StepConfig } from './navigation/types';
+import { useWorldCreationNavigation, WorldCreationStepper, StepConfig } from './navigation';
 import { SelectDraftWorld } from './select-draft-world';
 import { WorldSetupStep } from './world-setup-step';
 import { WorldCustomization } from './world-customization';
@@ -13,7 +10,7 @@ import { WorldPrimerEdit } from './world-primer-edit';
 import { CharacterCreation } from './character-creation';
 
 const WorldCreationContent: React.FC = () => {
-	const { currentStep, currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
+	const { currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
 
 	const getStepDescription = (stepId: string): string => {
 		switch (stepId) {
@@ -79,7 +76,7 @@ const WorldCreationContent: React.FC = () => {
 					Создание мира
 				</Typography>
 			</Box>
-			<WorldCreationStepper steps={steps} activeStep={currentStep} alternativeLabel />
+			<WorldCreationStepper steps={steps} activeStep={currentStepIndex} />
 
 			{renderStepContent()}
 		</Container>
@@ -91,9 +88,12 @@ export const WorldCreation: React.FC = () => {
 };
 
 // Экспорты для использования в других компонентах
-export { WorldCreationStepper } from './navigation/stepper';
-export { WorldCreationNavigationProvider, useWorldCreationNavigation } from './navigation/navigation';
-export { StepNavigation } from './navigation/step-navigation';
+export {
+	WorldCreationStepper,
+	WorldCreationNavigationProvider,
+	useWorldCreationNavigation,
+	StepNavigation,
+} from './navigation';
+export type { StepConfig } from './navigation';
 export { WorldSetupStep } from './world-setup-step';
 export { WorldPrimerEdit } from './world-primer-edit';
-export type { StepConfig } from './navigation/types';
