@@ -86,14 +86,3 @@ const WorldCreationContent: React.FC = () => {
 export const WorldCreation: React.FC = () => {
 	return <WorldCreationContent />;
 };
-
-// Экспорты для использования в других компонентах
-export {
-	WorldCreationStepper,
-	WorldCreationNavigationProvider,
-	useWorldCreationNavigation,
-	StepNavigation,
-} from './navigation';
-export type { StepConfig } from './navigation';
-export { WorldSetupStep } from './world-setup-step';
-export { WorldPrimerEdit } from './world-primer-edit';

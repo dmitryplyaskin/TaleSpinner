@@ -23,17 +23,10 @@ export const CharacterCreation: React.FC = ({}) => {
 	});
 
 	const handleSave = async (data: Character) => {
-		const character: Character = {
-			...data,
-			id: `character_${Date.now()}`,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
-
 		try {
 			// Сохраняем персонажа через API
 			const savedCharacter = await saveCharacterFx({
-				character,
+				character: data,
 				worldId: undefined, // Можно добавить поддержку worldId позже
 			});
 
@@ -90,22 +83,6 @@ export const CharacterCreation: React.FC = ({}) => {
 						>
 							Очистить форму
 						</Button>
-
-						{/* {onCancel && (
-							<Button
-								variant="outlined"
-								onClick={onCancel}
-								sx={{
-									minWidth: 140,
-									py: 1.5,
-									borderRadius: 2,
-									textTransform: 'none',
-									fontSize: '1rem',
-								}}
-							>
-								Отменить
-							</Button>
-						)} */}
 
 						<Button
 							variant="contained"

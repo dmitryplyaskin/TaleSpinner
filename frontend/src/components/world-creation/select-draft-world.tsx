@@ -5,7 +5,6 @@ import { $worldCreateMoreProgress, $worlds, addWorldToFavoritesFx, createMoreWor
 import { useUnit } from 'effector-react';
 import { CreatedWorldDraft } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation/navigation';
-import { StepNavigation } from './navigation/step-navigation';
 
 export const SelectDraftWorld: React.FC = () => {
 	const worldCreation = useUnit($worlds);
@@ -153,8 +152,6 @@ export const SelectDraftWorld: React.FC = () => {
 					Создать еще миры
 				</Button>
 			</Box>
-
-			<StepNavigation showNext={false} />
 		</Box>
 	);
 };
