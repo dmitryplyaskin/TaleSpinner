@@ -50,6 +50,15 @@ routerBuilder.addRoute({
 });
 
 routerBuilder.addRoute({
+  path: "/world-creation/update-world",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await worldCreateService.updateWorld(req.body);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
   path: "/world-creation/save-character",
   method: "POST",
   handler: async (req, res) => {

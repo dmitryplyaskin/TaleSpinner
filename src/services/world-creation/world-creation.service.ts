@@ -23,6 +23,7 @@ import {
   CreatedWorldDraft,
   WorldCreateTask,
   WorldCustomizationData,
+  WorldPrimer,
 } from "@shared/types/world-creation";
 import { Character, CharacterCreationData } from "@shared/types/character";
 import {
@@ -324,6 +325,16 @@ export class WorldCreateService {
       console.error("Error creating world:", error);
       throw error;
     }
+  }
+
+  async updateWorld(data: WorldPrimer) {
+    const world = await WorldCreationPrimerJsonService.readFile(data.id);
+    if (!world) throw new Error("World not found");
+    const updatedWorld = await WorldCreationPrimerJsonService.updateFile(
+      data.id,
+      data
+    );
+    return updatedWorld;
   }
 
   async saveCharacter(data: CharacterCreationData): Promise<Character> {

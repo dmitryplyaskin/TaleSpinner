@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { WorldPrimerBasicForm } from './forms/world-primer-basic-form';
 import { WorldPrimerDetailedElementsForm } from './forms/world-primer-detailed-elements-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
+import { updateWorldFx } from '@model/world-creation';
 
 export interface WorldPrimerEditProps {
 	onSave?: (updatedPrimer: WorldPrimer) => void;
@@ -34,12 +35,10 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 		},
 	});
 
-	const handleSave = (data: WorldPrimer) => {
+	const handleSave = async (data: WorldPrimer) => {
 		const updatedPrimer: WorldPrimer = {
 			...data,
 			id: worldPrimer?.id || '',
-			createdAt: worldPrimer?.createdAt || '',
-			updatedAt: new Date().toISOString(),
 		};
 
 		// Сохраняем данные текущего шага
@@ -48,10 +47,8 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 			completed: true,
 		});
 
-		if (onSave) {
-			onSave(updatedPrimer);
-		}
-
+		console.log('updatedPrimer:', updatedPrimer);
+		await updateWorldFx(updatedPrimer);
 		// Переходим к созданию персонажа
 		nextStep();
 	};

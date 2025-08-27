@@ -44,6 +44,13 @@ export const createWorldFx = createEffect({
 	},
 });
 
+export const updateWorldFx = createEffect({
+	handler: async (data: WorldPrimer) => {
+		const world = (await httpClient.post('/api/world-creation/update-world', data)) as WorldPrimer;
+		return world;
+	},
+});
+
 export const saveCharacterFx = createEffect({
 	handler: async (data: CharacterCreationData) => {
 		const character = (await httpClient.post('/api/world-creation/save-character', data)) as Character;
