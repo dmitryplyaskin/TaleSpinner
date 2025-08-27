@@ -40,6 +40,7 @@ export class JsonFileService<
   ): Promise<BaseFileData & T> {
     const id = options.id || uuidv4();
     const filename = this.singleFileName || options.filename || id;
+
     const filepath = path.join(this.basePath, `${filename}.json`);
 
     if (await this.fileExists(filepath)) {

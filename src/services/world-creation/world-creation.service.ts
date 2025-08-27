@@ -234,6 +234,8 @@ export class WorldCreateService {
         detailed_elements: {},
       };
 
+      console.log("detailedWorld:", detailedWorld);
+
       // Массив для хранения промисов дополнительных вызовов
       const additionalCalls: Promise<any>[] = [];
 
@@ -312,7 +314,6 @@ export class WorldCreateService {
       const world = await WorldCreationPrimerJsonService.createFile(
         detailedWorld,
         {
-          filename: uuidv4(),
           id: uuidv4(),
         }
       );
@@ -333,10 +334,23 @@ export class WorldCreateService {
       const savedCharacter = await CharactersJsonService.createFile(
         data.character,
         {
-          filename: data.character.id,
           id: data.character.id,
         }
       );
+      console.log("data:", data);
+
+      if (!data.worldId) throw new Error("World id not found");
+      const world = await WorldCreationPrimerJsonService.readFile(data.worldId);
+      if (!world) throw new Error("World not found");
+
+      await WorldCreationPrimerJsonService.updateFile(data.worldId, {
+        data: {
+          ...world,
+          characters: {
+            userCharacter: savedCharacter,
+          },
+        },
+      });
 
       return savedCharacter;
     } catch (error) {
