@@ -309,13 +309,16 @@ export class WorldCreateService {
       }
 
       // Сохраняем полный результат
-      await WorldCreationPrimerJsonService.createFile(detailedWorld, {
-        filename: uuidv4(),
-        id: uuidv4(),
-      });
+      const world = await WorldCreationPrimerJsonService.createFile(
+        detailedWorld,
+        {
+          filename: uuidv4(),
+          id: uuidv4(),
+        }
+      );
 
-      console.log("Создан мир с детализированными элементами:", detailedWorld);
-      return detailedWorld;
+      console.log("Создан мир с детализированными элементами:", world);
+      return world;
     } catch (error) {
       console.error("Error creating world:", error);
       throw error;

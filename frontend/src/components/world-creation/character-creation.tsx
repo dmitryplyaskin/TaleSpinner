@@ -6,10 +6,14 @@ import { useUnit } from 'effector-react';
 import { CharacterSimpleForm } from './forms/character-simple-form';
 import { useWorldCreationNavigation } from './navigation/navigation';
 import { saveCharacterFx, $characterSaveProgress } from '../../model/world-creation';
+import { WorldPrimer } from '@shared/types/world-creation';
 
 export const CharacterCreation: React.FC = ({}) => {
-	const { nextStep, updateCurrentStepData } = useWorldCreationNavigation();
+	const { nextStep, updateCurrentStepData, currentBranch, currentStepIndex } = useWorldCreationNavigation();
 	const isLoading = useUnit($characterSaveProgress);
+
+	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
+	const worldPrimer = (previousStep?.data?.worldPrimer || null) as WorldPrimer;
 
 	const { control, handleSubmit, reset } = useForm<Character>({
 		defaultValues: {
@@ -24,19 +28,16 @@ export const CharacterCreation: React.FC = ({}) => {
 
 	const handleSave = async (data: Character) => {
 		try {
-			// Сохраняем персонажа через API
 			const savedCharacter = await saveCharacterFx({
 				character: data,
-				worldId: undefined, // Можно добавить поддержку worldId позже
+				worldId: worldPrimer?.id || '',
 			});
 
-			// Сохраняем данные персонажа в текущем шаге
 			updateCurrentStepData({
 				character: savedCharacter,
 				completed: true,
 			});
 
-			// Переходим к следующему шагу
 			nextStep();
 		} catch (error) {
 			console.error('Ошибка сохранения персонажа:', error);

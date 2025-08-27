@@ -16,5 +16,5 @@ export const WorldCreationPrimerJsonService = new JsonFileService<any>(
 );
 
 export const CharactersJsonService = new JsonFileService<Character>(
-  "./data/characters"
+  "./data/worlds-creation/characters"
 );
