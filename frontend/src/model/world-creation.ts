@@ -58,6 +58,13 @@ export const saveCharacterFx = createEffect({
 	},
 });
 
+export const completeWorldCreationFx = createEffect({
+	handler: async (data: WorldPrimer) => {
+		const world = (await httpClient.post('/api/world-creation/complete-world', data)) as WorldPrimer;
+		return world;
+	},
+});
+
 export const $worldCreateProgress = createDraftWorldsFx.pending;
 export const $worldCreateMoreProgress = createMoreWorldsFx.pending;
 export const $worldCreatePrimerProgress = createWorldFx.pending;

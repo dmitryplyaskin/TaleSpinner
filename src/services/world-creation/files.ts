@@ -1,5 +1,9 @@
 import { JsonFileService } from "@core/services/json-file.service";
-import { CreatedWorldDraft, WorldCreation } from "@shared/types/world-creation";
+import {
+  CreatedWorldDraft,
+  WorldCreation,
+  WorldPrimer,
+} from "@shared/types/world-creation";
 import { Character } from "@shared/types/character";
 
 export const WorldCreationDraftJsonService = new JsonFileService<WorldCreation>(
@@ -18,3 +22,6 @@ export const WorldCreationPrimerJsonService = new JsonFileService<any>(
 export const CharactersJsonService = new JsonFileService<Character>(
   "./data/worlds-creation/characters"
 );
+
+export const WorldCreationCompleteJsonService =
+  new JsonFileService<WorldPrimer>("./data/worlds-creation/complete");

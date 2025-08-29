@@ -16,6 +16,7 @@ import {
   WorldCreationFavoritesDraftJsonService,
   WorldCreationPrimerJsonService,
   CharactersJsonService,
+  WorldCreationCompleteJsonService,
 } from "./files";
 import OpenAI from "openai";
 import { ApiSettings } from "@shared/types/api-settings";
@@ -49,12 +50,12 @@ export class WorldCreateService {
   private async callModel(data: {
     apiSettings: ApiSettings;
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    model: string;
+    model?: string;
     responseFormat: OpenAI.ResponseFormatJSONSchema;
   }) {
     const openai = this.createOpenAIService(data.apiSettings);
     const response = await openai.chat.completions.create({
-      model: data.model,
+      model: data.model || "",
       messages: data.messages,
       response_format: data.responseFormat,
       // @ts-ignore
@@ -99,7 +100,7 @@ export class WorldCreateService {
       const result = (await this.callModel({
         apiSettings,
         messages: [{ role: "user", content: prompt }],
-        model: apiSettings.api.model,
+        model: apiSettings.api.model || "",
         responseFormat: createDraftWorldsResponseFormat,
       })) as { worlds: CreatedWorldDraft[] };
 
@@ -368,5 +369,17 @@ export class WorldCreateService {
       console.error("Error saving character:", error);
       throw error;
     }
+  }
+
+  async completeWorldCreation(data: WorldPrimer) {
+    const world = await WorldCreationPrimerJsonService.readFile(data.id);
+    if (!world) throw new Error("World not found");
+    const completeWorld = await WorldCreationCompleteJsonService.createFile(
+      world,
+      {
+        id: data.id,
+      }
+    );
+    return completeWorld;
   }
 }
