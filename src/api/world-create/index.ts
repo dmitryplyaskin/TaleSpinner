@@ -67,4 +67,13 @@ routerBuilder.addRoute({
   },
 });
 
+routerBuilder.addRoute({
+  path: "/world-creation/complete-world",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await worldCreateService.completeWorldCreation(req.body);
+    res.json(result);
+  },
+});
+
 export const worldCreateRouter = routerBuilder.build();

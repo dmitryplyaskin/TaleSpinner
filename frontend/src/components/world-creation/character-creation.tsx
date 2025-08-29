@@ -15,27 +15,29 @@ export const CharacterCreation: React.FC = ({}) => {
 	const previousStep = currentBranch?.steps?.[Math.max(0, currentStepIndex - 1)];
 	const worldPrimer = (previousStep?.data?.worldPrimer || null) as WorldPrimer;
 
+	const currentStep = currentBranch?.steps?.[currentStepIndex];
+	const character = currentStep?.data?.worldPrimer?.characters?.userCharacter || null;
+
 	const { control, handleSubmit, reset } = useForm<Character>({
 		defaultValues: {
-			name: '',
-			description: '',
-			appearance: '',
-			personality: '',
-			clothing: '',
-			equipment: '',
+			name: character?.name || '',
+			description: character?.description || '',
+			appearance: character?.appearance || '',
+			personality: character?.personality || '',
+			clothing: character?.clothing || '',
+			equipment: character?.equipment || '',
 		},
 	});
 
 	const handleSave = async (data: Character) => {
 		try {
-			const savedCharacter = await saveCharacterFx({
+			const savedWorld = await saveCharacterFx({
 				character: data,
 				worldId: worldPrimer?.id || '',
 			});
 
 			updateCurrentStepData({
-				character: savedCharacter,
-				completed: true,
+				worldPrimer: savedWorld,
 			});
 
 			nextStep();

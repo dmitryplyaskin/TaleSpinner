@@ -47,6 +47,11 @@ export const initializeAppNavigation = createEffect(() => {
 				name: 'Создание персонажа',
 				data: {},
 			},
+			{
+				id: 'world-completion',
+				name: 'Завершение',
+				data: {},
+			},
 		],
 	});
 
@@ -70,6 +75,10 @@ export const goToWorldCustomization = createEffect(() => {
 	navigateToStep({ stepId: 'world-customization', branchId: 'world-creation' });
 });
 
+export const goToWorldCompletion = createEffect(() => {
+	navigateToStep({ stepId: 'world-completion', branchId: 'world-creation' });
+});
+
 // Экспортируем селекторы для компонентов
 export { $currentStep, $currentBranch };
 
@@ -80,7 +89,8 @@ export type AppScreen =
 	| 'world-selection'
 	| 'world-customization'
 	| 'world-primer-edit'
-	| 'character-creation';
+	| 'character-creation'
+	| 'world-completion';
 
 // Утилита для определения текущего экрана
 export const getCurrentScreen = (step: any): AppScreen | null => {

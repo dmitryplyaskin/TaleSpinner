@@ -8,9 +8,12 @@ import { WorldSetupStep } from './world-setup-step';
 import { WorldCustomization } from './world-customization';
 import { WorldPrimerEdit } from './world-primer-edit';
 import { CharacterCreation } from './character-creation';
+import { WorldCompletion } from './world-completion';
 
 const WorldCreationContent: React.FC = () => {
 	const { currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
+	console.log('currentBranch', currentBranch);
+	console.log('currentStepIndex', currentStepIndex);
 
 	const getStepDescription = (stepId: string): string => {
 		switch (stepId) {
@@ -24,6 +27,8 @@ const WorldCreationContent: React.FC = () => {
 				return 'Редактирование мира';
 			case 'character-creation':
 				return 'Создание персонажа';
+			case 'world-completion':
+				return 'Завершение создания мира';
 			default:
 				return '';
 		}
@@ -61,6 +66,10 @@ const WorldCreationContent: React.FC = () => {
 
 		if (isStep('character-creation')) {
 			return <CharacterCreation />;
+		}
+
+		if (isStep('world-completion')) {
+			return <WorldCompletion />;
 		}
 
 		return null;

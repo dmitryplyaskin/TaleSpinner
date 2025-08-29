@@ -355,16 +355,17 @@ export class WorldCreateService {
       const world = await WorldCreationPrimerJsonService.readFile(data.worldId);
       if (!world) throw new Error("World not found");
 
-      await WorldCreationPrimerJsonService.updateFile(data.worldId, {
-        data: {
+      const updatedWorld = await WorldCreationPrimerJsonService.updateFile(
+        data.worldId,
+        {
           ...world,
           characters: {
             userCharacter: savedCharacter,
           },
-        },
-      });
+        }
+      );
 
-      return savedCharacter;
+      return updatedWorld;
     } catch (error) {
       console.error("Error saving character:", error);
       throw error;
@@ -373,11 +374,14 @@ export class WorldCreateService {
 
   async completeWorldCreation(data: WorldPrimer) {
     const world = await WorldCreationPrimerJsonService.readFile(data.id);
+
     if (!world) throw new Error("World not found");
+
     const completeWorld = await WorldCreationCompleteJsonService.createFile(
       world,
       {
         id: data.id,
+        overwrite: true,
       }
     );
     return completeWorld;

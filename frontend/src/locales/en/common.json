@@ -15,5 +15,21 @@
     "switch": "Language",
     "english": "English",
     "russian": "Russian"
+  },
+  "worldCreation": {
+    "completion": {
+      "title": "Your World is Created!",
+      "subtitle": "Congratulations! You have successfully completed the creation of your unique world. You are now ready to begin your adventure!",
+      "whatYouCreated": "What you created:",
+      "detailedWorld": "Detailed world with unique history",
+      "uniqueCharacter": "Character with individual characteristics",
+      "adventureBase": "Foundation for exciting adventures",
+      "worldCreated": "World Created",
+      "characterReady": "Character Ready",
+      "readyToPlay": "Ready to Play",
+      "completeButton": "Complete World Creation",
+      "completingButton": "Completing...",
+      "description": "Click the button above to save your world and return to the main menu. You can continue your adventure at any time!"
+    }
   }
 }

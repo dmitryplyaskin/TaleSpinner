@@ -28,6 +28,7 @@ function App() {
 			case 'world-customization':
 			case 'world-primer-edit':
 			case 'character-creation':
+			case 'world-completion':
 				return (
 					<WorldCreationNavigationProvider>
 						<WorldCreation />
