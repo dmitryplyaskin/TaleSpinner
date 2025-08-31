@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Typography, Button, Card, CardContent, Container, Stack, Paper } from '@mui/material';
-import { Public, Person, AutoStories } from '@mui/icons-material';
+import { Box, Typography, Button, Container, Paper } from '@mui/material';
 
 import { completeWorldCreationFx } from '@model/world-creation';
 import { useUnit } from 'effector-react';
