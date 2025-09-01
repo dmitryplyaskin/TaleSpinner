@@ -64,7 +64,6 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 	return (
 		<Container maxWidth="lg">
 			<Box py={3}>
-				{/* Заголовок секции */}
 				<Box textAlign="center" mb={4}>
 					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
 						Редактирование мира
@@ -74,7 +73,6 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 					</Typography>
 				</Box>
 
-				{/* Навигационные вкладки */}
 				<Paper elevation={1} sx={{ mb: 4, borderRadius: 2 }}>
 					<Tabs
 						value={activeTab}
@@ -91,9 +89,7 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 					</Tabs>
 				</Paper>
 
-				{/* Содержимое вкладок */}
 				<Box>
-					{/* Основная информация */}
 					{activeTab === 0 && (
 						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 							<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
@@ -103,7 +99,6 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 						</Paper>
 					)}
 
-					{/* Детализированные элементы */}
 					{activeTab === 1 && (
 						<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 							<Box textAlign="center" mb={4}>
@@ -122,7 +117,6 @@ export const WorldPrimerEdit: React.FC<WorldPrimerEditProps> = ({ onSave, onCanc
 
 				<Divider sx={{ my: 4 }} />
 
-				{/* Кнопки управления */}
 				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 					<Box display="flex" justifyContent="center" gap={2} flexWrap="wrap">
 						<Button variant="outlined" color="secondary" onClick={handleReset} sx={{ minWidth: 120 }}>

@@ -43,7 +43,6 @@ export const CharacterCreation: React.FC = ({}) => {
 			nextStep();
 		} catch (error) {
 			console.error('Ошибка сохранения персонажа:', error);
-			// Здесь можно добавить уведомление об ошибке
 		}
 	};
 
@@ -54,7 +53,6 @@ export const CharacterCreation: React.FC = ({}) => {
 	return (
 		<Container maxWidth="lg">
 			<Box py={4}>
-				{/* Заголовок секции */}
 				<Box textAlign="center" mb={5}>
 					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
 						Создание вашего персонажа
@@ -64,12 +62,10 @@ export const CharacterCreation: React.FC = ({}) => {
 					</Typography>
 				</Box>
 
-				{/* Форма создания персонажа */}
 				<Paper elevation={3} sx={{ p: 5, mb: 4, borderRadius: 3, backgroundColor: 'background.paper' }}>
 					<CharacterSimpleForm control={control} />
 				</Paper>
 
-				{/* Кнопки управления */}
 				<Paper elevation={2} sx={{ p: 4, borderRadius: 3, backgroundColor: 'grey.50' }}>
 					<Box display="flex" justifyContent="center" gap={3} flexWrap="wrap">
 						<Button

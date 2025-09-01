@@ -16,7 +16,6 @@ export interface CustomizationAdvancedData {
 	charactersDescription?: string;
 }
 
-// Типы для JSON конфигурации
 export interface FormFieldConfig {
 	name: string;
 	type: 'input' | 'textarea';
@@ -39,7 +38,6 @@ export interface FormConfig {
 	sections: FormSectionConfig[];
 }
 
-// Интерфейс для обработчиков генерации
 export interface GenerateHandlers {
 	[fieldName: string]: () => void;
 }
@@ -52,7 +50,6 @@ export interface CustomizationAdvancedFormProps {
 	watch: UseFormWatch<any>;
 }
 
-// Компонент поля с кнопкой генерации
 interface FieldWithGenerateProps {
 	field: FormFieldConfig;
 	control: any;
@@ -99,7 +96,6 @@ const FieldWithGenerate: React.FC<FieldWithGenerateProps> = ({ field, control })
 	return renderField();
 };
 
-// Компонент секции формы
 interface FormSectionProps {
 	section: FormSectionConfig;
 	control: any;
@@ -123,17 +119,14 @@ const FormSection: React.FC<FormSectionProps> = ({ section, control, isExpanded 
 			}}
 		>
 			<CardContent sx={{ pb: isExpanded ? 3 : 2 }}>
-				{/* Чекбокс для включения/выключения секции */}
 				<FormCheckbox form={{ name: section.enabledFieldName, control }} label={section.title} />
 
-				{/* Описание секции */}
 				{section.description && (
 					<Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0 }}>
 						{section.description}
 					</Typography>
 				)}
 
-				{/* Поля секции */}
 				<Collapse in={isExpanded} timeout="auto" unmountOnExit>
 					<Box mt={3}>
 						<Stack spacing={3}>
@@ -266,7 +259,6 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 	watch,
 	formConfig = DEFAULT_FORM_CONFIG,
 }) => {
-	// Динамически создаем watch для всех enabled полей
 	const watchedValues = formConfig.sections.reduce((acc, section) => {
 		acc[section.enabledFieldName] = watch(section.enabledFieldName as keyof CustomizationAdvancedData) as boolean;
 		return acc;
@@ -275,7 +267,6 @@ export const CustomizationAdvancedForm: React.FC<CustomizationAdvancedFormProps>
 	return (
 		<Box>
 			<Stack spacing={3}>
-				{/* Динамически генерируем секции на основе конфигурации */}
 				{formConfig.sections.map((section) => (
 					<FormSection
 						key={section.id}

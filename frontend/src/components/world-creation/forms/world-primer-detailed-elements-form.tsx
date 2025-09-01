@@ -3,8 +3,6 @@ import {
 	Box,
 	Stack,
 	Typography,
-	Card,
-	CardContent,
 	IconButton,
 	Button,
 	Divider,
@@ -22,7 +20,6 @@ export interface WorldPrimerDetailedElementsFormProps {
 	control: Control<any>;
 }
 
-// Компонент для детализированных рас
 const DetailedRacesSection: React.FC<{ control: Control<any> }> = ({ control }) => {
 	const { fields, append, remove } = useFieldArray({
 		control,
@@ -130,7 +127,6 @@ const DetailedRacesSection: React.FC<{ control: Control<any> }> = ({ control }) 
 	);
 };
 
-// Компонент для временной линии
 const TimelineSection: React.FC<{ control: Control<any> }> = ({ control }) => {
 	const { fields, append, remove } = useFieldArray({
 		control,

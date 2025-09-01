@@ -8,7 +8,6 @@ import { useUnit } from 'effector-react';
 import { useWorldCreationNavigation } from './navigation/navigation';
 
 export const WorldSetupStep: React.FC = () => {
-	// const { isLoading, steps, currentStep, executeWithProgress, cancel } = useProgressLoader();
 	const [selectedWorldType, setSelectedWorldType] = useState<WorldType | null>(null);
 	const [additionalInfo, setAdditionalInfo] = useState('');
 	const isLoading = useUnit($worldCreateProgress);
@@ -24,13 +23,13 @@ export const WorldSetupStep: React.FC = () => {
 
 		try {
 			await createDraftWorldsFx({ worldType: selectedWorldType as WorldType, userPrompt: additionalInfo });
-			// Сохраняем данные текущего шага
+
 			updateCurrentStepData({
 				worldType: selectedWorldType,
 				additionalInfo,
 				completed: true,
 			});
-			// Переходим к следующему шагу
+
 			nextStep();
 		} catch (error) {
 			console.error('Ошибка создания мира:', error);
@@ -81,7 +80,6 @@ export const WorldSetupStep: React.FC = () => {
 				/> */}
 			</Box>
 
-			{/* Секция с дополнительной информацией */}
 			<Collapse in={!!selectedWorldType && selectedWorldType !== 'custom'}>
 				<Box sx={{ mb: 4 }}>
 					<Typography variant="h6" gutterBottom>

@@ -15,12 +15,11 @@ export const SelectDraftWorld: React.FC = () => {
 	if (!id) return null;
 
 	const handleWorldSelect = (world: CreatedWorldDraft) => {
-		// Сохраняем данные выбранного мира
 		updateCurrentStepData({
 			selectedWorld: world,
 			completed: true,
 		});
-		// Переходим к следующему шагу
+
 		nextStep();
 	};
 

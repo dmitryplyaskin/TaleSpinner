@@ -69,7 +69,6 @@ export const WorldCustomization: React.FC = () => {
 	return (
 		<Container maxWidth="lg">
 			<Box py={3}>
-				{/* Заголовок секции */}
 				<Box textAlign="center" mb={4}>
 					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
 						Редактирование мира
@@ -79,7 +78,6 @@ export const WorldCustomization: React.FC = () => {
 					</Typography>
 				</Box>
 
-				{/* Форма редактирования основных данных мира */}
 				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 					<Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 500 }}>
 						Основные параметры мира
@@ -89,7 +87,6 @@ export const WorldCustomization: React.FC = () => {
 
 				<Divider sx={{ my: 4 }} />
 
-				{/* Дополнительные параметры */}
 				<Paper elevation={2} sx={{ p: 4, mb: 4, borderRadius: 2 }}>
 					<Box textAlign="center" mb={4}>
 						<Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
