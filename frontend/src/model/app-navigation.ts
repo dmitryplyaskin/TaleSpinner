@@ -13,6 +13,11 @@ export const initializeAppNavigation = createEffect(() => {
 				name: 'Добро пожаловать',
 				data: {},
 			},
+			{
+				id: 'chat',
+				name: 'Чат',
+				data: {},
+			},
 		],
 	});
 
@@ -79,12 +84,17 @@ export const goToWorldCompletion = createEffect(() => {
 	navigateToStep({ stepId: 'world-completion', branchId: 'world-creation' });
 });
 
+export const goToChat = createEffect(() => {
+	navigateToStep({ stepId: 'chat', branchId: 'main' });
+});
+
 // Экспортируем селекторы для компонентов
 export { $currentStep, $currentBranch };
 
 // Типы для удобства
 export type AppScreen =
 	| 'welcome'
+	| 'chat'
 	| 'world-type-selection'
 	| 'world-selection'
 	| 'world-customization'

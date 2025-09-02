@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Typography, Box, IconButton } from '@mui/material';
-import { Settings, Add, PlayArrow } from '@mui/icons-material';
-import { goToWorldCreation } from '../model/app-navigation';
+import { Settings, Add, PlayArrow, Chat } from '@mui/icons-material';
+import { goToWorldCreation, goToChat } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
 import { openSettingsModal } from '../model/settings';
@@ -14,6 +14,10 @@ export const WelcomeScreen: React.FC = () => {
 	const handleContinueGame = () => {
 		// Пока не работает
 		console.log('Продолжить игру');
+	};
+
+	const handleGoToChat = () => {
+		goToChat();
 	};
 
 	const handleSettings = () => {
@@ -39,6 +43,15 @@ export const WelcomeScreen: React.FC = () => {
 						onClick={handleCreateNewWorld}
 						buttonText="Создать"
 						variant="contained"
+					/>
+
+					<ActionCard
+						title="Интерактивный чат"
+						description="Общайтесь с ИИ-мастером и создавайте истории"
+						icon={<Chat color="primary" fontSize="large" />}
+						onClick={handleGoToChat}
+						buttonText="Открыть чат"
+						variant="outlined"
 					/>
 
 					<ActionCard

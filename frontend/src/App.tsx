@@ -7,6 +7,7 @@ import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/welcome-screen';
 import { WorldCreation } from './components/world-creation';
 import { WorldCreationNavigationProvider } from './components/world-creation/navigation/navigation';
+import { ChatPage } from './components/chat';
 import { theme } from './theme';
 
 function App() {
@@ -23,6 +24,8 @@ function App() {
 		switch (currentScreen) {
 			case 'welcome':
 				return <WelcomeScreen />;
+			case 'chat':
+				return <ChatPage />;
 			case 'world-type-selection':
 			case 'world-selection':
 			case 'world-customization':
