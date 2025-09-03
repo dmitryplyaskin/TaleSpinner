@@ -1,5 +1,5 @@
 import React from 'react';
-import { Container, Divider } from '@mui/material';
+import { Box, Container, Divider } from '@mui/material';
 import { goToWelcome } from '../../model/app-navigation';
 import { useChat } from './hooks/useChat';
 import { ChatHeader } from './components/ChatHeader';
@@ -14,14 +14,32 @@ export const ChatPage: React.FC = () => {
 	};
 
 	return (
-		<Container maxWidth="lg" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
-			<ChatHeader onBack={handleBack} />
+		<Box sx={{ minHeight: '100vh', position: 'relative', pb: '180px' }}>
+			<Container maxWidth="lg" sx={{ py: 2 }}>
+				<ChatHeader onBack={handleBack} />
 
-			<MessagesList messages={messages} isTyping={isTyping} />
+				<MessagesList messages={messages} isTyping={isTyping} />
+			</Container>
 
-			<Divider sx={{ mb: 2 }} />
-
-			<ChatInput value={inputValue} onChange={setInputValue} onSend={sendMessage} disabled={isTyping} />
-		</Container>
+			{/* Закрепленное поле ввода */}
+			<Box
+				sx={{
+					position: 'fixed',
+					bottom: 0,
+					left: 0,
+					right: 0,
+					backgroundColor: 'background.default',
+					borderTop: '1px solid',
+					borderColor: 'divider',
+					zIndex: 1000,
+					py: 2,
+				}}
+			>
+				<Container maxWidth="lg">
+					<Divider sx={{ mb: 2 }} />
+					<ChatInput value={inputValue} onChange={setInputValue} onSend={sendMessage} disabled={isTyping} />
+				</Container>
+			</Box>
+		</Box>
 	);
 };

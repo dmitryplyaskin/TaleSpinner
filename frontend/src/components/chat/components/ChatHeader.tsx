@@ -9,13 +9,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 	onBack,
 }) => {
 	return (
-		<Box display="flex" alignItems="center" mb={3}>
+		<Box sx={{ position: 'relative', mb: 3, pt: 2 }}>
+			{/* Кнопка "Назад" в левом верхнем углу */}
 			{onBack && (
-				<Button startIcon={<ArrowBack />} onClick={onBack} variant="outlined" sx={{ mr: 3 }}>
+				<Button
+					startIcon={<ArrowBack />}
+					onClick={onBack}
+					variant="outlined"
+					sx={{
+						position: 'absolute',
+						top: 0,
+						left: 0,
+						zIndex: 10,
+					}}
+				>
 					Назад
 				</Button>
 			)}
-			<Box textAlign="center" flexGrow={1}>
+
+			{/* Центрированный заголовок */}
+			<Box textAlign="center">
 				<Typography variant="h4" component="h1" gutterBottom>
 					{title}
 				</Typography>

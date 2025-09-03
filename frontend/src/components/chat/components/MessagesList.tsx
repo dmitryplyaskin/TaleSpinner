@@ -24,8 +24,6 @@ export const MessagesList: React.FC<MessagesListProps> = ({ messages, isTyping =
 		<Paper
 			elevation={2}
 			sx={{
-				flexGrow: 1,
-				overflow: 'auto',
 				p: 3,
 				mb: 2,
 				background: 'linear-gradient(135deg, #1a1618 0%, #1f1b1d 100%)',
