@@ -12,8 +12,6 @@ import { WorldCompletion } from './world-completion';
 
 const WorldCreationContent: React.FC = () => {
 	const { currentBranch, currentStepIndex, isStep } = useWorldCreationNavigation();
-	console.log('currentBranch', currentBranch);
-	console.log('currentStepIndex', currentStepIndex);
 
 	const getStepDescription = (stepId: string): string => {
 		switch (stepId) {

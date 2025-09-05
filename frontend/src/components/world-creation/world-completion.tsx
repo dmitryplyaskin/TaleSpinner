@@ -6,6 +6,7 @@ import { useUnit } from 'effector-react';
 import { useTranslation } from '../../hooks';
 import { WorldPrimer } from '@shared/types/world-creation';
 import { useWorldCreationNavigation } from './navigation';
+import { navigateToStep } from '@model/navigation';
 
 export const WorldCompletion: React.FC = () => {
 	const isCompleting = useUnit(completeWorldCreationFx.pending);
@@ -19,6 +20,7 @@ export const WorldCompletion: React.FC = () => {
 	const handleCompleteWorldCreation = async () => {
 		try {
 			await completeWorldCreationFx(worldPrimer);
+			navigateToStep({ stepId: 'welcome', branchId: 'main' });
 		} catch (error) {
 			console.error('Ошибка при завершении создания мира:', error);
 		}

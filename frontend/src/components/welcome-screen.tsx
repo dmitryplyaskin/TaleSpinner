@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Container, Typography, Box, IconButton } from '@mui/material';
 import { Settings, Add, PlayArrow, Chat } from '@mui/icons-material';
 import { goToWorldCreation, goToChat } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
 import { openSettingsModal } from '../model/settings';
+import { loadGameSessionsFx } from '@model/game-sessions';
 
 export const WelcomeScreen: React.FC = () => {
+	useEffect(() => {
+		loadGameSessionsFx();
+	}, []);
+
 	const handleCreateNewWorld = () => {
 		goToWorldCreation();
 	};

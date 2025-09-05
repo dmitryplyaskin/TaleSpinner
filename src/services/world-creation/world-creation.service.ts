@@ -36,6 +36,7 @@ import {
   createLocationsResponseFormat,
   createFactionsResponseFormat,
 } from "./schemas";
+import { GameSessionsJsonService } from "@services/game-sessions";
 
 export class WorldCreateService {
   createOpenAIService(apiSettings: ApiSettings) {
@@ -384,6 +385,11 @@ export class WorldCreateService {
         overwrite: true,
       }
     );
+
+    await GameSessionsJsonService.createFile(world, {
+      id: data.id,
+      filename: `${data.id}/main`,
+    });
     return completeWorld;
   }
 }
