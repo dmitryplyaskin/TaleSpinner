@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { Container, Typography, Box, IconButton } from '@mui/material';
-import { Settings, Add, PlayArrow, Chat } from '@mui/icons-material';
+import { Settings, Add, Chat } from '@mui/icons-material';
 import { goToWorldCreation, goToChat } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
+import { GameSessionsGrid } from './game-sessions-grid';
 import { openSettingsModal } from '../model/settings';
 import { loadGameSessionsFx } from '@model/game-sessions';
 
@@ -17,6 +18,12 @@ export const WelcomeScreen: React.FC = () => {
 	};
 
 	const handleGoToChat = () => {
+		goToChat();
+	};
+
+	const handlePlaySession = (sessionId: string) => {
+		// TODO: Реализовать переход к игровой сессии с конкретным ID
+		console.log('Playing session:', sessionId);
 		goToChat();
 	};
 
@@ -53,6 +60,11 @@ export const WelcomeScreen: React.FC = () => {
 						buttonText="Открыть чат"
 						variant="outlined"
 					/>
+				</Box>
+
+				{/* Секция с сохранёнными игровыми сессиями */}
+				<Box sx={{ mt: 6, width: '100%' }}>
+					<GameSessionsGrid onPlaySession={handlePlaySession} />
 				</Box>
 
 				<Box sx={{ mt: 4 }}>
