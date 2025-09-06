@@ -4,6 +4,7 @@ import {
   UpdateOptions,
   FileInfo,
 } from "@shared/types/base-file";
+import { glob } from "glob";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
@@ -436,29 +437,39 @@ export class JsonFileService<
 
     return result;
   }
+
+  async findFilesByPath(pattern: string): Promise<(BaseFileData & T)[]> {
+    // Создаем полный путь для поиска, объединяя базовый путь сервиса и паттерн
+    const fullPattern = path.join(this.basePath, pattern).replace(/\\/g, "/"); // Нормализуем слеши для glob
+
+    try {
+      // Ищем все файлы, соответствующие паттерну
+      const matchedPaths = await glob(fullPattern, { nodir: true }); // nodir: true чтобы исключить директории из результатов
+
+      // Параллельно читаем и парсим все найденные файлы
+      const readPromises = matchedPaths.map(async (filepath) => {
+        try {
+          const content = await fs.readFile(filepath, "utf8");
+          return JSON.parse(content) as BaseFileData & T;
+        } catch (error) {
+          // Если отдельный файл не удалось прочитать или распарсить,
+          // логируем ошибку и возвращаем null, чтобы не прерывать весь процесс.
+          console.error(`Failed to read or parse file at ${filepath}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(readPromises);
+
+      // Фильтруем результаты, чтобы убрать null (файлы с ошибками)
+      return results.filter((content) => content !== null) as (BaseFileData &
+        T)[];
+    } catch (error) {
+      throw new Error(
+        `Failed to find files with pattern "${pattern}": ${
+          (error as any).message
+        }`
+      );
+    }
+  }
 }
-
-// Пример использования:
-
-/*
-// Для множественных файлов
-const userService = new JsonFileService<{ name: string; email: string }>('./data/users');
-
-// Для одного конфигурационного файла
-const configService = new JsonFileService<{ theme: string; language: string }>('./config', 'app-config');
-
-// Инициализация
-await userService.initialize();
-
-// Создание файла
-const user = await userService.createFile({ name: 'John', email: 'john@example.com' });
-
-// Чтение
-const userData = await userService.readFile(user.id);
-
-// Частичное обновление
-await userService.patchFile(user.id, { name: 'John Doe' });
-
-// Получение всех файлов
-const allUsers = await userService.getAllFilesWithContent();
-*/

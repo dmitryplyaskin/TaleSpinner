@@ -16,11 +16,6 @@ export const WelcomeScreen: React.FC = () => {
 		goToWorldCreation();
 	};
 
-	const handleContinueGame = () => {
-		// Пока не работает
-		console.log('Продолжить игру');
-	};
-
 	const handleGoToChat = () => {
 		goToChat();
 	};
@@ -57,16 +52,6 @@ export const WelcomeScreen: React.FC = () => {
 						onClick={handleGoToChat}
 						buttonText="Открыть чат"
 						variant="outlined"
-					/>
-
-					<ActionCard
-						title="Продолжить игру"
-						description="Вернитесь к сохранённому приключению"
-						icon={<PlayArrow color="primary" fontSize="large" />}
-						onClick={handleContinueGame}
-						buttonText="Продолжить"
-						variant="outlined"
-						disabled={true}
 					/>
 				</Box>
 
