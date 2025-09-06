@@ -1,6 +1,6 @@
-import React from 'react';
-import { Box, Typography, Grid, Card, CardContent, CardActions, Button, Chip, Stack } from '@mui/material';
-import { PlayArrow, Schedule, Public } from '@mui/icons-material';
+import React, { useState } from 'react';
+import { Box, Typography, Card, CardContent, CardActions, Button, Chip, Stack } from '@mui/material';
+import { PlayArrow, Schedule, Public, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { WorldPrimer } from '@shared/types/world-creation';
 import { useStore } from 'effector-react';
 import { $gameSessions } from '@model/game-sessions';
@@ -81,6 +81,7 @@ export interface GameSessionsGridProps {
 
 export const GameSessionsGrid: React.FC<GameSessionsGridProps> = ({ onPlaySession = () => {} }) => {
 	const sessions = useStore($gameSessions);
+	const [showAll, setShowAll] = useState(false);
 
 	if (!sessions || sessions.length === 0) {
 		return (
@@ -95,19 +96,40 @@ export const GameSessionsGrid: React.FC<GameSessionsGridProps> = ({ onPlaySessio
 		);
 	}
 
+	const INITIAL_DISPLAY_COUNT = 3;
+	const displayedSessions = showAll ? sessions : sessions.slice(0, INITIAL_DISPLAY_COUNT);
+	const hasMoreSessions = sessions.length > INITIAL_DISPLAY_COUNT;
+
 	return (
 		<Box>
 			<Typography variant="h5" component="h2" gutterBottom sx={{ mb: 3 }}>
 				Ваши миры ({sessions.length})
 			</Typography>
 
-			<Grid container spacing={3}>
-				{sessions.map((session) => (
-					<Grid item xs={12} sm={6} md={4} key={session.id}>
-						<GameSessionCard session={session} onPlay={onPlaySession} />
-					</Grid>
+			<Box
+				sx={{
+					display: 'flex',
+					flexWrap: 'wrap',
+					gap: 3,
+				}}
+			>
+				{displayedSessions.map((session) => (
+					<GameSessionCard key={session.id} session={session} onPlay={onPlaySession} />
 				))}
-			</Grid>
+			</Box>
+
+			{hasMoreSessions && (
+				<Box display="flex" justifyContent="center" sx={{ mt: 3 }}>
+					<Button
+						variant="outlined"
+						startIcon={showAll ? <ExpandLess /> : <ExpandMore />}
+						onClick={() => setShowAll(!showAll)}
+						sx={{ px: 4 }}
+					>
+						{showAll ? 'Скрыть' : `Показать все (${sessions.length - INITIAL_DISPLAY_COUNT} ещё)`}
+					</Button>
+				</Box>
+			)}
 		</Box>
 	);
 };
