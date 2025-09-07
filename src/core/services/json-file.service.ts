@@ -472,4 +472,25 @@ export class JsonFileService<
       );
     }
   }
+
+  async deleteDirectory(relativePath: string): Promise<boolean> {
+    const dirPath = path.join(this.basePath, relativePath);
+
+    // Проверяем, существует ли такая директория, чтобы не выбрасывать ошибку
+    if (!(await this.directoryExists(dirPath))) {
+      console.log(`Directory does not exist, nothing to delete: ${dirPath}`);
+      return false; // Возвращаем false, так как удаления не было
+    }
+
+    try {
+      // fs.rm с опцией recursive удаляет папку и все, что в ней есть.
+      // force: true - не бросать ошибку, если путь не существует.
+      await fs.rm(dirPath, { recursive: true, force: true });
+      return true;
+    } catch (error) {
+      throw new Error(
+        `Failed to delete directory ${relativePath}: ${(error as any).message}`
+      );
+    }
+  }
 }
