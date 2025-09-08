@@ -1,6 +1,16 @@
 import { GameSessionsJsonService } from "./files";
 
 export class GameSessionsService {
+  async getSession(id: string) {
+    try {
+      const session = await GameSessionsJsonService.readFile(id);
+      return session;
+    } catch (error) {
+      console.error("Ошибка получения сессии:", error);
+      throw error;
+    }
+  }
+
   async getAllSessions() {
     try {
       const sessions = await GameSessionsJsonService.findFilesByPath(
@@ -23,6 +33,18 @@ export class GameSessionsService {
       return true;
     } catch (error) {
       console.error("Ошибка удаления сессии:", error);
+      throw error;
+    }
+  }
+
+  async addToFavorites(id: string) {
+    try {
+      await GameSessionsJsonService.updateFile(id, {
+        //@ts-ignore
+        favorites: true,
+      });
+    } catch (error) {
+      console.error("Ошибка добавления в избранное:", error);
       throw error;
     }
   }
