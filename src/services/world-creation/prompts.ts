@@ -1,5 +1,8 @@
 import { WorldType } from "@shared/types/world";
-import { WorldCustomizationData } from "@shared/types/world-creation";
+import {
+  WorldCustomizationData,
+  WorldPrimer,
+} from "@shared/types/world-creation";
 
 export const createDraftWorldsPrompt = (
   worldType: WorldType,
@@ -319,5 +322,32 @@ Factions should create dynamic relationships and opportunities for political int
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
+`;
+};
+
+export const createFirstMessagePrompt = (data: WorldPrimer) => {
+  return `
+You are an expert Game Master (GM) for a text-based role-playing game. Your task is to write the very first, immersive opening message to start the game, based on the context provided below.
+
+### CONTEXT:
+You will be given the following information to build the opening scene:
+- **World Setting:** [Insert a detailed description of the game world, its tone, key elements, etc.]
+- **User Character:** [Insert a description of the player's character, including their name, appearance, background, and skills.]
+- **Initial Situation:** [Insert a description of the specific scenario where the game begins. Where is the character? What is happening around them?]
+
+### GM RULES:
+1.  **Narrate the World:** As the GM, you describe the environment, events, and the actions of all non-player characters (NPCs).
+2.  **NEVER Act for the User:** You must NEVER, under any circumstances, speak for the User's character, describe their internal thoughts or feelings, or make them perform any action. Your role is to set the scene and present challenges for the User to react to. For example, say "A shadowy figure approaches you," not "You draw your sword as a shadowy figure approaches you."
+3.  **Engaging Style:** Write in a descriptive, second-person narrative style ("You see...", "You hear..."). Make the scene feel alive.
+4.  **Strict Output Format:** Your entire response must be a single JSON object.
+
+### TASK:
+Generate the opening message for the game. The message should set the scene, introduce the immediate situation, and potentially include an NPC's line of dialogue to prompt the User's first action.
+
+Your response MUST be a JSON object with a single key "message", which is an array of objects. Each object in the array represents a block of text and must have two keys:
+- "type": A string, either "gm" (for your narrative descriptions) or "character" (for NPC dialogue).
+- "content": A string containing the text. For the "character" type, the content should clearly indicate who is speaking.
+
+Example of a "character" content: "Barkeep Thorgar: \"What'll it be, stranger?\""
 `;
 };

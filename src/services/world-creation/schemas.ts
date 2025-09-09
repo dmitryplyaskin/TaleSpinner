@@ -428,3 +428,51 @@ export const createFactionsResponseFormat: OpenAI.ResponseFormatJSONSchema = {
     },
   },
 };
+
+export const createFirstMessageResponseFormat: OpenAI.ResponseFormatJSONSchema =
+  {
+    type: "json_schema",
+    json_schema: {
+      // A descriptive name for the schema/function.
+      name: "generate_rpg_opening_message",
+
+      // Enforces that the output strictly adheres to the schema.
+      strict: true,
+
+      // The core JSON Schema definition.
+      schema: {
+        type: "object",
+        properties: {
+          message: {
+            type: "array",
+            description:
+              "An array of message segments that together form the GM's turn.",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  description:
+                    "The type of the message segment: 'gm' for game master narration, 'character' for NPC dialogue.",
+                  enum: ["gm", "character"],
+                },
+                content: {
+                  type: "string",
+                  description:
+                    "The text content of the segment. If the type is 'character', this should include the speaker's name.",
+                },
+              },
+              // Each item in the array must have both 'type' and 'content'.
+              required: ["type", "content"],
+              // Disallow any other properties on the item objects.
+              additionalProperties: false,
+            },
+          },
+        },
+        // The root object must have the 'message' property.
+        required: ["message"],
+        // Disallow any other properties on the root object.
+        additionalProperties: false,
+      },
+    },
+  };

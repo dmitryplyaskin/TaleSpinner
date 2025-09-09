@@ -7,6 +7,7 @@ import {
   createMagicPrompt,
   createLocationsPrompt,
   createFactionsPrompt,
+  createFirstMessagePrompt,
 } from "./prompts";
 import { ApiSettingsService } from "@services/api-settings.service";
 import { v4 as uuidv4 } from "uuid";
@@ -35,6 +36,7 @@ import {
   createMagicResponseFormat,
   createLocationsResponseFormat,
   createFactionsResponseFormat,
+  createFirstMessageResponseFormat,
 } from "./schemas";
 import { GameSessionsJsonService } from "@services/game-sessions";
 
@@ -375,6 +377,15 @@ export class WorldCreateService {
 
   async completeWorldCreation(data: WorldPrimer) {
     const world = await WorldCreationPrimerJsonService.readFile(data.id);
+    const apiSettings = await ApiSettingsService.readFile("api-settings");
+    if (!apiSettings) throw new Error("API settings not found");
+
+    const firstMessage = await this.callModel({
+      apiSettings,
+      messages: [{ role: "user", content: createFirstMessagePrompt(data) }],
+      model: apiSettings.api.model,
+      responseFormat: createFirstMessageResponseFormat,
+    });
 
     if (!world) throw new Error("World not found");
 

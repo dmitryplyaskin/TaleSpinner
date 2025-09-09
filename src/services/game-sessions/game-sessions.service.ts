@@ -3,7 +3,7 @@ import { GameSessionsJsonService } from "./files";
 export class GameSessionsService {
   async getSession(id: string) {
     try {
-      const session = await GameSessionsJsonService.readFile(id);
+      const session = await GameSessionsJsonService.readFile(id + "/main");
       return session;
     } catch (error) {
       console.error("Ошибка получения сессии:", error);
@@ -29,7 +29,7 @@ export class GameSessionsService {
 
   async deleteSession(id: string) {
     try {
-      await GameSessionsJsonService.deleteDirectory(id);
+      await GameSessionsJsonService.deleteDirectory(id + "/main");
       return true;
     } catch (error) {
       console.error("Ошибка удаления сессии:", error);
@@ -39,7 +39,7 @@ export class GameSessionsService {
 
   async addToFavorites(id: string) {
     try {
-      await GameSessionsJsonService.updateFile(id, {
+      await GameSessionsJsonService.updateFile(id + "/main", {
         //@ts-ignore
         favorites: true,
       });
