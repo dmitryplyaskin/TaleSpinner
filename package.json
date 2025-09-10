@@ -21,7 +21,6 @@
     "exec": "ts-node ./src/index.js"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.3.8",
     "@lancedb/lancedb": "^0.21.2",
     "apache-arrow": "^21.0.0",
     "cors": "^2.8.5",
