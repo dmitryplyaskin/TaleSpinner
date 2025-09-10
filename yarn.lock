@@ -9,6 +9,11 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
+"@electric-sql/pglite@^0.3.8":
+  version "0.3.8"
+  resolved "https://registry.yarnpkg.com/@electric-sql/pglite/-/pglite-0.3.8.tgz#be2c31060e789c5a240d1805cd00ed54ec68db19"
+  integrity sha512-VlAz/R7mktifp9IHzNvjxWJM8p3fPH2lHpustYuRSOXOpXiAMTlA5qqxcufPaDnfee6CZCE9qrT1MHDT7riSHg==
+
 "@isaacs/balanced-match@^4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@isaacs/balanced-match/-/balanced-match-4.0.1.tgz#3081dadbc3460661b751e7591d7faea5df39dd29"

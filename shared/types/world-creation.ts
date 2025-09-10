@@ -123,4 +123,6 @@ export type WorldPrimer = {
   id: string;
   createdAt: string;
   updatedAt: string;
+  isInitial?: boolean;
+  currentChatSessionId?: string;
 };

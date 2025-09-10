@@ -9,9 +9,14 @@ export type UserMessage = {
   content: string;
 };
 
+export type AssistantChatMessageContent = {
+  type: "gm" | "character";
+  content: string;
+};
+
 export type AssistantMessage = {
   role: ChatRole.ASSISTANT;
-  content: string;
+  content: AssistantChatMessageContent[];
 };
 
 export type SystemMessage = {
@@ -20,7 +25,3 @@ export type SystemMessage = {
 };
 
 export type ChatMessage = UserMessage | AssistantMessage | SystemMessage;
-
-export type FirstMessage = [
-  { type: "gm"; content: string } | { type: "character"; content: string }
-];

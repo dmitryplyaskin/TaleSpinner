@@ -13,4 +13,34 @@ routerBuilder.addRoute({
   },
 });
 
+routerBuilder.addRoute({
+  path: "/game-sessions/:id",
+  method: "GET",
+  handler: async (req, res) => {
+    const session = await worldCreateService.getSession(req.params.id);
+    res.json(session);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/game-sessions/:id",
+  method: "DELETE",
+  handler: async (req, res) => {
+    const session = await worldCreateService.deleteSession(req.params.id);
+    res.json(session);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/game-sessions/:id",
+  method: "PUT",
+  handler: async (req, res) => {
+    const session = await worldCreateService.updateSession(
+      req.params.id,
+      req.body
+    );
+    res.json(session);
+  },
+});
+
 export const gameSessionsRouter = routerBuilder.build();

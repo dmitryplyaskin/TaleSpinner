@@ -1,3 +1,4 @@
+import { WorldPrimer } from "@shared/types/world-creation";
 import { GameSessionsJsonService } from "./files";
 
 export class GameSessionsService {
@@ -18,7 +19,7 @@ export class GameSessionsService {
       );
       const sortedSessions = sessions.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
       return sortedSessions;
     } catch (error) {
@@ -45,6 +46,16 @@ export class GameSessionsService {
       });
     } catch (error) {
       console.error("Ошибка добавления в избранное:", error);
+      throw error;
+    }
+  }
+
+  async updateSession(id: string, data: WorldPrimer) {
+    try {
+      await GameSessionsJsonService.updateFile(id + "/main", data);
+      return data;
+    } catch (error) {
+      console.error("Ошибка обновления сессии:", error);
       throw error;
     }
   }
