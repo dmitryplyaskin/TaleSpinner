@@ -326,14 +326,59 @@ The response should be formatted as valid JSON according to the specified schema
 };
 
 export const createFirstMessagePrompt = (data: WorldPrimer) => {
+  const worldPrimer = data.world_primer;
+  const userCharacter = data.characters?.userCharacter;
+  const fullUserCharacter = userCharacter
+    ? `- ** User Character:** \n${userCharacter.name}\n${userCharacter.description} \n${userCharacter.appearance} \n${userCharacter.personality} \n${userCharacter.clothing} \n${userCharacter.equipment}`
+    : "";
+  const factions = data.detailed_elements.factions?.factions;
+  const fullFactions = factions
+    ? `- ** Factions:** \n${factions
+        .map(
+          (faction) =>
+            `- ${faction.name}\n${faction.structure}\n${faction.key_leaders}\n${faction.methods}\n${faction.relationships}\n${faction.role_in_conflict}\n${faction.resources_and_influence}`
+        )
+        .join("\n")}`
+    : "";
+  const locations = data.detailed_elements.locations?.locations;
+  const fullLocations = locations
+    ? `- ** Locations:** \n${locations
+        .map(
+          (location) =>
+            `- ${location.name}\n${location.appearance}\n${location.history}\n${location.inhabitants}\n${location.significance}\n${location.features_and_secrets}\n${location.adventure_opportunities}`
+        )
+        .join("\n")}`
+    : "";
+  const races = data.detailed_elements.races?.races;
+  const fullRaces = races
+    ? `- ** Races:** \n${races
+        .map(
+          (race) =>
+            `- ${race.name}\n${race.description}\n${race.relationship_to_conflict}\n${race.special_abilities}\n${race.social_structure}`
+        )
+        .join("\n")}`
+    : "";
+  const timeline = data.detailed_elements.timeline?.historical_events;
+  const fullTimeline = timeline
+    ? `- ** Timeline:** \n${timeline
+        .map(
+          (event) =>
+            `- ${event.name}\n${event.timeframe}\n${event.description}\n${event.impact_on_present}`
+        )
+        .join("\n")}`
+    : "";
+
   return `
 You are an expert Game Master (GM) for a text-based role-playing game. Your task is to write the very first, immersive opening message to start the game, based on the context provided below.
 
 ### CONTEXT:
 You will be given the following information to build the opening scene:
-- **World Setting:** [Insert a detailed description of the game world, its tone, key elements, etc.]
-- **User Character:** [Insert a description of the player's character, including their name, appearance, background, and skills.]
-- **Initial Situation:** [Insert a description of the specific scenario where the game begins. Where is the character? What is happening around them?]
+- **World Information:** ${worldPrimer}
+${fullUserCharacter}
+${fullFactions}
+${fullLocations}
+${fullRaces}
+${fullTimeline}
 
 ### GM RULES:
 1.  **Narrate the World:** As the GM, you describe the environment, events, and the actions of all non-player characters (NPCs).

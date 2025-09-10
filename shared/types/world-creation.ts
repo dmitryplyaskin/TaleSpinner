@@ -1,4 +1,5 @@
 import { BaseFileData } from "./base-file";
+import { Character } from "./character";
 
 export type WorldCreateTask = {
   worldType: WorldType;
@@ -115,6 +116,9 @@ export type WorldPrimer = {
         resources_and_influence: string;
       }>;
     };
+  };
+  characters?: {
+    userCharacter?: Character;
   };
   id: string;
   createdAt: string;

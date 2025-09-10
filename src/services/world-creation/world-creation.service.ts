@@ -389,15 +389,20 @@ export class WorldCreateService {
 
     if (!world) throw new Error("World not found");
 
+    const dataWithFirstMessage = {
+      ...world,
+      first_message: firstMessage,
+    };
+
     const completeWorld = await WorldCreationCompleteJsonService.createFile(
-      world,
+      dataWithFirstMessage,
       {
         id: data.id,
         overwrite: true,
       }
     );
 
-    await GameSessionsJsonService.createFile(world, {
+    await GameSessionsJsonService.createFile(dataWithFirstMessage, {
       id: data.id,
       filename: `${data.id}/main`,
     });
