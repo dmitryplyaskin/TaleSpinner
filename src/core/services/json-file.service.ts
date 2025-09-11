@@ -67,6 +67,12 @@ export class JsonFileService<
     return fileData;
   }
 
+  async createDirectory(identifier: string): Promise<boolean> {
+    const dirPath = path.join(this.basePath, identifier);
+    await this.ensureDirectoryExists(dirPath);
+    return true;
+  }
+
   /**
    * Чтение JSON файла
    */

@@ -59,4 +59,14 @@ export class GameSessionsService {
       throw error;
     }
   }
+
+  async initGameSessions(data: WorldPrimer) {
+    try {
+      await GameSessionsJsonService.createDirectory(data.id);
+      return data;
+    } catch (error) {
+      console.error("Ошибка инициализации сессии:", error);
+      throw error;
+    }
+  }
 }

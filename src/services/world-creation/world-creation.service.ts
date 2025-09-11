@@ -38,7 +38,10 @@ import {
   createFactionsResponseFormat,
   createFirstMessageResponseFormat,
 } from "./schemas";
-import { GameSessionsJsonService } from "@services/game-sessions";
+import {
+  GameSessionsJsonService,
+  GameSessionsService,
+} from "@services/game-sessions";
 
 export class WorldCreateService {
   createOpenAIService(apiSettings: ApiSettings) {
@@ -389,7 +392,7 @@ export class WorldCreateService {
 
     if (!world) throw new Error("World not found");
 
-    const dataWithFirstMessage = {
+    const dataWithFirstMessage: WorldPrimer = {
       ...world,
       first_message: firstMessage,
     };
@@ -402,10 +405,9 @@ export class WorldCreateService {
       }
     );
 
-    await GameSessionsJsonService.createFile(dataWithFirstMessage, {
-      id: data.id,
-      filename: `${data.id}/main`,
-    });
+    // TODO: Оч плохо, переписать
+    await new GameSessionsService().initGameSessions(dataWithFirstMessage);
+
     return completeWorld;
   }
 }
