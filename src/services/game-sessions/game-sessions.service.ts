@@ -1,5 +1,7 @@
 import { WorldPrimer } from "@shared/types/world-creation";
-import { GameSessionsJsonService } from "./files";
+import { GameSessionsChatJsonService, GameSessionsJsonService } from "./files";
+import { v4 as uuidv4 } from "uuid";
+import { ChatRole } from "@shared/types/chat";
 
 export class GameSessionsService {
   async getSession(id: string) {
@@ -62,7 +64,31 @@ export class GameSessionsService {
 
   async initGameSessions(data: WorldPrimer) {
     try {
+      const chatId = uuidv4();
       await GameSessionsJsonService.createDirectory(data.id);
+      await GameSessionsJsonService.createFile(
+        { ...data, currentChatSessionId: chatId },
+        {
+          filename: data.id + `/main`,
+        }
+      );
+      await GameSessionsChatJsonService.createFile(
+        {
+          messages: [
+            {
+              id: uuidv4(),
+              role: ChatRole.ASSISTANT,
+              content: data.first_message,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+        },
+        {
+          filename: data.id + `/chat/${chatId}`,
+          id: chatId,
+        }
+      );
       return data;
     } catch (error) {
       console.error("Ошибка инициализации сессии:", error);
