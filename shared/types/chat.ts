@@ -5,6 +5,9 @@ export enum ChatRole {
 }
 
 export type UserMessage = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
   role: ChatRole.USER;
   content: string;
 };
