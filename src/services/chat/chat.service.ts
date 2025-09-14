@@ -88,3 +88,53 @@ export const editMessage = async ({
   );
   return chatList;
 };
+
+export const getChat = async ({
+  sessionId,
+  chatId,
+}: {
+  sessionId: string;
+  chatId: string;
+}) => {
+  const chatList = await GameSessionsChatJsonService.readFile(
+    sessionId + "/chat/" + chatId
+  );
+  if (!chatList) {
+    throw new Error("Chat not found");
+  }
+  return chatList;
+};
+
+export const getChatList = async ({ sessionId }: { sessionId: string }) => {
+  const chatList = await GameSessionsChatJsonService.findFilesByPath(
+    sessionId + "/chat/*.json"
+  );
+  if (!chatList) {
+    throw new Error("Chat not found");
+  }
+  return chatList;
+};
+
+export const deleteChat = async ({
+  sessionId,
+  chatId,
+}: {
+  sessionId: string;
+  chatId: string;
+}) => {
+  await GameSessionsChatJsonService.deleteFile(sessionId + "/chat/" + chatId);
+};
+
+export const createNewChat = async ({ sessionId }: { sessionId: string }) => {
+  const chatId = uuidv4();
+  await GameSessionsChatJsonService.createFile(
+    {
+      messages: [],
+    },
+    {
+      filename: sessionId + "/chat/" + chatId,
+      id: chatId,
+    }
+  );
+  return chatId;
+};
