@@ -5,8 +5,7 @@ import { useUnit } from 'effector-react';
 import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model/app-navigation';
 import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/welcome-screen';
-import { WorldCreation } from './components/world-creation';
-import { WorldCreationNavigationProvider } from './components/world-creation/navigation/navigation';
+import { Wizard } from './components/world-creation/wizard/Wizard';
 import { ChatPage } from './components/chat';
 import { theme } from './theme';
 
@@ -26,17 +25,8 @@ function App() {
 				return <WelcomeScreen />;
 			case 'chat':
 				return <ChatPage />;
-			case 'world-type-selection':
-			case 'world-selection':
-			case 'world-customization':
-			case 'world-primer-edit':
-			case 'character-creation':
-			case 'world-completion':
-				return (
-					<WorldCreationNavigationProvider>
-						<WorldCreation />
-					</WorldCreationNavigationProvider>
-				);
+			case 'agent-wizard':
+				return <Wizard />;
 			default:
 				return <WelcomeScreen />;
 		}

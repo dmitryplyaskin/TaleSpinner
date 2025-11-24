@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { routes } from "./api";
+import { DbService } from "@core/services/db.service";
 
 dotenv.config();
 
@@ -17,6 +18,17 @@ app.use(express.static("data"));
 // Подключаем API роуты
 app.use("/api", routes);
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+const startServer = async () => {
+  try {
+    await DbService.getInstance().init();
+    
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -1,8 +1,46 @@
 import { RouterBuilder } from "@core/http/router-builder";
 import { WorldCreateService } from "@services/world-creation";
+import { AgentWorldService } from "@services/world-creation/agent-world.service";
 
 const routerBuilder = new RouterBuilder();
 const worldCreateService = new WorldCreateService();
+const agentWorldService = new AgentWorldService();
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/start",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.startSession(req.body.setting);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/analyze",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.analyzeInput(req.body.sessionId, req.body.userInput);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/generate",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.generateWorld(req.body.sessionId);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/save",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.saveWorld(req.body.sessionId, req.body.worldData);
+    res.json(result);
+  },
+});
 
 routerBuilder.addRoute({
   path: "/world-creation/create/draft",
