@@ -25,6 +25,7 @@ ApiSettingsService.createFile(
       enabled: false,
       model: "",
     },
+    llmOutputLanguage: "ru",
   },
   {
     skipIfExists: true,

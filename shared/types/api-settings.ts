@@ -1,5 +1,7 @@
 import { BaseFileData } from "./base-file";
 
+export type LLMOutputLanguage = "ru" | "en";
+
 export type ProviderSettings = {
   temperature: number;
   topP: number;
@@ -67,4 +69,5 @@ export interface ApiSettings extends BaseFileData {
     enabled: boolean;
     model: string;
   };
+  llmOutputLanguage: LLMOutputLanguage;
 }

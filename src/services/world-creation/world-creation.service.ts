@@ -97,10 +97,11 @@ export class WorldCreateService {
     //   return mockWorld;
     // }
 
-    const prompt = createDraftWorldsPrompt(data.worldType, data.userPrompt);
     const apiSettings = await ApiSettingsService.readFile("api-settings");
-
     if (!apiSettings) throw new Error("API settings not found");
+
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createDraftWorldsPrompt(data.worldType, data.userPrompt, outputLanguage);
 
     try {
       const result = (await this.callModel({
@@ -135,12 +136,13 @@ export class WorldCreateService {
   }
 
   async createMoreWorlds(data: WorldCreateTask) {
-    const prompt = createMoreWorldsPrompt(data.userPrompt);
     const apiSettings = await ApiSettingsService.readFile("api-settings");
-
     if (!apiSettings) throw new Error("API settings not found");
     if (!data.lastWorldGenerationId)
       throw new Error("Last world generation id not found");
+
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createMoreWorldsPrompt(data.userPrompt, outputLanguage);
 
     const lastWorld = await WorldCreationDraftJsonService.readFile(
       data.lastWorldGenerationId
@@ -218,11 +220,12 @@ export class WorldCreateService {
   }
 
   async createWorld(data: WorldCustomizationData) {
-    const prompt = createWorldsPrompt(data);
     const apiSettings = await ApiSettingsService.readFile("api-settings");
-    console.log(prompt);
-
     if (!apiSettings) throw new Error("API settings not found");
+
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createWorldsPrompt(data, outputLanguage);
+    console.log(prompt);
 
     try {
       // Основной вызов для создания базового primer'а мира
@@ -252,7 +255,7 @@ export class WorldCreateService {
         const racesCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createRacesPrompt(data, worldPrimer) },
+            { role: "user", content: createRacesPrompt(data, worldPrimer, outputLanguage) },
           ],
           model: apiSettings.api.model,
           responseFormat: createRacesResponseFormat,
@@ -264,7 +267,7 @@ export class WorldCreateService {
         const timelineCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createTimelinePrompt(data, worldPrimer) },
+            { role: "user", content: createTimelinePrompt(data, worldPrimer, outputLanguage) },
           ],
           model: apiSettings.api.model,
           responseFormat: createTimelineResponseFormat,
@@ -276,7 +279,7 @@ export class WorldCreateService {
         const magicCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createMagicPrompt(data, worldPrimer) },
+            { role: "user", content: createMagicPrompt(data, worldPrimer, outputLanguage) },
           ],
           model: apiSettings.api.model,
           responseFormat: createMagicResponseFormat,
@@ -288,7 +291,7 @@ export class WorldCreateService {
         const locationsCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createLocationsPrompt(data, worldPrimer) },
+            { role: "user", content: createLocationsPrompt(data, worldPrimer, outputLanguage) },
           ],
           model: apiSettings.api.model,
           responseFormat: createLocationsResponseFormat,
@@ -300,7 +303,7 @@ export class WorldCreateService {
         const factionsCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createFactionsPrompt(data, worldPrimer) },
+            { role: "user", content: createFactionsPrompt(data, worldPrimer, outputLanguage) },
           ],
           model: apiSettings.api.model,
           responseFormat: createFactionsResponseFormat,
@@ -383,9 +386,10 @@ export class WorldCreateService {
     const apiSettings = await ApiSettingsService.readFile("api-settings");
     if (!apiSettings) throw new Error("API settings not found");
 
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
     const firstMessage = await this.callModel({
       apiSettings,
-      messages: [{ role: "user", content: createFirstMessagePrompt(data) }],
+      messages: [{ role: "user", content: createFirstMessagePrompt(data, outputLanguage) }],
       model: apiSettings.api.model,
       responseFormat: createFirstMessageResponseFormat,
     });

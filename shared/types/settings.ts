@@ -2,6 +2,8 @@ export enum ApiProvider {
   OPEN_ROUTER = "openrouter",
 }
 
+export type LLMOutputLanguage = "ru" | "en";
+
 export interface ApiSettings {
   provider: ApiProvider;
   token: string;
@@ -28,6 +30,7 @@ export interface AppSettings {
   rag: RagSettings;
   embedding: EmbeddingSettings;
   responseGeneration: ResponseGenerationSettings;
+  llmOutputLanguage: LLMOutputLanguage;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -48,4 +51,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
     enabled: false,
     model: "",
   },
+  llmOutputLanguage: "ru",
 };

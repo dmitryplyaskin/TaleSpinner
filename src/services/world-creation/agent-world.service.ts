@@ -3,11 +3,18 @@ import { AnalysisAgent } from "./agents/analysis.agent";
 import { GenerationAgent } from "./agents/generation.agent";
 import { v4 as uuidv4 } from "uuid";
 import { AgentAnalysisSchema, WorldDataSchema } from "../../schemas/world";
+import { ApiSettingsService } from "@services/api-settings.service";
+import { LLMOutputLanguage } from "@shared/types/api-settings";
 
 export class AgentWorldService {
   private db = DbService.getInstance().getClient();
   private analysisAgent = new AnalysisAgent();
   private generationAgent = new GenerationAgent();
+
+  private async getOutputLanguage(): Promise<LLMOutputLanguage> {
+    const apiSettings = await ApiSettingsService.readFile("api-settings");
+    return apiSettings?.llmOutputLanguage || "ru";
+  }
 
   async startSession(setting: string) {
     try {
@@ -29,18 +36,27 @@ export class AgentWorldService {
         `SELECT * FROM world_generation_sessions WHERE id = $1`,
         [sessionId]
       );
-      const session = sessionResult.rows[0] as any;
+      const session = sessionResult.rows[0] as {
+        collected_info: string | string[];
+        setting: string;
+      };
       if (!session) {
         throw new Error("Session not found");
       }
 
-      const currentKnownInfo = session.collected_info || [];
-      
+      // Parse collected_info if it's a JSON string from the database
+      const currentKnownInfo: string[] =
+        typeof session.collected_info === "string"
+          ? JSON.parse(session.collected_info)
+          : session.collected_info || [];
+      const outputLanguage = await this.getOutputLanguage();
+
       // Run analysis
       const analysisResult = await this.analysisAgent.analyze(
         userInput,
         currentKnownInfo,
-        session.setting
+        session.setting,
+        outputLanguage
       );
 
       // Validate the analysis result with Zod
@@ -67,14 +83,25 @@ export class AgentWorldService {
         `SELECT * FROM world_generation_sessions WHERE id = $1`,
         [sessionId]
       );
-      const session = sessionResult.rows[0] as any;
+      const session = sessionResult.rows[0] as {
+        collected_info: string | string[];
+        setting: string;
+      };
       if (!session) {
         throw new Error("Session not found");
       }
 
+      // Parse collected_info if it's a JSON string from the database
+      const collectedInfo: string[] =
+        typeof session.collected_info === "string"
+          ? JSON.parse(session.collected_info)
+          : session.collected_info || [];
+
+      const outputLanguage = await this.getOutputLanguage();
       const generatedData = await this.generationAgent.generate(
-        session.collected_info,
-        session.setting
+        collectedInfo,
+        session.setting,
+        outputLanguage
       );
 
       // Validate the generated world data with Zod
@@ -98,25 +125,33 @@ export class AgentWorldService {
         `SELECT * FROM world_generation_sessions WHERE id = $1`,
         [sessionId]
       );
-      const session = sessionResult.rows[0] as any;
+      const session = sessionResult.rows[0] as {
+        collected_info: string | string[];
+      };
       if (!session) {
         throw new Error("Session not found");
       }
 
-      const currentKnownInfo = session.collected_info || [];
+      // Parse collected_info if it's a JSON string from the database
+      const currentKnownInfo: string[] =
+        typeof session.collected_info === "string"
+          ? JSON.parse(session.collected_info)
+          : session.collected_info || [];
       const newFacts: string[] = [];
 
       // Process answers and filter out empty/"decide yourself" responses
       for (const [questionId, answer] of Object.entries(answers)) {
         const trimmed = answer.trim().toLowerCase();
-        
+
         // Skip empty answers or "decide yourself" variations
-        if (!trimmed || 
-            trimmed === 'решай сам' || 
-            trimmed === 'придумай сам' ||
-            trimmed === 'не знаю' ||
-            trimmed === 'decide yourself' ||
-            trimmed === 'skip') {
+        if (
+          !trimmed ||
+          trimmed === "решай сам" ||
+          trimmed === "придумай сам" ||
+          trimmed === "не знаю" ||
+          trimmed === "decide yourself" ||
+          trimmed === "skip"
+        ) {
           continue;
         }
 
@@ -143,7 +178,7 @@ export class AgentWorldService {
     try {
       // Validate world data before saving
       const validatedData = WorldDataSchema.parse(worldData);
-      
+
       // Final save to worlds table
       const id = uuidv4();
       await this.db.query(
@@ -157,7 +192,7 @@ export class AgentWorldService {
           JSON.stringify(validatedData),
         ]
       );
-      
+
       await this.db.query(
         `UPDATE world_generation_sessions SET status = 'completed' WHERE id = $1`,
         [sessionId]

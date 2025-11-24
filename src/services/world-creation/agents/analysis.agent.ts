@@ -1,4 +1,5 @@
 import { LLMService } from "@core/services/llm.service";
+import { LLMOutputLanguage } from "@shared/types/api-settings";
 import { OpenAI } from "openai";
 
 export class AnalysisAgent {
@@ -11,13 +12,18 @@ export class AnalysisAgent {
   public async analyze(
     userInput: string,
     currentKnownInfo: string[],
-    setting: string
+    setting: string,
+    outputLanguage: LLMOutputLanguage = "ru"
   ): Promise<{
     known_info: string[];
     missing_info: string[];
     questions: { id: string; text: string; category: string }[];
     is_ready: boolean;
   }> {
+    const languageInstruction = outputLanguage === "ru"
+      ? "IMPORTANT: Generate ALL questions (the 'text' field) in Russian language. The questions must be in Russian."
+      : "IMPORTANT: Generate ALL questions (the 'text' field) in English language. The questions must be in English.";
+
     const prompt = `
       You are an expert World Building Assistant.
       Your goal is to help a user create a detailed RPG world setting (${setting}).
@@ -45,6 +51,8 @@ export class AnalysisAgent {
       8. Questions should be specific, creative, and engaging - not generic like "Tell me about factions". Ask contextual questions like "Who controls the trade routes in the floating islands?"
       9. Generate questions in order of importance - most critical information first.
       10. Return the result in JSON format.
+      
+      ${languageInstruction}
     `;
 
     const responseFormat: OpenAI.ResponseFormatJSONSchema = {

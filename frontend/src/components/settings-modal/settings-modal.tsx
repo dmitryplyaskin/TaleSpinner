@@ -6,6 +6,7 @@ import { useUnit } from 'effector-react';
 import { $isSettingsModalOpen, closeSettingsModal, $settings, saveSettingsFx } from '../../model/settings';
 import { AppSettings } from '../../../../shared/types/settings';
 import { ApiSettingsSection } from './api-settings-section';
+import { InterfaceSettingsSection } from './interface-settings-section';
 import { SettingsGroup } from './settings-group';
 import { TabsSystem, TabPanel } from './tabs-system';
 
@@ -76,13 +77,9 @@ export const SettingsModal: React.FC = () => {
 						</Box>
 					</TabPanel>
 
-					{/* Будущие табы */}
-					{/* <TabPanel value={currentTab} index={1}>
-						<Typography>Настройки интерфейса</Typography>
+					<TabPanel value={currentTab} index={1}>
+						<InterfaceSettingsSection form={form} />
 					</TabPanel>
-					<TabPanel value={currentTab} index={2}>
-						<Typography>Дополнительные настройки</Typography>
-					</TabPanel> */}
 				</form>
 			</DialogContent>
 

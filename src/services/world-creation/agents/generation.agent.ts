@@ -1,4 +1,5 @@
 import { LLMService } from "@core/services/llm.service";
+import { LLMOutputLanguage } from "@shared/types/api-settings";
 import { OpenAI } from "openai";
 import { WorldDataSchema } from "src/schemas/world";
 
@@ -10,8 +11,16 @@ export class GenerationAgent {
     this.llm = LLMService.getInstance();
   }
 
-  public async generate(knownInfo: string[], setting: string): Promise<any> {
+  public async generate(
+    knownInfo: string[],
+    setting: string,
+    outputLanguage: LLMOutputLanguage = "ru"
+  ): Promise<ReturnType<typeof WorldDataSchema.parse>> {
     try {
+      const languageInstruction = outputLanguage === "ru"
+        ? "IMPORTANT: Generate ALL content (names, descriptions, dialogue, etc.) in Russian language. The entire response must be in Russian."
+        : "IMPORTANT: Generate ALL content (names, descriptions, dialogue, etc.) in English language. The entire response must be in English.";
+
       const prompt = `
         You are an expert World Builder.
         Create a detailed RPG world setting (${setting}) based on the following information.
@@ -30,6 +39,8 @@ export class GenerationAgent {
         - Magic/Tech System
 
         Be creative, consistent, and engaging. Fill in any gaps with logical and interesting details that fit the established tone.
+        
+        ${languageInstruction}
       `;
 
       // Using a simplified version of the schema for the agent to ensure reliability
