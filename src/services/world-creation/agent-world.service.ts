@@ -92,6 +92,53 @@ export class AgentWorldService {
     }
   }
 
+  async submitAnswers(sessionId: string, answers: Record<string, string>) {
+    try {
+      const sessionResult = await this.db.query(
+        `SELECT * FROM world_generation_sessions WHERE id = $1`,
+        [sessionId]
+      );
+      const session = sessionResult.rows[0] as any;
+      if (!session) {
+        throw new Error("Session not found");
+      }
+
+      const currentKnownInfo = session.collected_info || [];
+      const newFacts: string[] = [];
+
+      // Process answers and filter out empty/"decide yourself" responses
+      for (const [questionId, answer] of Object.entries(answers)) {
+        const trimmed = answer.trim().toLowerCase();
+        
+        // Skip empty answers or "decide yourself" variations
+        if (!trimmed || 
+            trimmed === 'решай сам' || 
+            trimmed === 'придумай сам' ||
+            trimmed === 'не знаю' ||
+            trimmed === 'decide yourself' ||
+            trimmed === 'skip') {
+          continue;
+        }
+
+        // Add the answer to new facts
+        newFacts.push(answer.trim());
+      }
+
+      // Update collected_info with new facts
+      const updatedInfo = [...currentKnownInfo, ...newFacts];
+      await this.db.query(
+        `UPDATE world_generation_sessions SET collected_info = $1 WHERE id = $2`,
+        [JSON.stringify(updatedInfo), sessionId]
+      );
+
+      // Generate world with collected information (including partial answers)
+      return await this.generateWorld(sessionId);
+    } catch (error) {
+      console.error("Failed to submit answers:", error);
+      throw new Error("Failed to process answers and generate world");
+    }
+  }
+
   async saveWorld(sessionId: string, worldData: any) {
     try {
       // Validate world data before saving

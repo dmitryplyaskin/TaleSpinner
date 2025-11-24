@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Box, Stepper, Step, StepLabel, Paper, Alert } from "@mui/material";
 import { SettingSelection } from "./steps/SettingSelection";
 import { WorldInput } from "./steps/WorldInput";
-import { AgentChat } from "./steps/AgentChat";
+import { QuestionForm } from "./steps/QuestionForm";
 import { WorldReview } from "./steps/WorldReview";
 import { BASE_URL } from "../../../const";
 import type { WorldData } from "../../../types/world-creation";
@@ -79,7 +79,7 @@ export const Wizard = () => {
           />
         )}
         {activeStep === 2 && sessionId && (
-          <AgentChat 
+          <QuestionForm 
             sessionId={sessionId} 
             initialInput={userInput}
             onComplete={(data) => {

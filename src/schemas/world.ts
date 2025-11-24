@@ -87,7 +87,7 @@ export const AgentQuestionSchema = z.object({
 export const AgentAnalysisSchema = z.object({
   known_info: z.array(z.string()),
   missing_info: z.array(z.string()),
-  next_question: AgentQuestionSchema.nullable(),
+  questions: z.array(AgentQuestionSchema),
   is_ready: z.boolean(),
 });
 

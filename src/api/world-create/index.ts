@@ -34,6 +34,15 @@ routerBuilder.addRoute({
 });
 
 routerBuilder.addRoute({
+  path: "/world-creation/agent/submit-answers",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.submitAnswers(req.body.sessionId, req.body.answers);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
   path: "/world-creation/agent/save",
   method: "POST",
   handler: async (req, res) => {
