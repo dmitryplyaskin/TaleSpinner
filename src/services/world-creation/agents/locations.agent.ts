@@ -1,11 +1,36 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import {
   BaseWorldData,
   LocationsResultSchema,
   LocationsResult,
 } from "src/schemas/world";
+
+// === Locations Schema ===
+export const LocationSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  appearance: z.string(),
+  history: z.string(),
+  inhabitants: z.string(),
+  significance: z.string(),
+  features_and_secrets: z.string(),
+  adventure_opportunities: z.string(),
+});
+
+export const LocationsResponseSchema = z.object({
+  locations: z.array(LocationSchema),
+});
+
+export const locationsResponseFormat: LLMResponseFormat = {
+  schema: LocationsResponseSchema,
+  name: "locations_generation",
+};
+
+// === Types ===
+export type Location = z.infer<typeof LocationSchema>;
+export type LocationsResponse = z.infer<typeof LocationsResponseSchema>;
 
 export class LocationsAgent {
   private llm: LLMService;
@@ -54,54 +79,11 @@ Create diverse locations that offer different types of gameplay experiences.
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "locations_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            locations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  type: { type: "string" },
-                  appearance: { type: "string" },
-                  history: { type: "string" },
-                  inhabitants: { type: "string" },
-                  significance: { type: "string" },
-                  features_and_secrets: { type: "string" },
-                  adventure_opportunities: { type: "string" },
-                },
-                required: [
-                  "name",
-                  "type",
-                  "appearance",
-                  "history",
-                  "inhabitants",
-                  "significance",
-                  "features_and_secrets",
-                  "adventure_opportunities",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["locations"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: locationsResponseFormat,
     });
 
     return LocationsResultSchema.parse(result);
   }
 }
-

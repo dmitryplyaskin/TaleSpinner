@@ -1,11 +1,37 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import {
   BaseWorldData,
   FactionsResultSchema,
   FactionsResult,
 } from "src/schemas/world";
+
+// === Factions Schema ===
+export const FactionSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  ideology_and_goals: z.string(),
+  structure: z.string(),
+  key_leaders: z.string(),
+  methods: z.string(),
+  relationships: z.string(),
+  role_in_conflict: z.string(),
+  resources_and_influence: z.string(),
+});
+
+export const FactionsResponseSchema = z.object({
+  factions: z.array(FactionSchema),
+});
+
+export const factionsResponseFormat: LLMResponseFormat = {
+  schema: FactionsResponseSchema,
+  name: "factions_generation",
+};
+
+// === Types ===
+export type Faction = z.infer<typeof FactionSchema>;
+export type FactionsResponse = z.infer<typeof FactionsResponseSchema>;
 
 export class FactionsAgent {
   private llm: LLMService;
@@ -55,56 +81,11 @@ Create factions that offer dynamic relationships and opportunities for political
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "factions_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            factions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  type: { type: "string" },
-                  ideology_and_goals: { type: "string" },
-                  structure: { type: "string" },
-                  key_leaders: { type: "string" },
-                  methods: { type: "string" },
-                  relationships: { type: "string" },
-                  role_in_conflict: { type: "string" },
-                  resources_and_influence: { type: "string" },
-                },
-                required: [
-                  "name",
-                  "type",
-                  "ideology_and_goals",
-                  "structure",
-                  "key_leaders",
-                  "methods",
-                  "relationships",
-                  "role_in_conflict",
-                  "resources_and_influence",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["factions"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: factionsResponseFormat,
     });
 
     return FactionsResultSchema.parse(result);
   }
 }
-

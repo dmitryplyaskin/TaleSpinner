@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   createMoreWorldsPrompt,
   createDraftWorldsPrompt,
@@ -27,15 +28,16 @@ import {
 } from "@shared/types/world-creation";
 import { Character, CharacterCreationData } from "@shared/types/character";
 import {
-  createDraftWorldsResponseFormat,
+  draftWorldsResponseFormat,
   createWorldPrimerResponseFormat,
-  createRacesResponseFormat,
-  createTimelineResponseFormat,
-  createMagicResponseFormat,
-  createLocationsResponseFormat,
-  createFactionsResponseFormat,
-  createFirstMessageResponseFormat,
+  racesResponseFormat,
+  timelineResponseFormat,
+  magicResponseFormat,
+  locationsResponseFormat,
+  factionsResponseFormat,
+  firstMessageResponseFormat,
 } from "./schemas";
+import { LLMResponseFormat } from "@core/services/llm.service";
 import { GameSessionsService } from "@services/game-sessions";
 import { LLMOutputLanguage } from "@shared/types/settings";
 
@@ -70,15 +72,29 @@ export class WorldCreateService {
     };
   }
 
+  private zodToResponseFormat(
+    responseFormat: LLMResponseFormat
+  ): OpenAI.ResponseFormatJSONSchema {
+    const jsonSchema = z.toJSONSchema(responseFormat.schema);
+
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: responseFormat.name,
+        strict: true,
+        schema: jsonSchema as Record<string, unknown>,
+      },
+    };
+  }
+
   private async callModel(data: {
     apiSettings: InternalApiSettings;
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     model?: string;
-    responseFormat: OpenAI.ResponseFormatJSONSchema;
+    responseFormat: LLMResponseFormat;
   }) {
     const openai = this.createOpenAIService(data.apiSettings.token);
 
-    // Формируем extra body для provider order если указан
     const extraBody =
       data.apiSettings.providerOrder.length > 0
         ? {
@@ -89,10 +105,12 @@ export class WorldCreateService {
           }
         : undefined;
 
+    const openAIResponseFormat = this.zodToResponseFormat(data.responseFormat);
+
     const response = await openai.chat.completions.create({
       model: data.model || "",
       messages: data.messages,
-      response_format: data.responseFormat,
+      response_format: openAIResponseFormat,
       ...extraBody,
     });
 
@@ -129,7 +147,7 @@ export class WorldCreateService {
         apiSettings,
         messages: [{ role: "user", content: prompt }],
         model: apiSettings.model || "",
-        responseFormat: createDraftWorldsResponseFormat,
+        responseFormat: draftWorldsResponseFormat,
       })) as { worlds: CreatedWorldDraft[] };
 
       const parsedResult = result.worlds.map((world) => ({
@@ -174,7 +192,7 @@ export class WorldCreateService {
         apiSettings,
         messages: [...lastWorld.prompt, { role: "user", content: prompt }],
         model: apiSettings.model,
-        responseFormat: createDraftWorldsResponseFormat,
+        responseFormat: draftWorldsResponseFormat,
       })) as { worlds: CreatedWorldDraft[] };
 
       const parsedResult = result.worlds.map((world) => ({
@@ -247,7 +265,6 @@ export class WorldCreateService {
     console.log(prompt);
 
     try {
-      // Основной вызов для создания базового primer'а мира
       const baseResult = await this.callModel({
         apiSettings,
         messages: [{ role: "user", content: prompt }],
@@ -255,10 +272,8 @@ export class WorldCreateService {
         responseFormat: createWorldPrimerResponseFormat(data),
       });
 
-      // Получаем базовый primer для использования в дополнительных вызовах
       const worldPrimer = baseResult.world_primer || "";
 
-      // Объект для хранения всех результатов
       const detailedWorld: Record<string, unknown> = {
         ...baseResult,
         detailed_elements: {},
@@ -266,10 +281,8 @@ export class WorldCreateService {
 
       console.log("detailedWorld:", detailedWorld);
 
-      // Массив для хранения промисов дополнительных вызовов
       const additionalCalls: Promise<{ type: string; data: unknown }>[] = [];
 
-      // Создаем дополнительные вызовы для каждого включенного опционального элемента
       if (data.racesEnabled) {
         const racesCall = this.callModel({
           apiSettings,
@@ -280,7 +293,7 @@ export class WorldCreateService {
             },
           ],
           model: apiSettings.model,
-          responseFormat: createRacesResponseFormat,
+          responseFormat: racesResponseFormat,
         }).then((result) => ({ type: "races", data: result }));
         additionalCalls.push(racesCall);
       }
@@ -295,7 +308,7 @@ export class WorldCreateService {
             },
           ],
           model: apiSettings.model,
-          responseFormat: createTimelineResponseFormat,
+          responseFormat: timelineResponseFormat,
         }).then((result) => ({ type: "timeline", data: result }));
         additionalCalls.push(timelineCall);
       }
@@ -310,7 +323,7 @@ export class WorldCreateService {
             },
           ],
           model: apiSettings.model,
-          responseFormat: createMagicResponseFormat,
+          responseFormat: magicResponseFormat,
         }).then((result) => ({ type: "magic", data: result }));
         additionalCalls.push(magicCall);
       }
@@ -325,7 +338,7 @@ export class WorldCreateService {
             },
           ],
           model: apiSettings.model,
-          responseFormat: createLocationsResponseFormat,
+          responseFormat: locationsResponseFormat,
         }).then((result) => ({ type: "locations", data: result }));
         additionalCalls.push(locationsCall);
       }
@@ -340,16 +353,14 @@ export class WorldCreateService {
             },
           ],
           model: apiSettings.model,
-          responseFormat: createFactionsResponseFormat,
+          responseFormat: factionsResponseFormat,
         }).then((result) => ({ type: "factions", data: result }));
         additionalCalls.push(factionsCall);
       }
 
-      // Выполняем все дополнительные вызовы параллельно
       if (additionalCalls.length > 0) {
         const additionalResults = await Promise.all(additionalCalls);
 
-        // Добавляем результаты к основному объекту
         additionalResults.forEach((result) => {
           (detailedWorld.detailed_elements as Record<string, unknown>)[
             result.type
@@ -357,7 +368,6 @@ export class WorldCreateService {
         });
       }
 
-      // Сохраняем полный результат
       const world = await WorldCreationPrimerJsonService.createFile(
         detailedWorld,
         {
@@ -387,7 +397,6 @@ export class WorldCreateService {
     try {
       console.log("Сохранение персонажа:", data.character);
 
-      // Сохраняем персонажа в файл
       const savedCharacter = await CharactersJsonService.createFile(
         data.character,
         {
@@ -428,7 +437,7 @@ export class WorldCreateService {
         { role: "user", content: createFirstMessagePrompt(data, outputLanguage) },
       ],
       model: apiSettings.model,
-      responseFormat: createFirstMessageResponseFormat,
+      responseFormat: firstMessageResponseFormat,
     });
 
     if (!world) throw new Error("World not found");

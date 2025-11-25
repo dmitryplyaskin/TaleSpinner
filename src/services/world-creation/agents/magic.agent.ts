@@ -1,11 +1,38 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import {
   BaseWorldData,
   MagicResultSchema,
   MagicResult,
 } from "src/schemas/world";
+
+// === Magic Schema ===
+export const MagicSchoolSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+});
+
+export const MagicSystemResponseSchema = z.object({
+  magic: z.object({
+    magic_fundamentals: z.string(),
+    power_sources: z.string(),
+    magic_schools: z.array(MagicSchoolSchema),
+    limitations_and_costs: z.string(),
+    societal_attitude: z.string(),
+    role_in_conflict: z.string(),
+    artifacts_and_places: z.string(),
+  }),
+});
+
+export const magicSystemResponseFormat: LLMResponseFormat = {
+  schema: MagicSystemResponseSchema,
+  name: "magic_generation",
+};
+
+// === Types ===
+export type MagicSchool = z.infer<typeof MagicSchoolSchema>;
+export type MagicSystemResponse = z.infer<typeof MagicSystemResponseSchema>;
 
 export class MagicAgent {
   private llm: LLMService;
@@ -52,60 +79,11 @@ Create a logical and consistent magic system that matches the tone of the world.
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "magic_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            magic: {
-              type: "object",
-              properties: {
-                magic_fundamentals: { type: "string" },
-                power_sources: { type: "string" },
-                magic_schools: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      description: { type: "string" },
-                    },
-                    required: ["name", "description"],
-                    additionalProperties: false,
-                  },
-                },
-                limitations_and_costs: { type: "string" },
-                societal_attitude: { type: "string" },
-                role_in_conflict: { type: "string" },
-                artifacts_and_places: { type: "string" },
-              },
-              required: [
-                "magic_fundamentals",
-                "power_sources",
-                "magic_schools",
-                "limitations_and_costs",
-                "societal_attitude",
-                "role_in_conflict",
-                "artifacts_and_places",
-              ],
-              additionalProperties: false,
-            },
-          },
-          required: ["magic"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: magicSystemResponseFormat,
     });
 
     return MagicResultSchema.parse(result);
   }
 }
-

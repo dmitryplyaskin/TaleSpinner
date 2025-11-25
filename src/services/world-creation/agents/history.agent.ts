@@ -1,11 +1,32 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import {
   BaseWorldData,
   HistoryResultSchema,
   HistoryResult,
 } from "src/schemas/world";
+
+// === History Schema ===
+export const HistoricalEventSchema = z.object({
+  name: z.string(),
+  timeframe: z.string(),
+  description: z.string(),
+  impact_on_present: z.string(),
+});
+
+export const HistoryResponseSchema = z.object({
+  history: z.array(HistoricalEventSchema),
+});
+
+export const historyResponseFormat: LLMResponseFormat = {
+  schema: HistoryResponseSchema,
+  name: "history_generation",
+};
+
+// === Types ===
+export type HistoricalEvent = z.infer<typeof HistoricalEventSchema>;
+export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 
 export class HistoryAgent {
   private llm: LLMService;
@@ -50,46 +71,11 @@ Create a logical timeline that explains "How did things get this way?" and creat
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "history_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            history: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  timeframe: { type: "string" },
-                  description: { type: "string" },
-                  impact_on_present: { type: "string" },
-                },
-                required: [
-                  "name",
-                  "timeframe",
-                  "description",
-                  "impact_on_present",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["history"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: historyResponseFormat,
     });
 
     return HistoryResultSchema.parse(result);
   }
 }
-

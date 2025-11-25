@@ -1,13 +1,29 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/settings";
-import { OpenAI } from "openai";
 
-interface AnalysisResult {
-  known_info: string[];
-  missing_info: string[];
-  questions: { id: string; text: string; category: string }[];
-  is_ready: boolean;
-}
+// === Analysis Schema ===
+export const QuestionItemSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  category: z.string(),
+});
+
+export const AnalysisResponseSchema = z.object({
+  known_info: z.array(z.string()),
+  missing_info: z.array(z.string()),
+  questions: z.array(QuestionItemSchema),
+  is_ready: z.boolean(),
+});
+
+export const analysisResponseFormat: LLMResponseFormat = {
+  schema: AnalysisResponseSchema,
+  name: "world_analysis",
+};
+
+// === Types ===
+export type QuestionItem = z.infer<typeof QuestionItemSchema>;
+export type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;
 
 export class AnalysisAgent {
   private llm: LLMService;
@@ -21,12 +37,7 @@ export class AnalysisAgent {
     currentKnownInfo: string[],
     setting: string,
     outputLanguage: LLMOutputLanguage = "ru"
-  ): Promise<{
-    known_info: string[];
-    missing_info: string[];
-    questions: { id: string; text: string; category: string }[];
-    is_ready: boolean;
-  }> {
+  ): Promise<AnalysisResponse> {
     const isRussian = outputLanguage === "ru";
 
     const systemMessage = isRussian
@@ -88,77 +99,12 @@ Task:
 9. Generate questions in order of importance - most critical information first.
 10. Return the result in JSON format.`;
 
-    const schemaDescriptions = isRussian
-      ? {
-          known_info:
-            "Список фактов о мире, собранных на данный момент (на русском языке).",
-          missing_info:
-            "Список недостающих категорий или деталей (на русском языке).",
-          questions:
-            "Список вопросов для пользователя на русском языке, или пустой массив если информации достаточно.",
-          text: "Текст вопроса на русском языке",
-        }
-      : {
-          known_info: "List of facts gathered so far.",
-          missing_info: "List of categories or specific details missing.",
-          questions:
-            "List of questions to ask the user, or empty array if ready.",
-          text: "Question text",
-        };
-
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "world_analysis",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            known_info: {
-              type: "array",
-              items: { type: "string" },
-              description: schemaDescriptions.known_info,
-            },
-            missing_info: {
-              type: "array",
-              items: { type: "string" },
-              description: schemaDescriptions.missing_info,
-            },
-            questions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  text: {
-                    type: "string",
-                    description: schemaDescriptions.text,
-                  },
-                  category: { type: "string" },
-                },
-                required: ["id", "text", "category"],
-                additionalProperties: false,
-              },
-              description: schemaDescriptions.questions,
-            },
-            is_ready: {
-              type: "boolean",
-              description:
-                "True if enough info is gathered or user opted for auto-generation.",
-            },
-          },
-          required: ["known_info", "missing_info", "questions", "is_ready"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     return (await this.llm.call({
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: prompt },
       ],
-      responseFormat,
-    })) as AnalysisResult;
+      responseFormat: analysisResponseFormat,
+    })) as AnalysisResponse;
   }
 }

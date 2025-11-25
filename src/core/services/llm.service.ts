@@ -1,5 +1,13 @@
 import OpenAI from "openai";
 import { ApiSettingsService } from "@services/api-settings.service";
+import { z } from "zod";
+
+type ZodSchema = z.ZodType;
+
+export interface LLMResponseFormat {
+  schema: ZodSchema;
+  name: string;
+}
 
 export class LLMService {
   private static instance: LLMService;
@@ -28,8 +36,23 @@ export class LLMService {
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: settings.token,
       }),
-      model: settings.model || "openai/gpt-4o", // Default fallback
+      model: settings.model || "openai/gpt-4o",
       providerOrder: settings.providerOrder || [],
+    };
+  }
+
+  private zodToResponseFormat(
+    responseFormat: LLMResponseFormat
+  ): OpenAI.ResponseFormatJSONSchema {
+    const jsonSchema = z.toJSONSchema(responseFormat.schema);
+
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: responseFormat.name,
+        strict: true,
+        schema: jsonSchema as Record<string, unknown>,
+      },
     };
   }
 
@@ -39,13 +62,12 @@ export class LLMService {
     temperature = 0.7,
   }: {
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    responseFormat?: OpenAI.ResponseFormatJSONSchema;
+    responseFormat?: LLMResponseFormat;
     temperature?: number;
   }): Promise<unknown> {
     const { client, model, providerOrder } = await this.getClient();
 
     try {
-      // Формируем extra body для provider order если указан
       const extraBody =
         providerOrder.length > 0
           ? {
@@ -56,10 +78,14 @@ export class LLMService {
             }
           : undefined;
 
+      const openAIResponseFormat = responseFormat
+        ? this.zodToResponseFormat(responseFormat)
+        : undefined;
+
       const response = await client.chat.completions.create({
         model,
         messages,
-        response_format: responseFormat,
+        response_format: openAIResponseFormat,
         temperature,
         ...extraBody,
       });
@@ -69,13 +95,10 @@ export class LLMService {
         throw new Error("Empty response from LLM");
       }
 
-      if (responseFormat?.type === "json_schema") {
-        // Clean up markdown code blocks if LLM wraps JSON in ```json ... ```
+      if (responseFormat) {
         let jsonContent = content.trim();
         if (jsonContent.startsWith("```")) {
-          // Remove opening ```json or ``` 
           jsonContent = jsonContent.replace(/^```(?:json)?\s*\n?/, "");
-          // Remove closing ```
           jsonContent = jsonContent.replace(/\n?```\s*$/, "");
         }
         return JSON.parse(jsonContent);

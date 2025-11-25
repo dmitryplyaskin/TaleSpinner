@@ -1,11 +1,33 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import {
   BaseWorldData,
   RacesResultSchema,
   RacesResult,
 } from "src/schemas/world";
+
+// === Races Schema ===
+export const RaceSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  relationship_to_conflict: z.string(),
+  special_abilities: z.string(),
+  social_structure: z.string(),
+});
+
+export const RacesResponseSchema = z.object({
+  races: z.array(RaceSchema),
+});
+
+export const racesResponseFormat: LLMResponseFormat = {
+  schema: RacesResponseSchema,
+  name: "races_generation",
+};
+
+// === Types ===
+export type Race = z.infer<typeof RaceSchema>;
+export type RacesResponse = z.infer<typeof RacesResponseSchema>;
 
 export class RacesAgent {
   private llm: LLMService;
@@ -51,48 +73,11 @@ Create races that organically fit the established tone and genre of the world.
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "races_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            races: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  description: { type: "string" },
-                  relationship_to_conflict: { type: "string" },
-                  special_abilities: { type: "string" },
-                  social_structure: { type: "string" },
-                },
-                required: [
-                  "name",
-                  "description",
-                  "relationship_to_conflict",
-                  "special_abilities",
-                  "social_structure",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["races"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: racesResponseFormat,
     });
 
     return RacesResultSchema.parse(result);
   }
 }
-

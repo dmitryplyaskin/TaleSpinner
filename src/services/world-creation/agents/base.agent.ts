@@ -1,7 +1,23 @@
-import { LLMService } from "@core/services/llm.service";
+import { z } from "zod";
+import { LLMService, LLMResponseFormat } from "@core/services/llm.service";
 import { LLMOutputLanguage } from "@shared/types/api-settings";
-import { OpenAI } from "openai";
 import { BaseWorldDataSchema, BaseWorldData } from "src/schemas/world";
+
+// === Base World Schema ===
+export const BaseWorldResponseSchema = z.object({
+  name: z.string(),
+  genre: z.string(),
+  tone: z.string(),
+  world_primer: z.string(),
+});
+
+export const baseWorldResponseFormat: LLMResponseFormat = {
+  schema: BaseWorldResponseSchema,
+  name: "base_world_generation",
+};
+
+// === Types ===
+export type BaseWorldResponse = z.infer<typeof BaseWorldResponseSchema>;
 
 export class BaseAgent {
   private llm: LLMService;
@@ -39,28 +55,9 @@ Be creative, consistent, and engaging. This foundation will be used by other age
 ${languageInstruction}
     `;
 
-    const responseFormat: OpenAI.ResponseFormatJSONSchema = {
-      type: "json_schema",
-      json_schema: {
-        name: "base_world_generation",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            genre: { type: "string" },
-            tone: { type: "string" },
-            world_primer: { type: "string" },
-          },
-          required: ["name", "genre", "tone", "world_primer"],
-          additionalProperties: false,
-        },
-      },
-    };
-
     const result = await this.llm.call({
       messages: [{ role: "user", content: prompt }],
-      responseFormat,
+      responseFormat: baseWorldResponseFormat,
     });
 
     return BaseWorldDataSchema.parse(result);
