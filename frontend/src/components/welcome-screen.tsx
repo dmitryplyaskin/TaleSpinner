@@ -6,11 +6,11 @@ import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
 import { GameSessionsGrid } from './game-sessions-grid';
 import { openSettingsModal } from '../model/settings';
-import { loadGameSessionsFx } from '@model/game-sessions';
+import { loadSavedWorldsFx } from '@model/game-sessions';
 
 export const WelcomeScreen: React.FC = () => {
 	useEffect(() => {
-		loadGameSessionsFx();
+		loadSavedWorldsFx();
 	}, []);
 
 	const handleCreateNewWorld = () => {
