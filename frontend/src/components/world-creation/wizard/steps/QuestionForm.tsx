@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, CircularProgress, Chip, Paper, Alert } from "@mui/material";
 import { BASE_URL } from "../../../../const";
+import { GenerationProgress } from "./GenerationProgress";
 import type { AgentAnalysis, WorldData, AgentQuestion } from "../../../../types/world-creation";
 
 interface Props {
@@ -10,7 +11,10 @@ interface Props {
   onError?: (error: string) => void;
 }
 
+type Phase = "analyzing" | "questions" | "generating";
+
 export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onComplete, onError }) => {
+  const [phase, setPhase] = useState<Phase>("analyzing");
   const [questions, setQuestions] = useState<AgentQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -35,9 +39,11 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
       setAnalysis(data);
       setQuestions(data.questions);
       
-      // If already ready (no questions needed), generate immediately
+      // If already ready (no questions needed), start generation immediately
       if (data.is_ready || data.questions.length === 0) {
-        await handleSubmit({});
+        await startGeneration({});
+      } else {
+        setPhase("questions");
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to analyze input";
@@ -48,29 +54,68 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
     }
   };
 
-  const handleSubmit = async (answersToSubmit: Record<string, string> = answers) => {
+  const startGeneration = async (answersToSubmit: Record<string, string> = answers) => {
     setLoading(true);
     setError(null);
+    
     try {
-      const res = await fetch(`${BASE_URL}/world-creation/agent/submit-answers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, answers: answersToSubmit }),
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to generate world");
+      // Сначала отправляем ответы если есть
+      if (Object.keys(answersToSubmit).length > 0) {
+        const submitRes = await fetch(`${BASE_URL}/world-creation/agent/submit-answers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, answers: answersToSubmit }),
+        });
+        
+        if (!submitRes.ok) {
+          throw new Error("Failed to submit answers");
+        }
+        
+        // Если submit-answers вернул мир напрямую (legacy режим)
+        const data = await submitRes.json();
+        if (data.name && data.world_primer) {
+          onComplete(data as WorldData);
+          return;
+        }
       }
       
-      const data: WorldData = await res.json();
-      onComplete(data);
+      // Переходим к фазе генерации с прогрессом
+      setPhase("generating");
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to generate world";
+      const errorMsg = err instanceof Error ? err.message : "Failed to start generation";
       setError(errorMsg);
       onError?.(errorMsg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerationComplete = async () => {
+    // Получаем сгенерированный мир
+    try {
+      const res = await fetch(`${BASE_URL}/world-creation/agent/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to get generated world");
+      }
+      
+      const data: WorldData = await res.json();
+      onComplete(data);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to get world data";
+      setError(errorMsg);
+      onError?.(errorMsg);
+    }
+  };
+
+  const handleGenerationError = (errorMsg: string) => {
+    setError(errorMsg);
+    onError?.(errorMsg);
+    setPhase("questions");
   };
 
   // Initial analysis on mount
@@ -83,7 +128,8 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
     setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
 
-  if (loading && questions.length === 0) {
+  // Фаза анализа
+  if (phase === "analyzing" && loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
         <CircularProgress />
@@ -92,6 +138,18 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
     );
   }
 
+  // Фаза генерации
+  if (phase === "generating") {
+    return (
+      <GenerationProgress
+        sessionId={sessionId}
+        onComplete={handleGenerationComplete}
+        onError={handleGenerationError}
+      />
+    );
+  }
+
+  // Фаза вопросов
   return (
     <Box sx={{ display: "flex", gap: 4, height: "100%" }}>
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
@@ -140,7 +198,7 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
           <Button
             variant="contained"
             size="large"
-            onClick={() => handleSubmit()}
+            onClick={() => startGeneration(answers)}
             disabled={loading}
           >
             {loading ? <CircularProgress size={24} /> : "Сгенерировать мир"}
@@ -148,7 +206,7 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
           <Button
             variant="outlined"
             size="large"
-            onClick={() => handleSubmit({})}
+            onClick={() => startGeneration({})}
             disabled={loading}
           >
             Полная автогенерация
@@ -192,7 +250,7 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
 
         <Box sx={{ mt: 2, p: 2, bgcolor: "info.light", borderRadius: 1 }}>
           <Typography variant="caption" color="info.dark">
-            💡 Совет: Пропущенные вопросы или ответ "решай сам" означают, что AI придумает детали самостоятельно
+            💡 Совет: Во время генерации агенты могут задавать уточняющие вопросы для создания более качественного мира
           </Typography>
         </Box>
       </Box>

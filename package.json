@@ -21,10 +21,13 @@
     "exec": "ts-node ./src/index.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.72",
     "@electric-sql/pglite": "^0.3.14",
     "@lancedb/lancedb": "^0.21.2",
     "@langchain/core": "^1.1.0",
     "@langchain/langgraph": "^1.0.2",
+    "@openrouter/ai-sdk-provider": "^1.2.5",
+    "ai": "^5.0.102",
     "apache-arrow": "^21.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",

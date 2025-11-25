@@ -1,10 +1,15 @@
-import React, { useEffect, useState, useRef } from "react";
-import { Box, Typography, keyframes, styled } from "@mui/material";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { Box, Typography, keyframes, styled, Button } from "@mui/material";
 import { BASE_URL } from "../../../../const";
+import { ClarificationRenderer } from "../../../clarification";
 import type {
   GenerationProgress as GenerationProgressType,
   AgentStatus,
 } from "../../../../types/world-creation";
+import type {
+  ClarificationRequest,
+  ClarificationResponse,
+} from "@shared/types/human-in-the-loop";
 
 interface Props {
   sessionId: string;
@@ -16,6 +21,16 @@ interface AgentInfo {
   key: keyof GenerationProgressType;
   label: string;
   icon: string;
+}
+
+// Типы для SSE событий
+interface StreamEvent {
+  type?: "done" | "error";
+  node?: string;
+  status?: "started" | "completed" | "error" | "waiting_for_input";
+  data?: Partial<GenerationProgressType>;
+  clarification?: ClarificationRequest;
+  error?: string;
 }
 
 const AGENTS: AgentInfo[] = [
@@ -92,12 +107,12 @@ const AgentsGrid = styled(Box)(({ theme }) => ({
 
 const AgentCard = styled(Box, {
   shouldForwardProp: (prop) => prop !== "status" && prop !== "index",
-})<{ status: AgentStatus; index: number }>(({ theme, status, index }) => ({
+})<{ status: AgentStatus; index: number }>(({ status, index }) => ({
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  padding: theme.spacing(2),
-  borderRadius: theme.spacing(1.5),
+  padding: 16,
+  borderRadius: 12,
   background:
     status === "completed"
       ? "linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)"
@@ -148,11 +163,11 @@ const Spinner = styled(Box)(() => ({
 
 const StatusBadge = styled(Box, {
   shouldForwardProp: (prop) => prop !== "status",
-})<{ status: AgentStatus }>(({ theme, status }) => ({
+})<{ status: AgentStatus }>(({ status }) => ({
   fontSize: "0.75rem",
-  padding: theme.spacing(0.25, 1),
-  borderRadius: theme.spacing(0.5),
-  marginTop: theme.spacing(0.5),
+  padding: "2px 8px",
+  borderRadius: 4,
+  marginTop: 4,
   background:
     status === "completed"
       ? "rgba(34, 197, 94, 0.2)"
@@ -199,24 +214,120 @@ export const GenerationProgress: React.FC<Props> = ({
     history: "pending",
     magic: "pending",
   });
+  const [clarificationRequest, setClarificationRequest] = useState<ClarificationRequest | null>(null);
+  const [useStreaming, setUseStreaming] = useState(true);
 
-  // Use refs to avoid re-creating interval on callback changes
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
   const isCompletedRef = useRef(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Update refs when callbacks change
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onErrorRef.current = onError;
   }, [onComplete, onError]);
 
-  useEffect(() => {
-    const fetchProgress = async () => {
-      // Don't fetch if already completed
-      if (isCompletedRef.current) {
-        return;
+  // Обработка ответа на уточнение
+  const handleClarificationSubmit = useCallback(async (response: ClarificationResponse) => {
+    setClarificationRequest(null);
+    
+    try {
+      const res = await fetch(`${BASE_URL}/world-creation/agent/generate/${sessionId}/continue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to continue generation");
       }
+
+      const data = await res.json();
+
+      if (data.status === "waiting_for_input" && data.clarification) {
+        setClarificationRequest(data.clarification);
+      } else if (data.status === "completed") {
+        isCompletedRef.current = true;
+        onCompleteRef.current();
+      } else if (data.status === "error") {
+        isCompletedRef.current = true;
+        onErrorRef.current(data.error || "Generation failed");
+      }
+    } catch (err) {
+      console.error("Continue generation error:", err);
+      onErrorRef.current(err instanceof Error ? err.message : "Failed to continue");
+    }
+  }, [sessionId]);
+
+  // SSE Streaming
+  useEffect(() => {
+    if (!useStreaming || isCompletedRef.current) return;
+
+    const eventSource = new EventSource(
+      `${BASE_URL}/world-creation/agent/generate/${sessionId}/stream`
+    );
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data: StreamEvent = JSON.parse(event.data);
+
+        if (data.type === "done") {
+          eventSource.close();
+          if (!isCompletedRef.current) {
+            isCompletedRef.current = true;
+            onCompleteRef.current();
+          }
+          return;
+        }
+
+        if (data.type === "error") {
+          eventSource.close();
+          if (!isCompletedRef.current) {
+            isCompletedRef.current = true;
+            onErrorRef.current(data.error || "Generation failed");
+          }
+          return;
+        }
+
+        // Обновляем прогресс
+        if (data.node && data.status === "completed") {
+          const nodeKey = data.node as keyof GenerationProgressType;
+          if (nodeKey in progress) {
+            setProgress((prev) => ({
+              ...prev,
+              [nodeKey]: "completed",
+            }));
+          }
+        }
+
+        // Обработка HITL
+        if (data.status === "waiting_for_input" && data.clarification) {
+          eventSource.close();
+          setClarificationRequest(data.clarification);
+        }
+      } catch (err) {
+        console.error("Failed to parse SSE event:", err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      console.warn("SSE connection error, falling back to polling");
+      eventSource.close();
+      setUseStreaming(false);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [sessionId, useStreaming, progress]);
+
+  // Fallback polling
+  useEffect(() => {
+    if (useStreaming || isCompletedRef.current || clarificationRequest) return;
+
+    const fetchProgress = async () => {
+      if (isCompletedRef.current) return;
 
       try {
         const res = await fetch(
@@ -228,7 +339,6 @@ export const GenerationProgress: React.FC<Props> = ({
         const data: GenerationProgressType = await res.json();
         setProgress(data);
 
-        // Check if all agents are completed
         const allCompleted = Object.values(data).every(
           (status) => status === "completed"
         );
@@ -251,19 +361,37 @@ export const GenerationProgress: React.FC<Props> = ({
       }
     };
 
-    // Initial fetch
     fetchProgress();
-
-    // Poll every 1.5 seconds
     const interval = setInterval(fetchProgress, 1500);
 
     return () => clearInterval(interval);
-  }, [sessionId]);
+  }, [sessionId, useStreaming, clarificationRequest]);
 
   const completedCount = Object.values(progress).filter(
     (s) => s === "completed"
   ).length;
   const totalCount = Object.keys(progress).length;
+
+  // Показываем форму уточнения если есть запрос
+  if (clarificationRequest) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 4,
+          minHeight: 400,
+        }}
+      >
+        <ClarificationRenderer
+          request={clarificationRequest}
+          onSubmit={handleClarificationSubmit}
+        />
+      </Box>
+    );
+  }
 
   return (
     <Container>
@@ -305,9 +433,19 @@ export const GenerationProgress: React.FC<Props> = ({
         variant="body2"
         sx={{ mt: 4, color: "#64748b", textAlign: "center" }}
       >
-        Мир генерируется параллельно несколькими агентами.
-        <br />
-        Это может занять около 20-30 секунд.
+        {useStreaming ? (
+          <>
+            Мир генерируется с использованием LangGraph.
+            <br />
+            Агенты могут задавать уточняющие вопросы.
+          </>
+        ) : (
+          <>
+            Мир генерируется параллельно несколькими агентами.
+            <br />
+            Это может занять около 20-30 секунд.
+          </>
+        )}
       </Typography>
     </Container>
   );
