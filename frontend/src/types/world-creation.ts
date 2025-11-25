@@ -10,4 +10,6 @@ export type {
   SessionStatus,
   AgentQuestion,
   AgentAnalysis,
+  AgentStatus,
+  GenerationProgress,
 } from "../../../src/schemas/world";

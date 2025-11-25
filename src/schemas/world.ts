@@ -91,6 +91,54 @@ export const AgentAnalysisSchema = z.object({
   is_ready: z.boolean(),
 });
 
+// Schemas for parallel world generation agents
+
+// BaseAgent result schema
+export const BaseWorldDataSchema = z.object({
+  name: z.string(),
+  genre: z.string(),
+  tone: z.string(),
+  world_primer: z.string(),
+});
+
+// Specialized agent result schemas
+export const FactionsResultSchema = z.object({
+  factions: z.array(FactionSchema),
+});
+
+export const LocationsResultSchema = z.object({
+  locations: z.array(LocationSchema),
+});
+
+export const RacesResultSchema = z.object({
+  races: z.array(RaceSchema),
+});
+
+export const HistoryResultSchema = z.object({
+  history: z.array(TimelineEventSchema),
+});
+
+export const MagicResultSchema = z.object({
+  magic: MagicSystemSchema,
+});
+
+// Generation progress tracking
+export const AgentStatusSchema = z.enum([
+  "pending",
+  "in_progress",
+  "completed",
+  "failed",
+]);
+
+export const GenerationProgressSchema = z.object({
+  base: AgentStatusSchema,
+  factions: AgentStatusSchema,
+  locations: AgentStatusSchema,
+  races: AgentStatusSchema,
+  history: AgentStatusSchema,
+  magic: AgentStatusSchema,
+});
+
 // Export TypeScript types
 export type WorldSetting = z.infer<typeof WorldSettingSchema>;
 export type Faction = z.infer<typeof FactionSchema>;
@@ -102,3 +150,13 @@ export type WorldData = z.infer<typeof WorldDataSchema>;
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 export type AgentQuestion = z.infer<typeof AgentQuestionSchema>;
 export type AgentAnalysis = z.infer<typeof AgentAnalysisSchema>;
+
+// Parallel generation types
+export type BaseWorldData = z.infer<typeof BaseWorldDataSchema>;
+export type FactionsResult = z.infer<typeof FactionsResultSchema>;
+export type LocationsResult = z.infer<typeof LocationsResultSchema>;
+export type RacesResult = z.infer<typeof RacesResultSchema>;
+export type HistoryResult = z.infer<typeof HistoryResultSchema>;
+export type MagicResult = z.infer<typeof MagicResultSchema>;
+export type AgentStatus = z.infer<typeof AgentStatusSchema>;
+export type GenerationProgress = z.infer<typeof GenerationProgressSchema>;

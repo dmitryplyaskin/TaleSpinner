@@ -48,6 +48,7 @@ export class DbService {
           user_input TEXT,
           collected_info JSONB DEFAULT '[]'::jsonb,
           generated_world JSONB,
+          generation_progress JSONB DEFAULT '{"base":"pending","factions":"pending","locations":"pending","races":"pending","history":"pending","magic":"pending"}'::jsonb,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -63,6 +64,19 @@ export class DbService {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Migration: Add generation_progress column if it doesn't exist
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'world_generation_sessions' 
+            AND column_name = 'generation_progress'
+          ) THEN
+            ALTER TABLE world_generation_sessions 
+            ADD COLUMN generation_progress JSONB DEFAULT '{"base":"pending","factions":"pending","locations":"pending","races":"pending","history":"pending","magic":"pending"}'::jsonb;
+          END IF;
+        END $$;
       `);
       
       console.log("Database initialized successfully.");

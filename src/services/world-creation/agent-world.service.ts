@@ -1,27 +1,107 @@
 import { DbService } from "@core/services/db.service";
-import { AnalysisAgent } from "./agents/analysis.agent";
-import { GenerationAgent } from "./agents/generation.agent";
+import {
+  AnalysisAgent,
+  BaseAgent,
+  FactionsAgent,
+  LocationsAgent,
+  RacesAgent,
+  HistoryAgent,
+  MagicAgent,
+} from "./agents";
 import { v4 as uuidv4 } from "uuid";
-import { AgentAnalysisSchema, WorldDataSchema } from "../../schemas/world";
+import {
+  AgentAnalysisSchema,
+  WorldDataSchema,
+  GenerationProgress,
+  WorldData,
+} from "../../schemas/world";
 import { ApiSettingsService } from "@services/api-settings.service";
 import { LLMOutputLanguage } from "@shared/types/settings";
+
+type AgentName = keyof GenerationProgress;
+
+const DEFAULT_PROGRESS: GenerationProgress = {
+  base: "pending",
+  factions: "pending",
+  locations: "pending",
+  races: "pending",
+  history: "pending",
+  magic: "pending",
+};
 
 export class AgentWorldService {
   private db = DbService.getInstance().getClient();
   private analysisAgent = new AnalysisAgent();
-  private generationAgent = new GenerationAgent();
+  private baseAgent = new BaseAgent();
+  private factionsAgent = new FactionsAgent();
+  private locationsAgent = new LocationsAgent();
+  private racesAgent = new RacesAgent();
+  private historyAgent = new HistoryAgent();
+  private magicAgent = new MagicAgent();
 
   private async getOutputLanguage(): Promise<LLMOutputLanguage> {
     const settings = await ApiSettingsService.getSettings();
     return settings?.llmOutputLanguage || "ru";
   }
 
+  private async updateProgress(
+    sessionId: string,
+    agentName: AgentName,
+    status: GenerationProgress[AgentName]
+  ): Promise<void> {
+    const result = await this.db.query(
+      `SELECT generation_progress FROM world_generation_sessions WHERE id = $1`,
+      [sessionId]
+    );
+    const row = result.rows[0] as
+      | { generation_progress?: GenerationProgress | string }
+      | undefined;
+    let currentProgress: GenerationProgress;
+
+    if (row?.generation_progress) {
+      currentProgress =
+        typeof row.generation_progress === "string"
+          ? JSON.parse(row.generation_progress)
+          : row.generation_progress;
+    } else {
+      currentProgress = { ...DEFAULT_PROGRESS };
+    }
+
+    currentProgress[agentName] = status;
+
+    await this.db.query(
+      `UPDATE world_generation_sessions SET generation_progress = $1 WHERE id = $2`,
+      [JSON.stringify(currentProgress), sessionId]
+    );
+  }
+
+  private async generateWithRetry<T>(
+    agent: () => Promise<T>,
+    maxRetries: number = 2
+  ): Promise<T> {
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        return await agent();
+      } catch (error) {
+        if (i === maxRetries) throw error;
+        console.warn(`Retry ${i + 1}/${maxRetries}...`);
+      }
+    }
+    throw new Error("Unreachable");
+  }
+
   async startSession(setting: string) {
     try {
       const id = uuidv4();
       await this.db.query(
-        `INSERT INTO world_generation_sessions (id, status, setting, collected_info) VALUES ($1, $2, $3, $4)`,
-        [id, "collecting_info", setting, JSON.stringify([])]
+        `INSERT INTO world_generation_sessions (id, status, setting, collected_info, generation_progress) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          id,
+          "collecting_info",
+          setting,
+          JSON.stringify([]),
+          JSON.stringify(DEFAULT_PROGRESS),
+        ]
       );
       return { sessionId: id };
     } catch (error) {
@@ -77,7 +157,7 @@ export class AgentWorldService {
     }
   }
 
-  async generateWorld(sessionId: string) {
+  async generateWorld(sessionId: string): Promise<WorldData> {
     try {
       const sessionResult = await this.db.query(
         `SELECT * FROM world_generation_sessions WHERE id = $1`,
@@ -98,25 +178,166 @@ export class AgentWorldService {
           : session.collected_info || [];
 
       const outputLanguage = await this.getOutputLanguage();
-      const generatedData = await this.generationAgent.generate(
-        collectedInfo,
-        session.setting,
-        outputLanguage
+
+      // Update status to generating
+      await this.db.query(
+        `UPDATE world_generation_sessions SET status = 'generating' WHERE id = $1`,
+        [sessionId]
       );
 
-      // Validate the generated world data with Zod
-      const worldData = WorldDataSchema.parse(generatedData);
+      // Stage 1: Generate base world
+      await this.updateProgress(sessionId, "base", "in_progress");
+      let baseWorld;
+      try {
+        baseWorld = await this.generateWithRetry(() =>
+          this.baseAgent.generate(
+            collectedInfo,
+            session.setting,
+            outputLanguage
+          )
+        );
+        await this.updateProgress(sessionId, "base", "completed");
+      } catch (error) {
+        await this.updateProgress(sessionId, "base", "failed");
+        throw error;
+      }
+
+      // Stage 2: Parallel generation of details
+      const agentTasks: Array<{
+        name: AgentName;
+        task: () => Promise<unknown>;
+      }> = [
+        {
+          name: "factions",
+          task: () =>
+            this.factionsAgent.generate(
+              baseWorld,
+              collectedInfo,
+              outputLanguage
+            ),
+        },
+        {
+          name: "locations",
+          task: () =>
+            this.locationsAgent.generate(
+              baseWorld,
+              collectedInfo,
+              outputLanguage
+            ),
+        },
+        {
+          name: "races",
+          task: () =>
+            this.racesAgent.generate(baseWorld, collectedInfo, outputLanguage),
+        },
+        {
+          name: "history",
+          task: () =>
+            this.historyAgent.generate(
+              baseWorld,
+              collectedInfo,
+              outputLanguage
+            ),
+        },
+        {
+          name: "magic",
+          task: () =>
+            this.magicAgent.generate(baseWorld, collectedInfo, outputLanguage),
+        },
+      ];
+
+      // Mark all as in_progress
+      await Promise.all(
+        agentTasks.map((agent) =>
+          this.updateProgress(sessionId, agent.name, "in_progress")
+        )
+      );
+
+      // Run all agents in parallel with retry and progress tracking
+      const results = await Promise.all(
+        agentTasks.map(async (agent) => {
+          try {
+            const result = await this.generateWithRetry(agent.task);
+            await this.updateProgress(sessionId, agent.name, "completed");
+            return { name: agent.name, result, success: true };
+          } catch (error) {
+            await this.updateProgress(sessionId, agent.name, "failed");
+            console.error(`Agent ${agent.name} failed:`, error);
+            return { name: agent.name, result: null, success: false };
+          }
+        })
+      );
+
+      // Check if any critical agents failed
+      const failedAgents = results.filter((r) => !r.success);
+      if (failedAgents.length > 0) {
+        throw new Error(
+          `Failed to generate: ${failedAgents.map((a) => a.name).join(", ")}`
+        );
+      }
+
+      // Extract results
+      const factionsResult = results.find((r) => r.name === "factions")
+        ?.result as {
+        factions: WorldData["factions"];
+      };
+      const locationsResult = results.find((r) => r.name === "locations")
+        ?.result as {
+        locations: WorldData["locations"];
+      };
+      const racesResult = results.find((r) => r.name === "races")?.result as {
+        races: WorldData["races"];
+      };
+      const historyResult = results.find((r) => r.name === "history")
+        ?.result as {
+        history: WorldData["history"];
+      };
+      const magicResult = results.find((r) => r.name === "magic")?.result as {
+        magic: WorldData["magic"];
+      };
+
+      // Stage 3: Merge and validate
+      const worldData: WorldData = {
+        ...baseWorld,
+        factions: factionsResult?.factions,
+        locations: locationsResult?.locations,
+        races: racesResult?.races,
+        history: historyResult?.history,
+        magic: magicResult?.magic,
+      };
+
+      const validated = WorldDataSchema.parse(worldData);
 
       await this.db.query(
         `UPDATE world_generation_sessions SET generated_world = $1, status = 'review' WHERE id = $2`,
-        [JSON.stringify(worldData), sessionId]
+        [JSON.stringify(validated), sessionId]
       );
 
-      return worldData;
+      return validated;
     } catch (error) {
       console.error("Failed to generate world:", error);
       throw new Error("Failed to generate world data");
     }
+  }
+
+  async getGenerationProgress(sessionId: string): Promise<GenerationProgress> {
+    const result = await this.db.query(
+      `SELECT generation_progress, status FROM world_generation_sessions WHERE id = $1`,
+      [sessionId]
+    );
+
+    const row = result.rows[0] as
+      | { generation_progress?: GenerationProgress | string; status?: string }
+      | undefined;
+    if (!row) {
+      throw new Error("Session not found");
+    }
+
+    const progress = row.generation_progress;
+    if (typeof progress === "string") {
+      return JSON.parse(progress);
+    }
+    return progress || { ...DEFAULT_PROGRESS };
   }
 
   async submitAnswers(sessionId: string, answers: Record<string, string>) {
@@ -140,7 +361,7 @@ export class AgentWorldService {
       const newFacts: string[] = [];
 
       // Process answers and filter out empty/"decide yourself" responses
-      for (const [questionId, answer] of Object.entries(answers)) {
+      for (const [, answer] of Object.entries(answers)) {
         const trimmed = answer.trim().toLowerCase();
 
         // Skip empty answers or "decide yourself" variations
@@ -174,7 +395,7 @@ export class AgentWorldService {
     }
   }
 
-  async saveWorld(sessionId: string, worldData: any) {
+  async saveWorld(sessionId: string, worldData: WorldData) {
     try {
       // Validate world data before saving
       const validatedData = WorldDataSchema.parse(worldData);

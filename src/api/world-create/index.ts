@@ -52,6 +52,20 @@ routerBuilder.addRoute({
 });
 
 routerBuilder.addRoute({
+  path: "/world-creation/agent/progress",
+  method: "GET",
+  handler: async (req, res) => {
+    const sessionId = req.query.sessionId as string;
+    if (!sessionId) {
+      res.status(400).json({ error: "sessionId is required" });
+      return;
+    }
+    const result = await agentWorldService.getGenerationProgress(sessionId);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
   path: "/world-creation/create/draft",
   method: "POST",
   handler: async (req, res) => {

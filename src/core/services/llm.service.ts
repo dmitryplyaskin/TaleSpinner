@@ -70,7 +70,15 @@ export class LLMService {
       }
 
       if (responseFormat?.type === "json_schema") {
-        return JSON.parse(content);
+        // Clean up markdown code blocks if LLM wraps JSON in ```json ... ```
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith("```")) {
+          // Remove opening ```json or ``` 
+          jsonContent = jsonContent.replace(/^```(?:json)?\s*\n?/, "");
+          // Remove closing ```
+          jsonContent = jsonContent.replace(/\n?```\s*$/, "");
+        }
+        return JSON.parse(jsonContent);
       }
 
       return content;
