@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-	Autocomplete,
-	TextField,
-	Chip,
-	Box,
-	Typography,
-	Tooltip,
-} from '@mui/material';
+import { Autocomplete, TextField, Chip, Box, Typography, Tooltip } from '@mui/material';
 import { Controller, Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Info } from '@mui/icons-material';
 import { OPENROUTER_PROVIDERS } from '../../../../shared/types/settings';
@@ -47,9 +40,7 @@ export function ProviderOrderSelect<TFieldValues extends FieldValues = FieldValu
 						multiple
 						options={providerOptions}
 						disabled={disabled}
-						value={providerOptions.filter((opt) =>
-							(field.value as string[] || []).includes(opt.value)
-						)}
+						value={providerOptions.filter((opt) => ((field.value as string[]) || []).includes(opt.value))}
 						onChange={(_, newValue) => {
 							field.onChange(newValue.map((v) => v.value));
 						}}
@@ -58,14 +49,7 @@ export function ProviderOrderSelect<TFieldValues extends FieldValues = FieldValu
 						renderTags={(value, getTagProps) =>
 							value.map((option, index) => {
 								const tagProps = getTagProps({ index });
-								return (
-									<Chip
-										{...tagProps}
-										key={option.value}
-										label={option.label}
-										size="small"
-									/>
-								);
+								return <Chip {...tagProps} key={option.value} label={option.label} size="small" />;
 							})
 						}
 						renderInput={(params) => (
@@ -88,4 +72,3 @@ export function ProviderOrderSelect<TFieldValues extends FieldValues = FieldValu
 		</Box>
 	);
 }
-
