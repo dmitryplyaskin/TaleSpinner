@@ -18,7 +18,9 @@
       "@core/*": ["./src/core/*"],
       "@utils/*": ["./src/utils/*"],
       "@types/*": ["./src/types/*"],
-      "@services/*": ["./src/services/*"]
+      "@services/*": ["./src/services/*"],
+      "@api/*": ["./src/api/*"],
+      "@schemas/*": ["./src/schemas/*"]
     },
     "typeRoots": ["../node_modules/@types", "./types"]
   },

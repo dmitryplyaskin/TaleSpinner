@@ -1,5 +1,8 @@
 import { createBranch, navigateToStep, $currentStep, $currentBranch } from './navigation';
-import { createEffect } from 'effector';
+import { createEffect, createEvent } from 'effector';
+
+// Событие для установки ID выбранного мира
+export const setSelectedWorldId = createEvent<string>();
 
 // Инициализация основных веток приложения
 export const initializeAppNavigation = createEffect(() => {
@@ -11,6 +14,11 @@ export const initializeAppNavigation = createEffect(() => {
 			{
 				id: 'welcome',
 				name: 'Добро пожаловать',
+				data: {},
+			},
+			{
+				id: 'world-preparation',
+				name: 'Подготовка к игре',
 				data: {},
 			},
 			{
@@ -28,33 +36,8 @@ export const initializeAppNavigation = createEffect(() => {
 		parentBranchId: 'main',
 		steps: [
 			{
-				id: 'world-type-selection',
-				name: 'Выбор типа мира',
-				data: {},
-			},
-			{
-				id: 'world-selection',
-				name: 'Выбор мира',
-				data: {},
-			},
-			{
-				id: 'world-customization',
-				name: 'Настройка мира',
-				data: {},
-			},
-			{
-				id: 'world-primer-edit',
-				name: 'Редактирование мира',
-				data: {},
-			},
-			{
-				id: 'character-creation',
-				name: 'Создание персонажа',
-				data: {},
-			},
-			{
-				id: 'world-completion',
-				name: 'Завершение',
+				id: 'agent-wizard',
+				name: 'Мастер создания мира',
 				data: {},
 			},
 		],
@@ -69,23 +52,29 @@ export const goToWelcome = createEffect(() => {
 });
 
 export const goToWorldCreation = createEffect(() => {
-	navigateToStep({ stepId: 'world-type-selection', branchId: 'world-creation' });
+	navigateToStep({ stepId: 'agent-wizard', branchId: 'world-creation' });
 });
 
+// Deprecated/Mapped
 export const goToWorldSelection = createEffect(() => {
-	navigateToStep({ stepId: 'world-selection', branchId: 'world-creation' });
+	navigateToStep({ stepId: 'agent-wizard', branchId: 'world-creation' });
 });
 
 export const goToWorldCustomization = createEffect(() => {
-	navigateToStep({ stepId: 'world-customization', branchId: 'world-creation' });
+	navigateToStep({ stepId: 'agent-wizard', branchId: 'world-creation' });
 });
 
 export const goToWorldCompletion = createEffect(() => {
-	navigateToStep({ stepId: 'world-completion', branchId: 'world-creation' });
+	navigateToStep({ stepId: 'agent-wizard', branchId: 'world-creation' });
 });
 
 export const goToChat = createEffect(() => {
 	navigateToStep({ stepId: 'chat', branchId: 'main' });
+});
+
+export const goToWorldPreparation = createEffect((worldId: string) => {
+	setSelectedWorldId(worldId);
+	navigateToStep({ stepId: 'world-preparation', branchId: 'main' });
 });
 
 // Экспортируем селекторы для компонентов
@@ -94,16 +83,12 @@ export { $currentStep, $currentBranch };
 // Типы для удобства
 export type AppScreen =
 	| 'welcome'
+	| 'world-preparation'
 	| 'chat'
-	| 'world-type-selection'
-	| 'world-selection'
-	| 'world-customization'
-	| 'world-primer-edit'
-	| 'character-creation'
-	| 'world-completion';
+	| 'agent-wizard';
 
 // Утилита для определения текущего экрана
-export const getCurrentScreen = (step: any): AppScreen | null => {
+export const getCurrentScreen = (step: { id: string } | null): AppScreen | null => {
 	if (!step) return null;
 	return step.id as AppScreen;
 };

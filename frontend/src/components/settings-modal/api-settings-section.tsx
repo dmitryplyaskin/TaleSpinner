@@ -1,9 +1,11 @@
 import React from 'react';
-import { Box, Typography, Tooltip, IconButton } from '@mui/material';
-import { Info } from '@mui/icons-material';
+import { Box, Typography, Divider } from '@mui/material';
 import { UseFormReturn } from 'react-hook-form';
 import { AppSettings, ApiProvider } from '../../../../shared/types/settings';
-import { FormInput, FormSelect } from '../../ui/form-components';
+import { FormSelect } from '../../ui/form-components';
+import { TokenManager } from './token-manager';
+import { ModelSelect } from './model-select';
+import { ProviderOrderSelect } from './provider-order-select';
 
 interface ApiSettingsSectionProps {
 	form: UseFormReturn<AppSettings>;
@@ -30,35 +32,23 @@ export const ApiSettingsSection: React.FC<ApiSettingsSectionProps> = ({ form }) 
 				disabled
 			/>
 
-			<FormInput
-				form={{
-					name: 'api.token',
-					control,
-					rules: { required: 'API токен обязателен' },
-				}}
-				label="API Токен"
-				type="password"
-				fullWidth
-				placeholder="Введите ваш API токен"
+			<Divider />
+
+			{/* Управление токенами */}
+			<TokenManager />
+
+			<Divider />
+
+			{/* Выбор основной модели */}
+			<ModelSelect
+				control={control}
+				name="api.model"
+				label="Основная модель"
+				helperText="Модель, которая будет использоваться по умолчанию"
 			/>
 
-			<Box display="flex" alignItems="center" gap={1}>
-				<FormInput
-					form={{
-						name: 'api.model',
-						control,
-					}}
-					label="Модель"
-					fullWidth
-					placeholder="Пока не выбрано"
-					disabled
-				/>
-				<Tooltip title="Здесь будет информация о выборе модели">
-					<IconButton>
-						<Info />
-					</IconButton>
-				</Tooltip>
-			</Box>
+			{/* Порядок провайдеров */}
+			<ProviderOrderSelect control={control} name="api.providerOrder" />
 		</Box>
 	);
 };

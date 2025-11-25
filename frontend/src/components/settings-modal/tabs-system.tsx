@@ -31,9 +31,7 @@ export const TabsSystem: React.FC<TabsSystemProps> = ({ currentTab, onTabChange 
 		<Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
 			<Tabs value={currentTab} onChange={onTabChange} aria-label="settings tabs">
 				<Tab label="API и Модели" id="settings-tab-0" aria-controls="settings-tabpanel-0" />
-				{/* Будущие табы */}
-				{/* <Tab label="Интерфейс" id="settings-tab-1" aria-controls="settings-tabpanel-1" />
-				<Tab label="Дополнительно" id="settings-tab-2" aria-controls="settings-tabpanel-2" /> */}
+				<Tab label="Интерфейс" id="settings-tab-1" aria-controls="settings-tabpanel-1" />
 			</Tabs>
 		</Box>
 	);

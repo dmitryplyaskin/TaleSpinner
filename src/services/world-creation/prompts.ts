@@ -3,10 +3,23 @@ import {
   WorldCustomizationData,
   WorldPrimer,
 } from "@shared/types/world-creation";
+import { LLMOutputLanguage } from "@shared/types/api-settings";
+
+const getLanguageInstruction = (language: LLMOutputLanguage): string => {
+  if (language === "ru") {
+    return `
+## Output Language
+IMPORTANT: Generate ALL content (names, descriptions, dialogue, etc.) in Russian language. The entire response must be in Russian.`;
+  }
+  return `
+## Output Language
+IMPORTANT: Generate ALL content (names, descriptions, dialogue, etc.) in English language. The entire response must be in English.`;
+};
 
 export const createDraftWorldsPrompt = (
   worldType: WorldType,
-  userPrompt?: string
+  userPrompt?: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # RPG World Generation Prompt
@@ -41,22 +54,30 @@ ${userPrompt ? `## User's Specific Requirements: \n${userPrompt}` : ""}
 - You don't have to impose on the main plot directly. The player can decide to stay out of the conflict, take the evil side, or just go about their business and ignore the world around them, playing the role of an ordinary being.
 - Don't use MD formatting in the response.
 - Your response must be formatted as valid JSON according to the specified schema.
+${getLanguageInstruction(outputLanguage)}
 
 Create three worlds right now, following all specified requirements and ensuring each offers a completely different RPG experience. Return the result as a JSON object with the specified structure.
 `;
 };
 
-export const createMoreWorldsPrompt = (userPrompt?: string) => {
+export const createMoreWorldsPrompt = (
+  userPrompt?: string,
+  outputLanguage: LLMOutputLanguage = "ru"
+) => {
   return `
 Generate 3 more variations of the game world based on the previous instructions.
 
 ${userPrompt ? `User's Specific Requirements: \n${userPrompt}` : ""}
+${getLanguageInstruction(outputLanguage)}
 
 Your response must be formatted as valid JSON according to the specified schema.
 `;
 };
 
-export const createWorldsPrompt = (data: WorldCustomizationData) => {
+export const createWorldsPrompt = (
+  data: WorldCustomizationData,
+  outputLanguage: LLMOutputLanguage = "ru"
+) => {
   const { title, genre, toneText, synopsis } = data;
   const tone = toneText.split(",").map((t) => t.trim());
 
@@ -144,6 +165,7 @@ Based on the **Elements to Introduce**, incorporate the following concepts into 
   ${factionsPrompt}
 
 Your final output must be a single, cohesive text that reads like a chapter from a campaign setting guide, setting the stage for adventure.
+${getLanguageInstruction(outputLanguage)}
 
 ## Final Instruction
 Generate the **World Primer** as a single block of text, following all instructions. The output should be structured as a simple JSON object containing this text. Do not use MD formatting in the response. Your response must be formatted as valid JSON according to the specified schema.
@@ -153,7 +175,8 @@ Generate the **World Primer** as a single block of text, following all instructi
 // Отдельные промпты для дополнительных элементов мира
 export const createRacesPrompt = (
   data: WorldCustomizationData,
-  worldPrimer: string
+  worldPrimer: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # World Races Detailing
@@ -179,6 +202,7 @@ Create a detailed description of ${
 5. Social structure and place in the world
 
 The races should organically fit into the established tone and genre of the world.
+${getLanguageInstruction(outputLanguage)}
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
@@ -187,7 +211,8 @@ The response should be formatted as valid JSON according to the specified schema
 
 export const createTimelinePrompt = (
   data: WorldCustomizationData,
-  worldPrimer: string
+  worldPrimer: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # World History Detailing
@@ -213,6 +238,7 @@ Create a detailed timeline of the world's history, including:
 4. Explanation of how history led to the current conflict
 
 The history should explain "How did it all come to this?" and create depth for the world.
+${getLanguageInstruction(outputLanguage)}
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
@@ -221,7 +247,8 @@ The response should be formatted as valid JSON according to the specified schema
 
 export const createMagicPrompt = (
   data: WorldCustomizationData,
-  worldPrimer: string
+  worldPrimer: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # Magic System Detailing
@@ -246,6 +273,7 @@ Create a detailed magic system, including:
 7. Known magical artifacts or places of power
 
 The magic system should be logical and match the tone of the world.
+${getLanguageInstruction(outputLanguage)}
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
@@ -254,7 +282,8 @@ The response should be formatted as valid JSON according to the specified schema
 
 export const createLocationsPrompt = (
   data: WorldCustomizationData,
-  worldPrimer: string
+  worldPrimer: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # World Locations Detailing
@@ -282,6 +311,7 @@ Create a detailed description of ${
 7. Adventure opportunities
 
 Locations should be diverse and create opportunities for different types of gameplay.
+${getLanguageInstruction(outputLanguage)}
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
@@ -290,7 +320,8 @@ The response should be formatted as valid JSON according to the specified schema
 
 export const createFactionsPrompt = (
   data: WorldCustomizationData,
-  worldPrimer: string
+  worldPrimer: string,
+  outputLanguage: LLMOutputLanguage = "ru"
 ) => {
   return `
 # World Factions Detailing
@@ -319,13 +350,17 @@ Create a detailed description of ${
 8. Resources and influence
 
 Factions should create dynamic relationships and opportunities for political intrigue.
+${getLanguageInstruction(outputLanguage)}
 
 ## Response Format
 The response should be formatted as valid JSON according to the specified schema.
 `;
 };
 
-export const createFirstMessagePrompt = (data: WorldPrimer) => {
+export const createFirstMessagePrompt = (
+  data: WorldPrimer,
+  outputLanguage: LLMOutputLanguage = "ru"
+) => {
   const worldPrimer = data.world_primer;
   const userCharacter = data.characters?.userCharacter;
   const fullUserCharacter = userCharacter
@@ -385,6 +420,7 @@ ${fullTimeline}
 2.  **NEVER Act for the User:** You must NEVER, under any circumstances, speak for the User's character, describe their internal thoughts or feelings, or make them perform any action. Your role is to set the scene and present challenges for the User to react to. For example, say "A shadowy figure approaches you," not "You draw your sword as a shadowy figure approaches you."
 3.  **Engaging Style:** Write in a descriptive, second-person narrative style ("You see...", "You hear..."). Make the scene feel alive.
 4.  **Strict Output Format:** Your entire response must be a single JSON object.
+${getLanguageInstruction(outputLanguage)}
 
 ### TASK:
 Generate the opening message for the game. The message should set the scene, introduce the immediate situation, and potentially include an NPC's line of dialogue to prompt the User's first action.

@@ -1,8 +1,69 @@
 import { RouterBuilder } from "@core/http/router-builder";
 import { WorldCreateService } from "@services/world-creation";
+import { AgentWorldService } from "@services/world-creation/agent-world.service";
 
 const routerBuilder = new RouterBuilder();
 const worldCreateService = new WorldCreateService();
+const agentWorldService = new AgentWorldService();
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/start",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.startSession(req.body.setting);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/analyze",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.analyzeInput(req.body.sessionId, req.body.userInput);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/generate",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.generateWorld(req.body.sessionId);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/submit-answers",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.submitAnswers(req.body.sessionId, req.body.answers);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/save",
+  method: "POST",
+  handler: async (req, res) => {
+    const result = await agentWorldService.saveWorld(req.body.sessionId, req.body.worldData);
+    res.json(result);
+  },
+});
+
+routerBuilder.addRoute({
+  path: "/world-creation/agent/progress",
+  method: "GET",
+  handler: async (req, res) => {
+    const sessionId = req.query.sessionId as string;
+    if (!sessionId) {
+      res.status(400).json({ error: "sessionId is required" });
+      return;
+    }
+    const result = await agentWorldService.getGenerationProgress(sessionId);
+    res.json(result);
+  },
+});
 
 routerBuilder.addRoute({
   path: "/world-creation/create/draft",

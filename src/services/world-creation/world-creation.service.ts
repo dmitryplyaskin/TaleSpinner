@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   createMoreWorldsPrompt,
   createDraftWorldsPrompt,
@@ -13,14 +14,12 @@ import { ApiSettingsService } from "@services/api-settings.service";
 import { v4 as uuidv4 } from "uuid";
 import {
   WorldCreationDraftJsonService,
-  WorldCreationSelectedDraftJsonService,
   WorldCreationFavoritesDraftJsonService,
   WorldCreationPrimerJsonService,
   CharactersJsonService,
   WorldCreationCompleteJsonService,
 } from "./files";
 import OpenAI from "openai";
-import { ApiSettings } from "@shared/types/api-settings";
 import {
   CreatedWorldDraft,
   WorldCreateTask,
@@ -29,46 +28,90 @@ import {
 } from "@shared/types/world-creation";
 import { Character, CharacterCreationData } from "@shared/types/character";
 import {
-  createDraftWorldsResponseFormat,
+  draftWorldsResponseFormat,
   createWorldPrimerResponseFormat,
-  createRacesResponseFormat,
-  createTimelineResponseFormat,
-  createMagicResponseFormat,
-  createLocationsResponseFormat,
-  createFactionsResponseFormat,
-  createFirstMessageResponseFormat,
+  racesResponseFormat,
+  timelineResponseFormat,
+  magicResponseFormat,
+  locationsResponseFormat,
+  factionsResponseFormat,
+  firstMessageResponseFormat,
 } from "./schemas";
-import {
-  GameSessionsJsonService,
-  GameSessionsService,
-} from "@services/game-sessions";
+import { LLMResponseFormat } from "@core/services/llm.service";
+import { GameSessionsService } from "@services/game-sessions";
+import { LLMOutputLanguage } from "@shared/types/settings";
+
+interface InternalApiSettings {
+  token: string;
+  model: string;
+  providerOrder: string[];
+  llmOutputLanguage: LLMOutputLanguage;
+}
 
 export class WorldCreateService {
-  createOpenAIService(apiSettings: ApiSettings) {
+  createOpenAIService(token: string) {
     const openaiService = new OpenAI({
       baseURL: "https://openrouter.ai/api/v1",
-      apiKey: apiSettings.api.token,
+      apiKey: token,
     });
 
     return openaiService;
   }
 
+  private async getApiSettings(): Promise<InternalApiSettings> {
+    const internalSettings = await ApiSettingsService.getInternalSettings();
+    if (!internalSettings || !internalSettings.token) {
+      throw new Error("API settings or token not found");
+    }
+
+    return {
+      token: internalSettings.token,
+      model: internalSettings.model,
+      providerOrder: internalSettings.providerOrder,
+      llmOutputLanguage: internalSettings.llmOutputLanguage,
+    };
+  }
+
+  private zodToResponseFormat(
+    responseFormat: LLMResponseFormat
+  ): OpenAI.ResponseFormatJSONSchema {
+    const jsonSchema = z.toJSONSchema(responseFormat.schema);
+
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: responseFormat.name,
+        strict: true,
+        schema: jsonSchema as Record<string, unknown>,
+      },
+    };
+  }
+
   private async callModel(data: {
-    apiSettings: ApiSettings;
+    apiSettings: InternalApiSettings;
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     model?: string;
-    responseFormat: OpenAI.ResponseFormatJSONSchema;
+    responseFormat: LLMResponseFormat;
   }) {
-    const openai = this.createOpenAIService(data.apiSettings);
+    const openai = this.createOpenAIService(data.apiSettings.token);
+
+    const extraBody =
+      data.apiSettings.providerOrder.length > 0
+        ? {
+            provider: {
+              order: data.apiSettings.providerOrder,
+              allow_fallbacks: true,
+            },
+          }
+        : undefined;
+
+    const openAIResponseFormat = this.zodToResponseFormat(data.responseFormat);
+
     const response = await openai.chat.completions.create({
       model: data.model || "",
       messages: data.messages,
-      response_format: data.responseFormat,
-      // @ts-ignore
-      // provider: {
-      //   order: ["fireworks/fp8"],
-      //   allow_fallbacks: false,
-      // },
+      response_format: openAIResponseFormat,
+      ...extraBody,
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -90,24 +133,21 @@ export class WorldCreateService {
   }
 
   async createDraftWorlds(data: WorldCreateTask) {
-    // if (process.env.DEV_MOCK_WORLD_CREATION === "true") {
-    //   const mockId = "5fa858bf-90ab-4bf6-b664-1ae967c3ddfa";
-    //   const mockWorld = await WorldCreationDraftJsonService.readFile(mockId);
-    //   if (!mockWorld) throw new Error("Mock world not found");
-    //   return mockWorld;
-    // }
+    const apiSettings = await this.getApiSettings();
 
-    const prompt = createDraftWorldsPrompt(data.worldType, data.userPrompt);
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
-
-    if (!apiSettings) throw new Error("API settings not found");
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createDraftWorldsPrompt(
+      data.worldType,
+      data.userPrompt,
+      outputLanguage
+    );
 
     try {
       const result = (await this.callModel({
         apiSettings,
         messages: [{ role: "user", content: prompt }],
-        model: apiSettings.api.model || "",
-        responseFormat: createDraftWorldsResponseFormat,
+        model: apiSettings.model || "",
+        responseFormat: draftWorldsResponseFormat,
       })) as { worlds: CreatedWorldDraft[] };
 
       const parsedResult = result.worlds.map((world) => ({
@@ -135,12 +175,12 @@ export class WorldCreateService {
   }
 
   async createMoreWorlds(data: WorldCreateTask) {
-    const prompt = createMoreWorldsPrompt(data.userPrompt);
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
-
-    if (!apiSettings) throw new Error("API settings not found");
+    const apiSettings = await this.getApiSettings();
     if (!data.lastWorldGenerationId)
       throw new Error("Last world generation id not found");
+
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createMoreWorldsPrompt(data.userPrompt, outputLanguage);
 
     const lastWorld = await WorldCreationDraftJsonService.readFile(
       data.lastWorldGenerationId
@@ -151,8 +191,8 @@ export class WorldCreateService {
       const result = (await this.callModel({
         apiSettings,
         messages: [...lastWorld.prompt, { role: "user", content: prompt }],
-        model: apiSettings.api.model,
-        responseFormat: createDraftWorldsResponseFormat,
+        model: apiSettings.model,
+        responseFormat: draftWorldsResponseFormat,
       })) as { worlds: CreatedWorldDraft[] };
 
       const parsedResult = result.worlds.map((world) => ({
@@ -218,44 +258,42 @@ export class WorldCreateService {
   }
 
   async createWorld(data: WorldCustomizationData) {
-    const prompt = createWorldsPrompt(data);
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
+    const apiSettings = await this.getApiSettings();
+
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
+    const prompt = createWorldsPrompt(data, outputLanguage);
     console.log(prompt);
 
-    if (!apiSettings) throw new Error("API settings not found");
-
     try {
-      // Основной вызов для создания базового primer'а мира
       const baseResult = await this.callModel({
         apiSettings,
         messages: [{ role: "user", content: prompt }],
-        model: apiSettings.api.model,
+        model: apiSettings.model,
         responseFormat: createWorldPrimerResponseFormat(data),
       });
 
-      // Получаем базовый primer для использования в дополнительных вызовах
       const worldPrimer = baseResult.world_primer || "";
 
-      // Объект для хранения всех результатов
-      const detailedWorld: any = {
+      const detailedWorld: Record<string, unknown> = {
         ...baseResult,
         detailed_elements: {},
       };
 
       console.log("detailedWorld:", detailedWorld);
 
-      // Массив для хранения промисов дополнительных вызовов
-      const additionalCalls: Promise<any>[] = [];
+      const additionalCalls: Promise<{ type: string; data: unknown }>[] = [];
 
-      // Создаем дополнительные вызовы для каждого включенного опционального элемента
       if (data.racesEnabled) {
         const racesCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createRacesPrompt(data, worldPrimer) },
+            {
+              role: "user",
+              content: createRacesPrompt(data, worldPrimer, outputLanguage),
+            },
           ],
-          model: apiSettings.api.model,
-          responseFormat: createRacesResponseFormat,
+          model: apiSettings.model,
+          responseFormat: racesResponseFormat,
         }).then((result) => ({ type: "races", data: result }));
         additionalCalls.push(racesCall);
       }
@@ -264,10 +302,13 @@ export class WorldCreateService {
         const timelineCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createTimelinePrompt(data, worldPrimer) },
+            {
+              role: "user",
+              content: createTimelinePrompt(data, worldPrimer, outputLanguage),
+            },
           ],
-          model: apiSettings.api.model,
-          responseFormat: createTimelineResponseFormat,
+          model: apiSettings.model,
+          responseFormat: timelineResponseFormat,
         }).then((result) => ({ type: "timeline", data: result }));
         additionalCalls.push(timelineCall);
       }
@@ -276,10 +317,13 @@ export class WorldCreateService {
         const magicCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createMagicPrompt(data, worldPrimer) },
+            {
+              role: "user",
+              content: createMagicPrompt(data, worldPrimer, outputLanguage),
+            },
           ],
-          model: apiSettings.api.model,
-          responseFormat: createMagicResponseFormat,
+          model: apiSettings.model,
+          responseFormat: magicResponseFormat,
         }).then((result) => ({ type: "magic", data: result }));
         additionalCalls.push(magicCall);
       }
@@ -288,10 +332,13 @@ export class WorldCreateService {
         const locationsCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createLocationsPrompt(data, worldPrimer) },
+            {
+              role: "user",
+              content: createLocationsPrompt(data, worldPrimer, outputLanguage),
+            },
           ],
-          model: apiSettings.api.model,
-          responseFormat: createLocationsResponseFormat,
+          model: apiSettings.model,
+          responseFormat: locationsResponseFormat,
         }).then((result) => ({ type: "locations", data: result }));
         additionalCalls.push(locationsCall);
       }
@@ -300,25 +347,27 @@ export class WorldCreateService {
         const factionsCall = this.callModel({
           apiSettings,
           messages: [
-            { role: "user", content: createFactionsPrompt(data, worldPrimer) },
+            {
+              role: "user",
+              content: createFactionsPrompt(data, worldPrimer, outputLanguage),
+            },
           ],
-          model: apiSettings.api.model,
-          responseFormat: createFactionsResponseFormat,
+          model: apiSettings.model,
+          responseFormat: factionsResponseFormat,
         }).then((result) => ({ type: "factions", data: result }));
         additionalCalls.push(factionsCall);
       }
 
-      // Выполняем все дополнительные вызовы параллельно
       if (additionalCalls.length > 0) {
         const additionalResults = await Promise.all(additionalCalls);
 
-        // Добавляем результаты к основному объекту
         additionalResults.forEach((result) => {
-          detailedWorld.detailed_elements[result.type] = result.data;
+          (detailedWorld.detailed_elements as Record<string, unknown>)[
+            result.type
+          ] = result.data;
         });
       }
 
-      // Сохраняем полный результат
       const world = await WorldCreationPrimerJsonService.createFile(
         detailedWorld,
         {
@@ -348,7 +397,6 @@ export class WorldCreateService {
     try {
       console.log("Сохранение персонажа:", data.character);
 
-      // Сохраняем персонажа в файл
       const savedCharacter = await CharactersJsonService.createFile(
         data.character,
         {
@@ -380,14 +428,16 @@ export class WorldCreateService {
 
   async completeWorldCreation(data: WorldPrimer) {
     const world = await WorldCreationPrimerJsonService.readFile(data.id);
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
-    if (!apiSettings) throw new Error("API settings not found");
+    const apiSettings = await this.getApiSettings();
 
+    const outputLanguage = apiSettings.llmOutputLanguage || "ru";
     const firstMessage = await this.callModel({
       apiSettings,
-      messages: [{ role: "user", content: createFirstMessagePrompt(data) }],
-      model: apiSettings.api.model,
-      responseFormat: createFirstMessageResponseFormat,
+      messages: [
+        { role: "user", content: createFirstMessagePrompt(data, outputLanguage) },
+      ],
+      model: apiSettings.model,
+      responseFormat: firstMessageResponseFormat,
     });
 
     if (!world) throw new Error("World not found");

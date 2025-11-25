@@ -6,6 +6,7 @@ import { useUnit } from 'effector-react';
 import { $isSettingsModalOpen, closeSettingsModal, $settings, saveSettingsFx } from '../../model/settings';
 import { AppSettings } from '../../../../shared/types/settings';
 import { ApiSettingsSection } from './api-settings-section';
+import { InterfaceSettingsSection } from './interface-settings-section';
 import { SettingsGroup } from './settings-group';
 import { TabsSystem, TabPanel } from './tabs-system';
 
@@ -25,11 +26,23 @@ export const SettingsModal: React.FC = () => {
 	};
 
 	const onSubmit = (data: AppSettings) => {
-		saveSettingsFx(data);
+		// Преобразуем данные для API (токены управляются отдельно)
+		const settingsToSave = {
+			api: {
+				model: data.api.model,
+				providerOrder: data.api.providerOrder,
+			},
+			rag: data.rag,
+			embedding: data.embedding,
+			responseGeneration: data.responseGeneration,
+			llmOutputLanguage: data.llmOutputLanguage,
+		};
+
+		saveSettingsFx(settingsToSave);
 		closeSettingsModal();
 	};
 
-	const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+	const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
 		setCurrentTab(newValue);
 	};
 
@@ -76,13 +89,9 @@ export const SettingsModal: React.FC = () => {
 						</Box>
 					</TabPanel>
 
-					{/* Будущие табы */}
-					{/* <TabPanel value={currentTab} index={1}>
-						<Typography>Настройки интерфейса</Typography>
+					<TabPanel value={currentTab} index={1}>
+						<InterfaceSettingsSection form={form} />
 					</TabPanel>
-					<TabPanel value={currentTab} index={2}>
-						<Typography>Дополнительные настройки</Typography>
-					</TabPanel> */}
 				</form>
 			</DialogContent>
 

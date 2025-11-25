@@ -21,14 +21,18 @@
     "exec": "ts-node ./src/index.js"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.3.14",
     "@lancedb/lancedb": "^0.21.2",
+    "@langchain/core": "^1.1.0",
+    "@langchain/langgraph": "^1.0.2",
     "apache-arrow": "^21.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "glob": "^11.0.3",
     "openai": "^5.10.2",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
