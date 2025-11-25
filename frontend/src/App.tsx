@@ -7,6 +7,7 @@ import { loadSettingsFx } from './model/settings';
 import { WelcomeScreen } from './components/welcome-screen';
 import { Wizard } from './components/world-creation/wizard/Wizard';
 import { ChatPage } from './components/chat';
+import { WorldPreparationScreen } from './components/world-preparation';
 import { theme } from './theme';
 
 function App() {
@@ -23,6 +24,8 @@ function App() {
 		switch (currentScreen) {
 			case 'welcome':
 				return <WelcomeScreen />;
+			case 'world-preparation':
+				return <WorldPreparationScreen />;
 			case 'chat':
 				return <ChatPage />;
 			case 'agent-wizard':

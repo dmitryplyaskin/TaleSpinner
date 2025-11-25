@@ -23,6 +23,8 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@lancedb/lancedb": "^0.21.2",
+    "@langchain/core": "^1.1.0",
+    "@langchain/langgraph": "^1.0.2",
     "apache-arrow": "^21.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",

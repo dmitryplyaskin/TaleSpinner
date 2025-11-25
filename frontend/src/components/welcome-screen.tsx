@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Container, Typography, Box, IconButton, Tooltip } from '@mui/material';
 import { Settings, Add } from '@mui/icons-material';
-import { goToWorldCreation, goToChat } from '../model/app-navigation';
+import { goToWorldCreation, goToWorldPreparation } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { SettingsModal } from './settings-modal';
 import { GameSessionsGrid } from './game-sessions-grid';
@@ -17,10 +17,8 @@ export const WelcomeScreen: React.FC = () => {
 		goToWorldCreation();
 	};
 
-	const handlePlaySession = (sessionId: string) => {
-		// TODO: Реализовать переход к игровой сессии с конкретным ID
-		console.log('Playing session:', sessionId);
-		goToChat();
+	const handlePlaySession = (worldId: string) => {
+		goToWorldPreparation(worldId);
 	};
 
 	const handleSettings = () => {
