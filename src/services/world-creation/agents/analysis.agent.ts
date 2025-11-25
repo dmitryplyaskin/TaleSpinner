@@ -1,6 +1,13 @@
 import { LLMService } from "@core/services/llm.service";
-import { LLMOutputLanguage } from "@shared/types/api-settings";
+import { LLMOutputLanguage } from "@shared/types/settings";
 import { OpenAI } from "openai";
+
+interface AnalysisResult {
+  known_info: string[];
+  missing_info: string[];
+  questions: { id: string; text: string; category: string }[];
+  is_ready: boolean;
+}
 
 export class AnalysisAgent {
   private llm: LLMService;
@@ -146,12 +153,12 @@ Task:
       },
     };
 
-    return await this.llm.call({
+    return (await this.llm.call({
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: prompt },
       ],
       responseFormat,
-    });
+    })) as AnalysisResult;
   }
 }

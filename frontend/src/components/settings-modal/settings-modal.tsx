@@ -26,11 +26,23 @@ export const SettingsModal: React.FC = () => {
 	};
 
 	const onSubmit = (data: AppSettings) => {
-		saveSettingsFx(data);
+		// Преобразуем данные для API (токены управляются отдельно)
+		const settingsToSave = {
+			api: {
+				model: data.api.model,
+				providerOrder: data.api.providerOrder,
+			},
+			rag: data.rag,
+			embedding: data.embedding,
+			responseGeneration: data.responseGeneration,
+			llmOutputLanguage: data.llmOutputLanguage,
+		};
+
+		saveSettingsFx(settingsToSave);
 		closeSettingsModal();
 	};
 
-	const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+	const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
 		setCurrentTab(newValue);
 	};
 

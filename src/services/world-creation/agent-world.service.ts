@@ -4,7 +4,7 @@ import { GenerationAgent } from "./agents/generation.agent";
 import { v4 as uuidv4 } from "uuid";
 import { AgentAnalysisSchema, WorldDataSchema } from "../../schemas/world";
 import { ApiSettingsService } from "@services/api-settings.service";
-import { LLMOutputLanguage } from "@shared/types/api-settings";
+import { LLMOutputLanguage } from "@shared/types/settings";
 
 export class AgentWorldService {
   private db = DbService.getInstance().getClient();
@@ -12,8 +12,8 @@ export class AgentWorldService {
   private generationAgent = new GenerationAgent();
 
   private async getOutputLanguage(): Promise<LLMOutputLanguage> {
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
-    return apiSettings?.llmOutputLanguage || "ru";
+    const settings = await ApiSettingsService.getSettings();
+    return settings?.llmOutputLanguage || "ru";
   }
 
   async startSession(setting: string) {

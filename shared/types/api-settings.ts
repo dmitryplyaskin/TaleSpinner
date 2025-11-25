@@ -55,6 +55,43 @@ export type Provider =
   | CustomOpenAIProvider
   | OllamaProvider;
 
+// Токен API с реальным значением (только для бэкенда)
+export interface StoredApiToken {
+  id: string;
+  name: string;
+  value: string; // Реальное значение токена
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Хранилище токенов на бэкенде
+export interface TokenStorage {
+  tokens: StoredApiToken[];
+}
+
+export interface ApiSettingsStorage extends BaseFileData {
+  api: {
+    provider: "openrouter";
+    model: string;
+    providerOrder: string[];
+  };
+  tokens: StoredApiToken[];
+  rag: {
+    enabled: boolean;
+    model: string;
+  };
+  responseGeneration: {
+    enabled: boolean;
+    model: string;
+  };
+  embedding: {
+    enabled: boolean;
+    model: string;
+  };
+  llmOutputLanguage: LLMOutputLanguage;
+}
+
+// Для обратной совместимости
 export interface ApiSettings extends BaseFileData {
   api: Provider;
   rag: {

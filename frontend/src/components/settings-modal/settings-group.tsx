@@ -2,7 +2,8 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { UseFormReturn } from 'react-hook-form';
 import { AppSettings } from '../../../../shared/types/settings';
-import { FormCheckbox, FormInput } from '../../ui/form-components';
+import { FormCheckbox } from '../../ui/form-components';
+import { ModelSelect } from './model-select';
 
 interface SettingsGroupProps {
 	title: string;
@@ -31,15 +32,15 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({ title, settingKey,
 			/>
 
 			{isEnabled && (
-				<FormInput
-					form={{
-						name: `${settingKey}.model`,
-						control,
-					}}
+				<ModelSelect
+					control={control}
+					name={`${settingKey}.model`}
 					label="Модель"
-					fullWidth
-					placeholder="Выберите модель"
-					disabled
+					helperText={
+						settingKey === 'embedding'
+							? 'Выберите модель для эмбеддингов'
+							: undefined
+					}
 				/>
 			)}
 		</Box>

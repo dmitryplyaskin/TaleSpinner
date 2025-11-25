@@ -13,18 +13,23 @@ export class LLMService {
     return LLMService.instance;
   }
 
-  private async getClient(): Promise<{ client: OpenAI; model: string }> {
-    const apiSettings = await ApiSettingsService.readFile("api-settings");
-    if (!apiSettings || !apiSettings.api.token) {
+  private async getClient(): Promise<{
+    client: OpenAI;
+    model: string;
+    providerOrder: string[];
+  }> {
+    const settings = await ApiSettingsService.getInternalSettings();
+    if (!settings || !settings.token) {
       throw new Error("API settings or token not found");
     }
 
     return {
       client: new OpenAI({
         baseURL: "https://openrouter.ai/api/v1",
-        apiKey: apiSettings.api.token,
+        apiKey: settings.token,
       }),
-      model: apiSettings.api.model || "openai/gpt-4o", // Default fallback
+      model: settings.model || "openai/gpt-4o", // Default fallback
+      providerOrder: settings.providerOrder || [],
     };
   }
 
@@ -36,15 +41,27 @@ export class LLMService {
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     responseFormat?: OpenAI.ResponseFormatJSONSchema;
     temperature?: number;
-  }): Promise<any> {
-    const { client, model } = await this.getClient();
+  }): Promise<unknown> {
+    const { client, model, providerOrder } = await this.getClient();
 
     try {
+      // Формируем extra body для provider order если указан
+      const extraBody =
+        providerOrder.length > 0
+          ? {
+              provider: {
+                order: providerOrder,
+                allow_fallbacks: true,
+              },
+            }
+          : undefined;
+
       const response = await client.chat.completions.create({
         model,
         messages,
         response_format: responseFormat,
         temperature,
+        ...extraBody,
       });
 
       const content = response.choices[0]?.message?.content;
