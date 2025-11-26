@@ -20,7 +20,10 @@ routerBuilder.addRoute({
   path: "/world-creation/agent/analyze",
   method: "POST",
   handler: async (req, res) => {
-    const result = await agentWorldService.analyzeInput(req.body.sessionId, req.body.userInput);
+    const result = await agentWorldService.analyzeInput(
+      req.body.sessionId,
+      req.body.userInput
+    );
     res.json(result);
   },
 });
@@ -61,7 +64,10 @@ routerBuilder.addRoute({
     const response: ClarificationResponse = req.body.response;
 
     try {
-      const result = await agentWorldService.continueGeneration(sessionId, response);
+      const result = await agentWorldService.continueGeneration(
+        sessionId,
+        response
+      );
       res.json(result);
     } catch (error) {
       console.error("Generation continue error:", error);
@@ -89,7 +95,9 @@ routerBuilder.addRoute({
     }, 15000);
 
     try {
-      for await (const event of agentWorldService.generateWorldStream(sessionId)) {
+      for await (const event of agentWorldService.generateWorldStream(
+        sessionId
+      )) {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
 
         // Если есть pending clarification, отправляем и ждём
@@ -115,7 +123,10 @@ routerBuilder.addRoute({
   path: "/world-creation/agent/submit-answers",
   method: "POST",
   handler: async (req, res) => {
-    const result = await agentWorldService.submitAnswers(req.body.sessionId, req.body.answers);
+    const result = await agentWorldService.submitAnswers(
+      req.body.sessionId,
+      req.body.answers
+    );
     res.json(result);
   },
 });
@@ -124,7 +135,10 @@ routerBuilder.addRoute({
   path: "/world-creation/agent/save",
   method: "POST",
   handler: async (req, res) => {
-    const result = await agentWorldService.saveWorld(req.body.sessionId, req.body.worldData);
+    const result = await agentWorldService.saveWorld(
+      req.body.sessionId,
+      req.body.worldData
+    );
     res.json(result);
   },
 });

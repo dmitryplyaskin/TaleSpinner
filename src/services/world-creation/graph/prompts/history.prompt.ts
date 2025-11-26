@@ -12,7 +12,15 @@ export interface HistoryPromptContext {
 }
 
 export function buildHistoryPrompt(context: HistoryPromptContext): string {
-  const { base, factions, locations, races, collectedInfo, outputLanguage, count = 3 } = context;
+  const {
+    base,
+    factions,
+    locations,
+    races,
+    collectedInfo,
+    outputLanguage,
+    count = 3,
+  } = context;
 
   const languageInstruction =
     outputLanguage === "ru"
@@ -65,6 +73,3 @@ Ensure historical events are consistent with the established world elements.
 ${languageInstruction}
   `.trim();
 }
-
-
-

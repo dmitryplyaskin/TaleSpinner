@@ -10,15 +10,13 @@ import { ApiSettingsService } from "@services/api-settings.service";
 /**
  * Генерирует запрос уточнения на основе контекста
  */
-export async function generateClarificationRequest(
-  context: {
-    currentNode: string;
-    reason: string;
-    baseWorld?: BaseWorldData | null;
-    collectedInfo: string[];
-    outputLanguage: "ru" | "en";
-  }
-): Promise<ClarificationRequest> {
+export async function generateClarificationRequest(context: {
+  currentNode: string;
+  reason: string;
+  baseWorld?: BaseWorldData | null;
+  collectedInfo: string[];
+  outputLanguage: "ru" | "en";
+}): Promise<ClarificationRequest> {
   const settings = await ApiSettingsService.getInternalSettings();
 
   if (!settings?.token) {
@@ -29,9 +27,10 @@ export async function generateClarificationRequest(
     apiKey: settings.token,
   });
 
-  const languagePrompt = context.outputLanguage === "ru"
-    ? "Generate all text content (titles, labels, descriptions) in Russian."
-    : "Generate all text content (titles, labels, descriptions) in English.";
+  const languagePrompt =
+    context.outputLanguage === "ru"
+      ? "Generate all text content (titles, labels, descriptions) in Russian."
+      : "Generate all text content (titles, labels, descriptions) in English.";
 
   const worldContext = context.baseWorld
     ? `
@@ -68,7 +67,9 @@ Rules:
 - Use confirm for yes/no questions
 - Always provide helpful descriptions
 - Set allowSkip to true so users can skip if they prefer
-- The id field should be a unique identifier like "clarify-${context.currentNode}-001"
+- The id field should be a unique identifier like "clarify-${
+      context.currentNode
+    }-001"
 - Set estimatedImpact based on how much this will affect the world
     `.trim(),
   });
@@ -129,7 +130,9 @@ export function refineBaseWorldWithAnswers(
         9: "oppressive",
         10: "utterly hopeless",
       };
-      refined.tone = `${refined.tone} (${darknessDescriptions[value] || "moderate"})`;
+      refined.tone = `${refined.tone} (${
+        darknessDescriptions[value] || "moderate"
+      })`;
     }
 
     if (key === "violence_level" && typeof value === "string") {
@@ -145,6 +148,3 @@ export function refineBaseWorldWithAnswers(
 
   return refined;
 }
-
-
-

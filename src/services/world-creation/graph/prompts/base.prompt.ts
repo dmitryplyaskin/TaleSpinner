@@ -29,6 +29,3 @@ Be creative, consistent, and engaging. This foundation will be used by other age
 ${languageInstruction}
   `.trim();
 }
-
-
-

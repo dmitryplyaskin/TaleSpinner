@@ -11,7 +11,10 @@ import { ApiSettingsService } from "@services/api-settings.service";
 import { LLMOutputLanguage } from "@shared/types/settings";
 import { getWorldGenerationGraph } from "./graph/world-generation.graph";
 import type { WorldGenerationStateType } from "./graph/state";
-import type { ClarificationRequest, ClarificationResponse } from "@shared/types/human-in-the-loop";
+import type {
+  ClarificationRequest,
+  ClarificationResponse,
+} from "@shared/types/human-in-the-loop";
 import { AnalysisAgent } from "./agents/analysis.agent";
 
 type AgentName = keyof GenerationProgress;
@@ -295,12 +298,18 @@ export class AgentWorldService {
       );
 
       // Используем stream для получения промежуточных результатов
-      const streamInput = initialState as unknown as Parameters<typeof graph.stream>[0];
+      const streamInput = initialState as unknown as Parameters<
+        typeof graph.stream
+      >[0];
       for await (const event of await graph.stream(streamInput, config)) {
         for (const [nodeName, nodeOutput] of Object.entries(event)) {
           // Обновляем прогресс в БД
           if (nodeName in DEFAULT_PROGRESS) {
-            await this.updateProgress(sessionId, nodeName as AgentName, "completed");
+            await this.updateProgress(
+              sessionId,
+              nodeName as AgentName,
+              "completed"
+            );
           }
 
           yield {
@@ -357,7 +366,10 @@ export class AgentWorldService {
         answers: {},
       };
 
-      const continueResult = await this.continueGeneration(sessionId, skipResponse);
+      const continueResult = await this.continueGeneration(
+        sessionId,
+        skipResponse
+      );
 
       if (continueResult.status === "error") {
         throw new Error(continueResult.error || "Generation failed");
@@ -394,10 +406,12 @@ export class AgentWorldService {
       `SELECT * FROM world_generation_sessions WHERE id = $1`,
       [sessionId]
     );
-    const session = result.rows[0] as {
-      setting: string;
-      collected_info: string | string[];
-    } | undefined;
+    const session = result.rows[0] as
+      | {
+          setting: string;
+          collected_info: string | string[];
+        }
+      | undefined;
 
     if (!session) {
       throw new Error("Session not found");

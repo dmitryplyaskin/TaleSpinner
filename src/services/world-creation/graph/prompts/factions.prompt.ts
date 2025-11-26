@@ -42,6 +42,3 @@ Create factions that offer dynamic relationships and opportunities for political
 ${languageInstruction}
   `.trim();
 }
-
-
-

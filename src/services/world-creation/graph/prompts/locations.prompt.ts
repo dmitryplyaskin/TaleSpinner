@@ -41,6 +41,3 @@ Create diverse locations that offer different types of gameplay experiences.
 ${languageInstruction}
   `.trim();
 }
-
-
-

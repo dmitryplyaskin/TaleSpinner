@@ -76,11 +76,10 @@ export const ClarificationResponseSchema = z.object({
   ),
 });
 
-export type ClarificationFieldType = z.infer<typeof ClarificationFieldTypeSchema>;
+export type ClarificationFieldType = z.infer<
+  typeof ClarificationFieldTypeSchema
+>;
 export type ClarificationOption = z.infer<typeof ClarificationOptionSchema>;
 export type ClarificationField = z.infer<typeof ClarificationFieldSchema>;
 export type ClarificationRequest = z.infer<typeof ClarificationRequestSchema>;
 export type ClarificationResponse = z.infer<typeof ClarificationResponseSchema>;
-
-
-

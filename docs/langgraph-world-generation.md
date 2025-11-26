@@ -75,17 +75,18 @@ const checkpointer = new MemorySaver();
 const graph = getWorldGenerationGraph(checkpointer);
 
 const result = await graph.invoke(initialState, {
-  configurable: { thread_id: sessionId }
+  configurable: { thread_id: sessionId },
 });
 ```
 
 ## Frontend интеграция
 
 Компоненты:
+
 - `frontend/src/components/clarification/ClarificationRenderer.tsx` - рендерер динамических форм HITL
 - `frontend/src/components/clarification/fields/` - компоненты полей (TextInput, SliderInput, RadioGroup и т.д.)
 
 Интеграция в wizard:
+
 - `GenerationProgress.tsx` - поддерживает SSE streaming и показывает `ClarificationRenderer` при interrupt
 - `QuestionForm.tsx` - переходит к `GenerationProgress` для отображения прогресса
-

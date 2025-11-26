@@ -76,6 +76,3 @@ export interface ClarificationResponse {
   skipped: boolean;
   answers: Record<string, string | string[] | boolean | number>;
 }
-
-
-

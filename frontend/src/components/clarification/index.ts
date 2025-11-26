@@ -1,5 +1,2 @@
-export { ClarificationRenderer } from "./ClarificationRenderer";
-export * from "./fields";
-
-
-
+export { ClarificationRenderer } from './ClarificationRenderer';
+export * from './fields';

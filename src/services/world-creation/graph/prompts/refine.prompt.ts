@@ -2,7 +2,9 @@ import type { WorldGenerationStateType } from "../state";
 
 export function buildRefinePrompt(state: WorldGenerationStateType): string {
   const issuesText = state.reviewIssues
-    .map((i) => `- [${i.severity.toUpperCase()}] ${i.category}: ${i.description}`)
+    .map(
+      (i) => `- [${i.severity.toUpperCase()}] ${i.category}: ${i.description}`
+    )
     .join("\n");
 
   return `
@@ -43,6 +45,3 @@ For each issue:
 The output should be a complete, valid world data structure.
   `.trim();
 }
-
-
-

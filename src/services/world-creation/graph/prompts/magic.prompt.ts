@@ -1,5 +1,11 @@
 import type { LLMOutputLanguage } from "@shared/types/settings";
-import type { BaseWorldData, Faction, Location, Race, TimelineEvent } from "src/schemas/world";
+import type {
+  BaseWorldData,
+  Faction,
+  Location,
+  Race,
+  TimelineEvent,
+} from "src/schemas/world";
 
 export interface MagicPromptContext {
   base: BaseWorldData;
@@ -12,7 +18,15 @@ export interface MagicPromptContext {
 }
 
 export function buildMagicPrompt(context: MagicPromptContext): string {
-  const { base, factions, locations, races, history, collectedInfo, outputLanguage } = context;
+  const {
+    base,
+    factions,
+    locations,
+    races,
+    history,
+    collectedInfo,
+    outputLanguage,
+  } = context;
 
   const languageInstruction =
     outputLanguage === "ru"
@@ -42,9 +56,15 @@ Existing World Elements:
 - Historical Events: ${historicalEvents}
 
 World Context Summary:
-- Factions: ${JSON.stringify(factions.map(f => ({ name: f.name, type: f.type })))}
-- Races: ${JSON.stringify(races.map(r => ({ name: r.name, special_abilities: r.special_abilities })))}
-- History: ${JSON.stringify(history.map(h => ({ name: h.name, timeframe: h.timeframe })))}
+- Factions: ${JSON.stringify(
+    factions.map((f) => ({ name: f.name, type: f.type }))
+  )}
+- Races: ${JSON.stringify(
+    races.map((r) => ({ name: r.name, special_abilities: r.special_abilities }))
+  )}
+- History: ${JSON.stringify(
+    history.map((h) => ({ name: h.name, timeframe: h.timeframe }))
+  )}
 
 Additional Known Information:
 ${JSON.stringify(collectedInfo)}
@@ -69,6 +89,3 @@ Create a logical and consistent magic system that matches the tone of the world.
 ${languageInstruction}
   `.trim();
 }
-
-
-

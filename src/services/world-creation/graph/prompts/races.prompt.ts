@@ -38,6 +38,3 @@ Create races that organically fit the established tone and genre of the world.
 ${languageInstruction}
   `.trim();
 }
-
-
-
