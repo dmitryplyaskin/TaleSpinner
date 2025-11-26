@@ -55,12 +55,9 @@ export const WelcomeScreen: React.FC = () => {
 					{/* Логотип и заголовок */}
 					<Box textAlign="center" sx={{ mb: 2 }}>
 						<Typography
-							variant="h2"
+							variant="h1"
 							component="h1"
 							sx={{
-								fontFamily: '"Cinzel", serif',
-								fontWeight: 700,
-								letterSpacing: '0.05em',
 								color: 'primary.main',
 								mb: 1,
 							}}
