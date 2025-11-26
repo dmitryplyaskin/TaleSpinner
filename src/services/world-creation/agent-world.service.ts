@@ -488,7 +488,8 @@ export class AgentWorldService {
         [JSON.stringify(updatedInfo), sessionId]
       );
 
-      return await this.generateWorld(sessionId);
+      // Возвращаем статус ok, генерация будет запущена через SSE stream
+      return { status: "ok" };
     } catch (error) {
       console.error("Failed to submit answers:", error);
       throw new Error("Failed to process answers and generate world");

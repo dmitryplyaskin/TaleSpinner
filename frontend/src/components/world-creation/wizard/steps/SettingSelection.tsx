@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useUnit } from 'effector-react';
 import { Box, Button, Typography, Chip, alpha, keyframes } from '@mui/material';
 import {
 	AutoAwesome,
@@ -9,6 +10,7 @@ import {
 	Public,
 	CheckCircle,
 } from '@mui/icons-material';
+import { $setting, $isStartingSession, setSetting, startSessionFx } from '../../../../model/agent-wizard';
 
 // Анимации
 const shimmer = keyframes`
@@ -119,15 +121,17 @@ const settingOptions: SettingOption[] = [
 	},
 ];
 
-interface Props {
-	selected: string;
-	onSelect: (val: string) => void;
-	onNext: () => void;
-	loading?: boolean;
-}
-
-export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, loading = false }) => {
+export const SettingSelection: React.FC = () => {
 	const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+	const setting = useUnit($setting);
+	const isLoading = useUnit($isStartingSession);
+	const handleSetSetting = useUnit(setSetting);
+	const handleStartSession = useUnit(startSessionFx);
+
+	const handleNext = () => {
+		handleStartSession({ setting });
+	};
 
 	return (
 		<Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}>
@@ -173,21 +177,21 @@ export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, 
 				}}
 			>
 				{settingOptions.map((option, index) => {
-					const isSelected = selected === option.id;
+					const isSelected = setting === option.id;
 					const isHovered = hoveredCard === option.id;
 
 					return (
 						<Box
 							key={option.id}
-							onClick={() => !loading && onSelect(option.id)}
+							onClick={() => !isLoading && handleSetSetting(option.id)}
 							onMouseEnter={() => setHoveredCard(option.id)}
 							onMouseLeave={() => setHoveredCard(null)}
 							sx={{
 								position: 'relative',
 								borderRadius: 3,
-								cursor: loading ? 'not-allowed' : 'pointer',
+								cursor: isLoading ? 'not-allowed' : 'pointer',
 								overflow: 'hidden',
-								opacity: loading ? 0.6 : 1,
+								opacity: isLoading ? 0.6 : 1,
 								transform: isSelected ? 'scale(1.02)' : isHovered ? 'scale(1.01)' : 'scale(1)',
 								transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
 								animation: isSelected ? `${glow} 2s ease-in-out infinite` : 'none',
@@ -213,7 +217,7 @@ export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, 
 									padding: '2px',
 									background: `linear-gradient(135deg, ${option.accentColor} 0%, ${alpha(
 										option.accentColor,
-										0.6,
+										0.6
 									)} 100%)`,
 								},
 							}}
@@ -262,8 +266,8 @@ export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, 
 										boxShadow: isSelected
 											? `0 8px 32px ${alpha(option.accentColor, 0.4)}`
 											: isHovered
-											? `0 4px 16px ${alpha(option.accentColor, 0.3)}`
-											: 'none',
+												? `0 4px 16px ${alpha(option.accentColor, 0.3)}`
+												: 'none',
 									}}
 								>
 									{option.icon}
@@ -354,9 +358,9 @@ export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, 
 			<Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
 				<Button
 					variant="contained"
-					onClick={onNext}
+					onClick={handleNext}
 					size="large"
-					disabled={loading || !selected}
+					disabled={isLoading || !setting}
 					sx={{
 						minWidth: 220,
 						py: 1.75,
@@ -383,7 +387,7 @@ export const SettingSelection: React.FC<Props> = ({ selected, onSelect, onNext, 
 						},
 					}}
 				>
-					{loading ? 'Загрузка...' : 'Продолжить'}
+					{isLoading ? 'Загрузка...' : 'Продолжить'}
 				</Button>
 			</Box>
 		</Box>

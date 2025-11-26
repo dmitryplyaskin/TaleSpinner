@@ -1,151 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useUnit } from 'effector-react';
 import { Box, Typography, TextField, Button, CircularProgress, Chip, Paper, Alert } from '@mui/material';
-import { BASE_URL } from '../../../../const';
-import { GenerationProgress } from './GenerationProgress';
-import type { AgentAnalysis, WorldData, AgentQuestion } from '../../../../types/world-creation';
+import {
+	$questions,
+	$answers,
+	$analysis,
+	$sessionId,
+	$error,
+	$isSubmittingAnswers,
+	setAnswer,
+	submitAnswersFx,
+	clearError,
+} from '../../../../model/agent-wizard';
 
-interface Props {
-	sessionId: string;
-	initialInput: string;
-	onComplete: (worldData: WorldData) => void;
-	onError?: (error: string) => void;
-}
+export const QuestionForm: React.FC = () => {
+	const questions = useUnit($questions);
+	const answers = useUnit($answers);
+	const analysis = useUnit($analysis);
+	const sessionId = useUnit($sessionId);
+	const error = useUnit($error);
+	const isLoading = useUnit($isSubmittingAnswers);
 
-type Phase = 'analyzing' | 'questions' | 'generating';
-
-export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onComplete, onError }) => {
-	const [phase, setPhase] = useState<Phase>('analyzing');
-	const [questions, setQuestions] = useState<AgentQuestion[]>([]);
-	const [answers, setAnswers] = useState<Record<string, string>>({});
-	const [loading, setLoading] = useState(false);
-	const [analysis, setAnalysis] = useState<AgentAnalysis | null>(null);
-	const [error, setError] = useState<string | null>(null);
-
-	const analyzeInitialInput = async () => {
-		setLoading(true);
-		setError(null);
-		try {
-			const res = await fetch(`${BASE_URL}/world-creation/agent/analyze`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ sessionId, userInput: initialInput }),
-			});
-
-			if (!res.ok) {
-				throw new Error('Failed to analyze input');
-			}
-
-			const data: AgentAnalysis = await res.json();
-			setAnalysis(data);
-			setQuestions(data.questions);
-
-			// If already ready (no questions needed), start generation immediately
-			if (data.is_ready || data.questions.length === 0) {
-				await startGeneration({});
-			} else {
-				setPhase('questions');
-			}
-		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to analyze input';
-			setError(errorMsg);
-			onError?.(errorMsg);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const startGeneration = async (answersToSubmit: Record<string, string> = answers) => {
-		setLoading(true);
-		setError(null);
-
-		try {
-			// Сначала отправляем ответы если есть
-			if (Object.keys(answersToSubmit).length > 0) {
-				const submitRes = await fetch(`${BASE_URL}/world-creation/agent/submit-answers`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ sessionId, answers: answersToSubmit }),
-				});
-
-				if (!submitRes.ok) {
-					throw new Error('Failed to submit answers');
-				}
-
-				// Если submit-answers вернул мир напрямую (legacy режим)
-				const data = await submitRes.json();
-				if (data.name && data.world_primer) {
-					onComplete(data as WorldData);
-					return;
-				}
-			}
-
-			// Переходим к фазе генерации с прогрессом
-			setPhase('generating');
-		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to start generation';
-			setError(errorMsg);
-			onError?.(errorMsg);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const handleGenerationComplete = async () => {
-		// Получаем сгенерированный мир
-		try {
-			const res = await fetch(`${BASE_URL}/world-creation/agent/generate`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ sessionId }),
-			});
-
-			if (!res.ok) {
-				throw new Error('Failed to get generated world');
-			}
-
-			const data: WorldData = await res.json();
-			onComplete(data);
-		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to get world data';
-			setError(errorMsg);
-			onError?.(errorMsg);
-		}
-	};
-
-	const handleGenerationError = (errorMsg: string) => {
-		setError(errorMsg);
-		onError?.(errorMsg);
-		setPhase('questions');
-	};
-
-	// Initial analysis on mount
-	useEffect(() => {
-		analyzeInitialInput();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	const handleSetAnswer = useUnit(setAnswer);
+	const handleSubmitAnswers = useUnit(submitAnswersFx);
+	const handleClearError = useUnit(clearError);
 
 	const handleAnswerChange = (questionId: string, value: string) => {
-		setAnswers((prev) => ({ ...prev, [questionId]: value }));
+		handleSetAnswer({ questionId, value });
 	};
 
-	// Фаза анализа
-	if (phase === 'analyzing' && loading) {
-		return (
-			<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-				<CircularProgress />
-				<Typography sx={{ ml: 2 }}>Анализирую информацию...</Typography>
-			</Box>
-		);
-	}
+	const handleGenerateWithAnswers = () => {
+		if (sessionId) {
+			handleSubmitAnswers({ sessionId, answers });
+		}
+	};
 
-	// Фаза генерации
-	if (phase === 'generating') {
-		return (
-			<GenerationProgress sessionId={sessionId} onComplete={handleGenerationComplete} onError={handleGenerationError} />
-		);
-	}
+	const handleAutoGenerate = () => {
+		if (sessionId) {
+			handleSubmitAnswers({ sessionId, answers: {} });
+		}
+	};
 
-	// Фаза вопросов
 	return (
 		<Box sx={{ display: 'flex', gap: 4, height: '100%' }}>
 			<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -159,12 +54,12 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
 				</Box>
 
 				{error && (
-					<Alert severity="error" onClose={() => setError(null)}>
+					<Alert severity="error" onClose={handleClearError}>
 						{error}
 					</Alert>
 				)}
 
-				{questions.length === 0 && !loading && (
+				{questions.length === 0 && !isLoading && (
 					<Alert severity="info">Достаточно информации для генерации мира. Нажмите "Сгенерировать мир".</Alert>
 				)}
 
@@ -184,17 +79,17 @@ export const QuestionForm: React.FC<Props> = ({ sessionId, initialInput, onCompl
 								placeholder='Ваш ответ или оставьте пустым / напишите "решай сам"'
 								value={answers[q.id] || ''}
 								onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-								disabled={loading}
+								disabled={isLoading}
 							/>
 						</Paper>
 					))}
 				</Box>
 
 				<Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-					<Button variant="contained" size="large" onClick={() => startGeneration(answers)} disabled={loading}>
-						{loading ? <CircularProgress size={24} /> : 'Сгенерировать мир'}
+					<Button variant="contained" size="large" onClick={handleGenerateWithAnswers} disabled={isLoading}>
+						{isLoading ? <CircularProgress size={24} /> : 'Сгенерировать мир'}
 					</Button>
-					<Button variant="outlined" size="large" onClick={() => startGeneration({})} disabled={loading}>
+					<Button variant="outlined" size="large" onClick={handleAutoGenerate} disabled={isLoading}>
 						Полная автогенерация
 					</Button>
 				</Box>

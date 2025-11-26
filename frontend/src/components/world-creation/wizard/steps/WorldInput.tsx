@@ -1,12 +1,14 @@
 import React from 'react';
+import { useUnit } from 'effector-react';
 import { Box, TextField, Typography, Button, Paper, Chip } from '@mui/material';
 import { Lightbulb, AutoAwesome } from '@mui/icons-material';
-
-interface Props {
-	value: string;
-	onChange: (val: string) => void;
-	onNext: () => void;
-}
+import {
+	$userInput,
+	$sessionId,
+	$isAnalyzing,
+	setUserInput,
+	analyzeInputFx,
+} from '../../../../model/agent-wizard';
 
 const suggestions = [
 	'Летающие острова',
@@ -19,15 +21,32 @@ const suggestions = [
 	'Подземные города',
 ];
 
-export const WorldInput: React.FC<Props> = ({ value, onChange, onNext }) => {
+export const WorldInput: React.FC = () => {
+	const userInput = useUnit($userInput);
+	const sessionId = useUnit($sessionId);
+	const isAnalyzing = useUnit($isAnalyzing);
+	const handleSetUserInput = useUnit(setUserInput);
+	const handleAnalyze = useUnit(analyzeInputFx);
+
 	const handleSuggestionClick = (suggestion: string) => {
-		const newValue = value ? `${value}, ${suggestion.toLowerCase()}` : suggestion.toLowerCase();
-		onChange(newValue);
+		const newValue = userInput ? `${userInput}, ${suggestion.toLowerCase()}` : suggestion.toLowerCase();
+		handleSetUserInput(newValue);
 	};
 
 	const handleSurpriseMe = () => {
-		onChange('Удиви меня! Создай уникальный и интересный мир на твоё усмотрение.');
-		onNext();
+		handleSetUserInput('Удиви меня! Создай уникальный и интересный мир на твоё усмотрение.');
+		if (sessionId) {
+			handleAnalyze({
+				sessionId,
+				userInput: 'Удиви меня! Создай уникальный и интересный мир на твоё усмотрение.',
+			});
+		}
+	};
+
+	const handleNext = () => {
+		if (sessionId) {
+			handleAnalyze({ sessionId, userInput });
+		}
 	};
 
 	return (
@@ -81,9 +100,10 @@ export const WorldInput: React.FC<Props> = ({ value, onChange, onNext }) => {
 				multiline
 				rows={8}
 				fullWidth
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
+				value={userInput}
+				onChange={(e) => handleSetUserInput(e.target.value)}
 				placeholder="Мир плавающих островов, где небесные пираты сражаются с наездниками на драконах за контроль над древними артефактами..."
+				disabled={isAnalyzing}
 				sx={{
 					'& .MuiOutlinedInput-root': {
 						fontSize: '1.1rem',
@@ -95,18 +115,29 @@ export const WorldInput: React.FC<Props> = ({ value, onChange, onNext }) => {
 			{/* Character Counter */}
 			<Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 				<Typography variant="caption" color="text.secondary">
-					{value.length > 0 ? `${value.length} символов` : 'Минимум 20 символов для анализа'}
+					{userInput.length > 0 ? `${userInput.length} символов` : 'Минимум 20 символов для анализа'}
 				</Typography>
-				{value.length >= 100 && <Chip label="Отличное описание!" size="small" color="success" variant="outlined" />}
+				{userInput.length >= 100 && <Chip label="Отличное описание!" size="small" color="success" variant="outlined" />}
 			</Box>
 
 			{/* Actions */}
 			<Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 2 }}>
-				<Button variant="outlined" onClick={handleSurpriseMe} startIcon={<AutoAwesome />} sx={{ minWidth: 180 }}>
+				<Button
+					variant="outlined"
+					onClick={handleSurpriseMe}
+					startIcon={<AutoAwesome />}
+					disabled={isAnalyzing}
+					sx={{ minWidth: 180 }}
+				>
 					Удиви меня
 				</Button>
-				<Button variant="contained" onClick={onNext} disabled={value.trim().length < 20} sx={{ minWidth: 180 }}>
-					Анализировать
+				<Button
+					variant="contained"
+					onClick={handleNext}
+					disabled={userInput.trim().length < 20 || isAnalyzing}
+					sx={{ minWidth: 180 }}
+				>
+					{isAnalyzing ? 'Анализирую...' : 'Анализировать'}
 				</Button>
 			</Box>
 

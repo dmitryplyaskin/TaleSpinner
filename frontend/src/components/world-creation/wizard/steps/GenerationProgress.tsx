@@ -1,30 +1,30 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Box, Typography, keyframes, styled, Button } from '@mui/material';
-import { BASE_URL } from '../../../../const';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useUnit } from 'effector-react';
+import { Box, Typography, keyframes, styled } from '@mui/material';
+import { API_BASE_URL } from '@utils/api';
 import { ClarificationRenderer } from '../../../clarification';
-import type { GenerationProgress as GenerationProgressType, AgentStatus } from '../../../../types/world-creation';
-import type { ClarificationRequest, ClarificationResponse } from '@shared/types/human-in-the-loop';
-
-interface Props {
-	sessionId: string;
-	onComplete: () => void;
-	onError: (error: string) => void;
-}
+import type {
+	GenerationProgress as GenerationProgressType,
+	AgentStatus,
+	StreamEvent,
+} from '../../../../model/agent-wizard';
+import type { ClarificationResponse } from '@shared/types/human-in-the-loop';
+import {
+	$sessionId,
+	$generationProgress,
+	$clarificationRequest,
+	updateProgress,
+	setClarificationRequest,
+	generateWorldFx,
+	continueGenerationFx,
+	setError,
+	goToStep,
+} from '../../../../model/agent-wizard';
 
 interface AgentInfo {
 	key: keyof GenerationProgressType;
 	label: string;
 	icon: string;
-}
-
-// Типы для SSE событий
-interface StreamEvent {
-	type?: 'done' | 'error';
-	node?: string;
-	status?: 'started' | 'completed' | 'error' | 'waiting_for_input';
-	data?: Partial<GenerationProgressType>;
-	clarification?: ClarificationRequest;
-	error?: string;
 }
 
 const AGENTS: AgentInfo[] = [
@@ -194,68 +194,38 @@ const getStatusText = (status: AgentStatus): string => {
 	}
 };
 
-export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onError }) => {
-	const [progress, setProgress] = useState<GenerationProgressType>({
-		base: 'pending',
-		factions: 'pending',
-		locations: 'pending',
-		races: 'pending',
-		history: 'pending',
-		magic: 'pending',
-	});
-	const [clarificationRequest, setClarificationRequest] = useState<ClarificationRequest | null>(null);
-	const [useStreaming, setUseStreaming] = useState(true);
+export const GenerationProgress: React.FC = () => {
+	const sessionId = useUnit($sessionId);
+	const progress = useUnit($generationProgress);
+	const clarificationRequest = useUnit($clarificationRequest);
 
-	const onCompleteRef = useRef(onComplete);
-	const onErrorRef = useRef(onError);
+	const handleUpdateProgress = useUnit(updateProgress);
+	const handleSetClarificationRequest = useUnit(setClarificationRequest);
+	const handleGenerateWorld = useUnit(generateWorldFx);
+	const handleContinueGeneration = useUnit(continueGenerationFx);
+	const handleSetError = useUnit(setError);
+	const handleGoToStep = useUnit(goToStep);
+
 	const isCompletedRef = useRef(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
-
-	useEffect(() => {
-		onCompleteRef.current = onComplete;
-		onErrorRef.current = onError;
-	}, [onComplete, onError]);
 
 	// Обработка ответа на уточнение
 	const handleClarificationSubmit = useCallback(
 		async (response: ClarificationResponse) => {
-			setClarificationRequest(null);
+			handleSetClarificationRequest(null);
 
-			try {
-				const res = await fetch(`${BASE_URL}/world-creation/agent/generate/${sessionId}/continue`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ response }),
-				});
-
-				if (!res.ok) {
-					throw new Error('Failed to continue generation');
-				}
-
-				const data = await res.json();
-
-				if (data.status === 'waiting_for_input' && data.clarification) {
-					setClarificationRequest(data.clarification);
-				} else if (data.status === 'completed') {
-					isCompletedRef.current = true;
-					onCompleteRef.current();
-				} else if (data.status === 'error') {
-					isCompletedRef.current = true;
-					onErrorRef.current(data.error || 'Generation failed');
-				}
-			} catch (err) {
-				console.error('Continue generation error:', err);
-				onErrorRef.current(err instanceof Error ? err.message : 'Failed to continue');
+			if (sessionId) {
+				handleContinueGeneration({ sessionId, response });
 			}
 		},
-		[sessionId],
+		[sessionId, handleContinueGeneration, handleSetClarificationRequest],
 	);
 
 	// SSE Streaming
 	useEffect(() => {
-		if (!useStreaming || isCompletedRef.current) return;
+		if (!sessionId || isCompletedRef.current) return;
 
-		const eventSource = new EventSource(`${BASE_URL}/world-creation/agent/generate/${sessionId}/stream`);
+		const eventSource = new EventSource(`${API_BASE_URL}/api/world-creation/agent/generate/${sessionId}/stream`);
 		eventSourceRef.current = eventSource;
 
 		eventSource.onmessage = (event) => {
@@ -266,7 +236,8 @@ export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onE
 					eventSource.close();
 					if (!isCompletedRef.current) {
 						isCompletedRef.current = true;
-						onCompleteRef.current();
+						// Получаем сгенерированный мир
+						handleGenerateWorld({ sessionId });
 					}
 					return;
 				}
@@ -275,7 +246,8 @@ export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onE
 					eventSource.close();
 					if (!isCompletedRef.current) {
 						isCompletedRef.current = true;
-						onErrorRef.current(data.error || 'Generation failed');
+						handleSetError(data.error || 'Generation failed');
+						handleGoToStep('questions');
 					}
 					return;
 				}
@@ -283,18 +255,18 @@ export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onE
 				// Обновляем прогресс
 				if (data.node && data.status === 'completed') {
 					const nodeKey = data.node as keyof GenerationProgressType;
-					if (nodeKey in progress) {
-						setProgress((prev) => ({
-							...prev,
-							[nodeKey]: 'completed',
-						}));
-					}
+					handleUpdateProgress({ [nodeKey]: 'completed' });
+				}
+
+				if (data.node && data.status === 'started') {
+					const nodeKey = data.node as keyof GenerationProgressType;
+					handleUpdateProgress({ [nodeKey]: 'in_progress' });
 				}
 
 				// Обработка HITL
 				if (data.status === 'waiting_for_input' && data.clarification) {
 					eventSource.close();
-					setClarificationRequest(data.clarification);
+					handleSetClarificationRequest(data.clarification);
 				}
 			} catch (err) {
 				console.error('Failed to parse SSE event:', err);
@@ -302,54 +274,25 @@ export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onE
 		};
 
 		eventSource.onerror = () => {
-			console.warn('SSE connection error, falling back to polling');
+			console.warn('SSE connection error');
 			eventSource.close();
-			setUseStreaming(false);
+			// При ошибке SSE пробуем получить мир напрямую
+			if (!isCompletedRef.current) {
+				handleGenerateWorld({ sessionId });
+			}
 		};
 
 		return () => {
 			eventSource.close();
 		};
-	}, [sessionId, useStreaming, progress]);
-
-	// Fallback polling
-	useEffect(() => {
-		if (useStreaming || isCompletedRef.current || clarificationRequest) return;
-
-		const fetchProgress = async () => {
-			if (isCompletedRef.current) return;
-
-			try {
-				const res = await fetch(`${BASE_URL}/world-creation/agent/progress?sessionId=${sessionId}`);
-				if (!res.ok) {
-					throw new Error('Failed to fetch progress');
-				}
-				const data: GenerationProgressType = await res.json();
-				setProgress(data);
-
-				const allCompleted = Object.values(data).every((status) => status === 'completed');
-				const anyFailed = Object.values(data).some((status) => status === 'failed');
-
-				if (allCompleted && !isCompletedRef.current) {
-					isCompletedRef.current = true;
-					onCompleteRef.current();
-				} else if (anyFailed && !isCompletedRef.current) {
-					isCompletedRef.current = true;
-					const failedAgents = Object.entries(data)
-						.filter(([, status]) => status === 'failed')
-						.map(([name]) => name);
-					onErrorRef.current(`Ошибка генерации: ${failedAgents.join(', ')}`);
-				}
-			} catch (err) {
-				console.error('Failed to fetch progress:', err);
-			}
-		};
-
-		fetchProgress();
-		const interval = setInterval(fetchProgress, 1500);
-
-		return () => clearInterval(interval);
-	}, [sessionId, useStreaming, clarificationRequest]);
+	}, [
+		sessionId,
+		handleUpdateProgress,
+		handleSetClarificationRequest,
+		handleGenerateWorld,
+		handleSetError,
+		handleGoToStep,
+	]);
 
 	const completedCount = Object.values(progress).filter((s) => s === 'completed').length;
 	const totalCount = Object.keys(progress).length;
@@ -407,19 +350,9 @@ export const GenerationProgress: React.FC<Props> = ({ sessionId, onComplete, onE
 			</AgentsGrid>
 
 			<Typography variant="body2" sx={{ mt: 4, color: '#64748b', textAlign: 'center' }}>
-				{useStreaming ? (
-					<>
-						Мир генерируется с использованием LangGraph.
-						<br />
-						Агенты могут задавать уточняющие вопросы.
-					</>
-				) : (
-					<>
-						Мир генерируется параллельно несколькими агентами.
-						<br />
-						Это может занять около 20-30 секунд.
-					</>
-				)}
+				Мир генерируется с использованием LangGraph.
+				<br />
+				Агенты могут задавать уточняющие вопросы.
 			</Typography>
 		</Container>
 	);
