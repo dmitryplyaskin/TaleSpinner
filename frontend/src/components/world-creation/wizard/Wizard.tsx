@@ -18,7 +18,7 @@ import {
 	Container,
 } from '@mui/material';
 import { ArrowBack, Warning } from '@mui/icons-material';
-import { SettingSelection } from './steps/SettingSelection';
+import { GenreSelection } from '../../../features/world-creation';
 import { WorldInput } from './steps/WorldInput';
 import { QuestionForm } from './steps/QuestionForm';
 import { GenerationProgress } from './steps/GenerationProgress';
@@ -35,7 +35,7 @@ import {
 	clearError,
 } from '../../../model/agent-wizard';
 
-const steps = ['Выбор сеттинга', 'Описание мира', 'Уточнение деталей', 'Проверка и сохранение'];
+const steps = ['Выбор жанра', 'Описание мира', 'Уточнение деталей', 'Проверка и сохранение'];
 
 // Маппинг шагов wizard на индексы stepper
 const stepToIndex: Record<string, number> = {
@@ -168,7 +168,7 @@ export const Wizard = () => {
 					},
 				}}
 			>
-				{step === 'setting' && <SettingSelection />}
+				{step === 'setting' && <GenreSelection />}
 				{step === 'input' && <WorldInput />}
 				{step === 'questions' && <QuestionForm />}
 				{step === 'generating' && <GenerationProgress />}

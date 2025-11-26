@@ -1,0 +1,95 @@
+{
+  "genreSelection": {
+    "title": "Choose a Genre",
+    "subtitle": "The genre will define the style and atmosphere of your adventure",
+    "continue": "Continue",
+    "loading": "Loading...",
+    "genres": {
+      "adventure": {
+        "title": "Adventure",
+        "description": "Exploration of uncharted lands, dangerous quests, and thrilling journeys"
+      },
+      "mystery": {
+        "title": "Mystery",
+        "description": "Investigating mysterious crimes, searching for clues, and uncovering secrets"
+      },
+      "drama": {
+        "title": "Drama",
+        "description": "Deep interpersonal conflicts, emotional experiences, and complex relationships"
+      },
+      "action": {
+        "title": "Action",
+        "description": "Dynamic combat scenes, chases, and intense confrontations"
+      },
+      "horror": {
+        "title": "Horror",
+        "description": "Encounters with the supernatural, survival struggles, and overcoming fear"
+      },
+      "romance": {
+        "title": "Romance",
+        "description": "Developing relationships, love stories, and emotional bonds between characters"
+      }
+    }
+  },
+  "completion": {
+    "title": "Your World is Created!",
+    "subtitle": "Congratulations! You have successfully completed the creation of your unique world. You are now ready to begin your adventure!",
+    "whatYouCreated": "What you created:",
+    "detailedWorld": "Detailed world with unique history",
+    "uniqueCharacter": "Character with individual characteristics",
+    "adventureBase": "Foundation for exciting adventures",
+    "worldCreated": "World Created",
+    "characterReady": "Character Ready",
+    "readyToPlay": "Ready to Play",
+    "completeButton": "Complete World Creation",
+    "completingButton": "Completing...",
+    "description": "Click the button above to save your world and return to the main menu. You can continue your adventure at any time!"
+  },
+  "preparation": {
+    "worldDescription": "World Description",
+    "factions": "Factions",
+    "locations": "Locations",
+    "races": "Races",
+    "history": "History",
+    "magicSystem": "Magic System",
+    "prepareWorld": "Prepare World for Game",
+    "startGame": "Start Playing",
+    "faction": {
+      "ideologyAndGoals": "Ideology and Goals",
+      "structure": "Structure",
+      "keyLeaders": "Key Leaders",
+      "methods": "Methods",
+      "relationships": "Relationships",
+      "roleInConflict": "Role in Conflict",
+      "resourcesAndInfluence": "Resources and Influence"
+    },
+    "location": {
+      "appearance": "Appearance",
+      "history": "History",
+      "inhabitants": "Inhabitants",
+      "significance": "Significance",
+      "featuresAndSecrets": "Features and Secrets",
+      "adventureOpportunities": "Adventure Opportunities"
+    },
+    "race": {
+      "description": "Description",
+      "relationshipToConflict": "Relationship to Conflict",
+      "specialAbilities": "Special Abilities",
+      "socialStructure": "Social Structure"
+    },
+    "event": {
+      "description": "Description",
+      "impactOnPresent": "Impact on Present"
+    },
+    "magic": {
+      "fundamentals": "Magic Fundamentals",
+      "powerSources": "Power Sources",
+      "schools": "Magic Schools",
+      "limitationsAndCosts": "Limitations and Costs",
+      "societalAttitude": "Societal Attitude",
+      "roleInConflict": "Role in Conflict",
+      "artifactsAndPlaces": "Artifacts and Places of Power"
+    }
+  }
+}
+
