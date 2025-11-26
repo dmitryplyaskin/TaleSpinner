@@ -25,8 +25,6 @@ const genreOptions: GenreOption[] = [
 		icon: <Explore sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(76, 175, 80, 0.25) 0%, rgba(212, 175, 55, 0.15) 100%)',
 		accentColor: '#4caf50',
-		bgPattern:
-			'radial-gradient(circle at 20% 80%, rgba(76, 175, 80, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.1) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)',
 	},
 	{
@@ -34,8 +32,6 @@ const genreOptions: GenreOption[] = [
 		icon: <Search sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(63, 81, 181, 0.25) 0%, rgba(139, 71, 137, 0.15) 100%)',
 		accentColor: '#5c6bc0',
-		bgPattern:
-			'radial-gradient(circle at 70% 30%, rgba(63, 81, 181, 0.15) 0%, transparent 50%), radial-gradient(circle at 30% 70%, rgba(139, 71, 137, 0.1) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #5c6bc0 0%, #3949ab 100%)',
 	},
 	{
@@ -43,8 +39,6 @@ const genreOptions: GenreOption[] = [
 		icon: <TheaterComedy sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(156, 39, 176, 0.25) 0%, rgba(233, 30, 99, 0.15) 100%)',
 		accentColor: '#ab47bc',
-		bgPattern:
-			'radial-gradient(circle at 50% 50%, rgba(156, 39, 176, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(233, 30, 99, 0.1) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)',
 	},
 	{
@@ -52,8 +46,6 @@ const genreOptions: GenreOption[] = [
 		icon: <LocalFireDepartment sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(255, 87, 34, 0.25) 0%, rgba(255, 152, 0, 0.15) 100%)',
 		accentColor: '#ff5722',
-		bgPattern:
-			'radial-gradient(circle at 25% 25%, rgba(255, 87, 34, 0.15) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(255, 152, 0, 0.1) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #ff5722 0%, #e64a19 100%)',
 	},
 	{
@@ -61,8 +53,6 @@ const genreOptions: GenreOption[] = [
 		icon: <Nightlight sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(198, 40, 40, 0.2) 0%, rgba(26, 22, 24, 0.4) 100%)',
 		accentColor: '#c62828',
-		bgPattern:
-			'radial-gradient(circle at 50% 50%, rgba(198, 40, 40, 0.1) 0%, transparent 60%), radial-gradient(circle at 90% 90%, rgba(0, 0, 0, 0.3) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #c62828 0%, #4a0000 100%)',
 	},
 	{
@@ -70,8 +60,6 @@ const genreOptions: GenreOption[] = [
 		icon: <Favorite sx={{ fontSize: 40 }} />,
 		gradient: 'linear-gradient(145deg, rgba(233, 30, 99, 0.25) 0%, rgba(244, 143, 177, 0.15) 100%)',
 		accentColor: '#ec407a',
-		bgPattern:
-			'radial-gradient(circle at 30% 30%, rgba(233, 30, 99, 0.12) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(244, 143, 177, 0.1) 0%, transparent 40%)',
 		iconBg: 'linear-gradient(135deg, #ec407a 0%, #d81b60 100%)',
 	},
 ];
@@ -132,7 +120,7 @@ export const GenreSelection: React.FC = () => {
 					gap: 3,
 				}}
 			>
-				{genreOptions.map((option, index) => {
+				{genreOptions.map((option) => {
 					const isSelected = setting === option.id;
 					const isHovered = hoveredCard === option.id;
 
@@ -145,7 +133,6 @@ export const GenreSelection: React.FC = () => {
 							isSelected={isSelected}
 							isHovered={isHovered}
 							isDisabled={isLoading}
-							index={index}
 							onSelect={() => handleSetSetting(option.id)}
 							onMouseEnter={() => setHoveredCard(option.id)}
 							onMouseLeave={() => setHoveredCard(null)}

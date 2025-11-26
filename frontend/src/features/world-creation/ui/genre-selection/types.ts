@@ -7,7 +7,6 @@ export interface GenreOption {
 	icon: ReactNode;
 	gradient: string;
 	accentColor: string;
-	bgPattern: string;
 	iconBg: string;
 }
 
