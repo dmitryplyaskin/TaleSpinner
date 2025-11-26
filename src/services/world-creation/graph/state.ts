@@ -27,7 +27,10 @@ export interface ReviewIssue {
 }
 
 // Reducer для массивов (append)
-const appendReducer = <T>(current: T[], update: T[]): T[] => [...current, ...update];
+const appendReducer = <T>(current: T[], update: T[]): T[] => [
+  ...current,
+  ...update,
+];
 
 // Reducer для замены значения (last value wins)
 const replaceReducer = <T>(current: T, update: T): T => update ?? current;
@@ -87,11 +90,17 @@ export const WorldGenerationState = Annotation.Root({
   }),
 
   // === Human-in-the-Loop ===
-  pendingClarification: Annotation<ClarificationRequest | null, ClarificationRequest | null>({
+  pendingClarification: Annotation<
+    ClarificationRequest | null,
+    ClarificationRequest | null
+  >({
     value: replaceReducer,
     default: () => null,
   }),
-  clarificationHistory: Annotation<ClarificationResponse[], ClarificationResponse[]>({
+  clarificationHistory: Annotation<
+    ClarificationResponse[],
+    ClarificationResponse[]
+  >({
     value: appendReducer,
     default: () => [],
   }),
