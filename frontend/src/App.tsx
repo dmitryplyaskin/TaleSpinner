@@ -3,9 +3,9 @@ import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { useUnit } from 'effector-react';
 import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model/app-navigation';
-import { loadSettingsFx } from './model/settings';
+import { loadSettingsFx, SettingsDrawer } from './features/settings';
 import { WelcomeScreen } from './components/welcome-screen';
-import { Wizard } from './components/world-creation/wizard/Wizard';
+import { Wizard } from './features/world-creation';
 import { ChatPage } from './components/chat';
 import { WorldPreparationScreen } from './components/world-preparation';
 import { theme } from './theme';
@@ -39,6 +39,7 @@ function App() {
 		<ThemeProvider theme={theme}>
 			<CssBaseline />
 			{renderScreen()}
+			<SettingsDrawer />
 		</ThemeProvider>
 	);
 }

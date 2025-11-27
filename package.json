@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "frontend:dev": "cd frontend && yarn dev",
-    "backend:dev": "nodemon"
+    "backend:dev": "nodemon",
+    "db:reset": "powershell -Command \"Remove-Item -Recurse -Force ./data/db\""
   },
   "nodemonConfig": {
     "watch": [

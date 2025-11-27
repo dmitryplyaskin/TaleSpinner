@@ -10,7 +10,7 @@ import {
 	Favorite,
 } from '@mui/icons-material';
 import { useTranslation } from '@hooks/useTranslation';
-import { $setting, $isStartingSession, setSetting, startSessionFx } from '@model/agent-wizard';
+import { $setting, $isStartingSession, setSetting, startSessionFx } from '../../model';
 import { GenreCard } from './genre-card';
 import { GenreOption, GenreId } from './types';
 
