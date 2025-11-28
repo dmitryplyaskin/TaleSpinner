@@ -18,3 +18,5 @@ export { ApiProvider, DEFAULT_SETTINGS } from '@shared/types/settings';
 /** Язык интерфейса приложения */
 export type InterfaceLanguage = 'ru' | 'en';
 
+
+
