@@ -7,6 +7,10 @@ import type {
   TimelineEvent,
   MagicSystem,
 } from "src/schemas/world";
+import type {
+  WorldSkeleton,
+  GenerationConfig,
+} from "../agents/schemas";
 import type { LLMOutputLanguage } from "@shared/types/settings";
 import type {
   ClarificationRequest,
@@ -47,6 +51,16 @@ export const WorldGenerationState = Annotation.Root({
   outputLanguage: Annotation<LLMOutputLanguage, LLMOutputLanguage>({
     value: replaceReducer,
     default: () => "ru" as LLMOutputLanguage,
+  }),
+
+  // === Architect Phase ===
+  skeleton: Annotation<WorldSkeleton | null, WorldSkeleton | null>({
+    value: replaceReducer,
+    default: () => null,
+  }),
+  config: Annotation<GenerationConfig | null, GenerationConfig | null>({
+    value: replaceReducer,
+    default: () => null,
   }),
 
   // === Результаты генерации ===

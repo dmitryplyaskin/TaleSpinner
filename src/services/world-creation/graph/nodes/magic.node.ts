@@ -9,10 +9,13 @@ export async function magicNode(
   state: WorldGenerationStateType
 ): Promise<Partial<WorldGenerationStateType>> {
   // Magic получает контекст от всех предыдущих агентов
-  if (!state.base || !state.factions || !state.locations || !state.races || !state.history) {
-    throw new Error(
-      "magicNode requires base, factions, locations, races, and history"
-    );
+  if (!state.base) {
+    throw new Error("magicNode requires base world data");
+  }
+
+  // Skip if not requested
+  if (state.config && !state.config.hasMagic) {
+    return { currentNode: "generateMagic" };
   }
 
   const settings = await ApiSettingsService.getInternalSettings();
@@ -30,10 +33,10 @@ export async function magicNode(
     schema: MagicResultSchema,
     prompt: buildMagicPrompt({
       base: state.base,
-      factions: state.factions,
-      locations: state.locations,
-      races: state.races,
-      history: state.history,
+      factions: state.factions || [],
+      locations: state.locations || [],
+      races: state.races || [],
+      history: state.history || [],
       collectedInfo: state.collectedInfo,
       outputLanguage: state.outputLanguage,
     }),
@@ -44,4 +47,3 @@ export async function magicNode(
     currentNode: "generateMagic",
   };
 }
-

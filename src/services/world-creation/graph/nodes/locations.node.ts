@@ -12,6 +12,11 @@ export async function locationsNode(
     throw new Error("locationsNode requires base world data");
   }
 
+  // Skip if not requested
+  if (state.config && !state.config.hasLocations) {
+    return { currentNode: "generateLocations" };
+  }
+
   const settings = await ApiSettingsService.getInternalSettings();
 
   if (!settings?.token) {

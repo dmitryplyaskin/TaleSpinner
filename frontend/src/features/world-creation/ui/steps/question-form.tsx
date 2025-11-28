@@ -1,151 +1,241 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUnit } from 'effector-react';
-import { Box, Typography, TextField, Button, CircularProgress, Chip, Paper, Alert } from '@mui/material';
 import {
-	$questions,
-	$answers,
-	$analysis,
-	$sessionId,
-	$error,
-	$isSubmittingAnswers,
-	setAnswer,
-	submitAnswersFx,
-	clearError,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  CircularProgress,
+  Paper,
+  Alert,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  FormLabel,
+  Checkbox,
+  FormGroup,
+  Divider,
+} from '@mui/material';
+import {
+  $clarificationRequest,
+  $sessionId,
+  $isContinuing,
+  continueGenerationFx,
 } from '../../model';
+import type { ClarificationField, ClarificationOption } from '@shared/types/human-in-the-loop';
 
 export const QuestionForm: React.FC = () => {
-	const questions = useUnit($questions);
-	const answers = useUnit($answers);
-	const analysis = useUnit($analysis);
-	const sessionId = useUnit($sessionId);
-	const error = useUnit($error);
-	const isLoading = useUnit($isSubmittingAnswers);
+  const request = useUnit($clarificationRequest);
+  const sessionId = useUnit($sessionId);
+  const isSubmitting = useUnit($isContinuing);
+  const handleContinue = useUnit(continueGenerationFx);
 
-	const handleSetAnswer = useUnit(setAnswer);
-	const handleSubmitAnswers = useUnit(submitAnswersFx);
-	const handleClearError = useUnit(clearError);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
 
-	const handleAnswerChange = (questionId: string, value: string) => {
-		handleSetAnswer({ questionId, value });
-	};
+  // Initialize default values
+  useEffect(() => {
+    if (request) {
+      const initialAnswers: Record<string, any> = {};
+      request.fields.forEach((field) => {
+        if (field.defaultValue !== undefined) {
+          initialAnswers[field.id] = field.defaultValue;
+        } else if (field.type === 'multiselect') {
+          initialAnswers[field.id] = [];
+        }
+      });
+      setAnswers(initialAnswers);
+    }
+  }, [request]);
 
-	const handleGenerateWithAnswers = () => {
-		if (sessionId) {
-			handleSubmitAnswers({ sessionId, answers });
-		}
-	};
+  if (!request) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Waiting for agent...</Typography>
+      </Box>
+    );
+  }
 
-	const handleAutoGenerate = () => {
-		if (sessionId) {
-			handleSubmitAnswers({ sessionId, answers: {} });
-		}
-	};
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [fieldId]: value,
+    }));
+  };
 
-	return (
-		<Box sx={{ display: 'flex', gap: 4, height: '100%' }}>
-			<Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-				<Box>
-					<Typography variant="h5" gutterBottom>
-						Уточните детали мира
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
-						Ответьте на вопросы или оставьте поля пустыми / напишите "решай сам" для автогенерации
-					</Typography>
-				</Box>
+  const handleMultiSelectChange = (fieldId: string, value: string, checked: boolean) => {
+    setAnswers((prev) => {
+      const current = (prev[fieldId] as string[]) || [];
+      if (checked) {
+        return { ...prev, [fieldId]: [...current, value] };
+      } else {
+        return { ...prev, [fieldId]: current.filter((v) => v !== value) };
+      }
+    });
+  };
 
-				{error && (
-					<Alert severity="error" onClose={handleClearError}>
-						{error}
-					</Alert>
-				)}
+  const handleSubmit = () => {
+    if (sessionId && request) {
+      handleContinue({
+        sessionId,
+        response: {
+          requestId: request.id,
+          skipped: false,
+          answers,
+        },
+      });
+    }
+  };
 
-				{questions.length === 0 && !isLoading && (
-					<Alert severity="info">Достаточно информации для генерации мира. Нажмите "Сгенерировать мир".</Alert>
-				)}
+  const handleSkip = () => {
+    if (sessionId && request) {
+      handleContinue({
+        sessionId,
+        response: {
+          requestId: request.id,
+          skipped: true,
+          answers: {},
+        },
+      });
+    }
+  };
 
-				<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-					{questions.map((q) => (
-						<Paper key={q.id} sx={{ p: 3, bgcolor: 'background.default' }}>
-							<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-								<Chip label={q.category} size="small" color="primary" variant="outlined" />
-							</Box>
-							<Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-								{q.text}
-							</Typography>
-							<TextField
-								fullWidth
-								multiline
-								rows={3}
-								placeholder='Ваш ответ или оставьте пустым / напишите "решай сам"'
-								value={answers[q.id] || ''}
-								onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-								disabled={isLoading}
-							/>
-						</Paper>
-					))}
-				</Box>
+  const renderField = (field: ClarificationField) => {
+    switch (field.type) {
+      case 'radio':
+        return (
+          <FormControl component="fieldset" fullWidth>
+            <FormLabel component="legend">{field.label}</FormLabel>
+            <RadioGroup
+              value={answers[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            >
+              {field.options?.map((opt: ClarificationOption) => (
+                <FormControlLabel
+                  key={opt.value}
+                  value={opt.value}
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">{opt.label}</Typography>
+                      {opt.description && (
+                        <Typography variant="caption" color="text.secondary">
+                          {opt.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                  sx={{ mb: 1, alignItems: 'flex-start' }}
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+        );
 
-				<Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-					<Button variant="contained" size="large" onClick={handleGenerateWithAnswers} disabled={isLoading}>
-						{isLoading ? <CircularProgress size={24} /> : 'Сгенерировать мир'}
-					</Button>
-					<Button variant="outlined" size="large" onClick={handleAutoGenerate} disabled={isLoading}>
-						Полная автогенерация
-					</Button>
-				</Box>
-			</Box>
+      case 'multiselect':
+        return (
+          <FormControl component="fieldset" fullWidth>
+            <FormLabel component="legend">{field.label}</FormLabel>
+            <FormGroup>
+              {field.options?.map((opt: ClarificationOption) => (
+                <FormControlLabel
+                  key={opt.value}
+                  control={
+                    <Checkbox
+                      checked={(answers[field.id] as string[] || []).includes(opt.value)}
+                      onChange={(e) => handleMultiSelectChange(field.id, opt.value, e.target.checked)}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1">{opt.label}</Typography>
+                      {opt.description && (
+                        <Typography variant="caption" color="text.secondary">
+                          {opt.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                  sx={{ mb: 1, alignItems: 'flex-start' }}
+                />
+              ))}
+            </FormGroup>
+          </FormControl>
+        );
 
-			{/* Knowledge Base Panel */}
-			<Box sx={{ width: 300, display: 'flex', flexDirection: 'column', gap: 2 }}>
-				<Typography variant="h6">База знаний</Typography>
+      case 'textarea':
+        return (
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label={field.label}
+            placeholder={field.placeholder}
+            value={answers[field.id] || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            helperText={field.description}
+          />
+        );
 
-				<Box>
-					<Typography variant="subtitle2" gutterBottom>
-						Известная информация:
-					</Typography>
-					<Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-						{analysis?.known_info.map((info, idx) => (
-							<Chip
-								key={idx}
-								label={info.length > 30 ? info.substring(0, 30) + '...' : info}
-								title={info}
-								size="small"
-								color="success"
-							/>
-						))}
-						{(!analysis?.known_info || analysis.known_info.length === 0) && (
-							<Typography variant="body2" color="text.secondary">
-								Нет данных
-							</Typography>
-						)}
-					</Box>
-				</Box>
+      case 'text':
+      default:
+        return (
+          <TextField
+            fullWidth
+            label={field.label}
+            placeholder={field.placeholder}
+            value={answers[field.id] || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            helperText={field.description}
+          />
+        );
+    }
+  };
 
-				<Box>
-					<Typography variant="subtitle2" gutterBottom>
-						Недостающая информация:
-					</Typography>
-					<Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-						{analysis?.missing_info.map((info, idx) => (
-							<Chip key={idx} label={info} color="warning" size="small" variant="outlined" />
-						))}
-						{(!analysis?.missing_info || analysis.missing_info.length === 0) && (
-							<Typography variant="body2" color="text.secondary">
-								Нет данных
-							</Typography>
-						)}
-					</Box>
-				</Box>
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: 800, mx: 'auto', p: 2 }}>
+      <Paper elevation={3} sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <Box>
+          <Typography variant="h5" gutterBottom color="primary">
+            {request.context.title}
+          </Typography>
+          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
+            {request.context.description}
+          </Typography>
+          {request.context.reason && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {request.context.reason}
+            </Alert>
+          )}
+        </Box>
 
-				<Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-					<Typography variant="caption" color="info.dark">
-						💡 Совет: Во время генерации агенты могут задавать уточняющие вопросы для создания более качественного мира
-					</Typography>
-				</Box>
-			</Box>
-		</Box>
-	);
+        <Divider />
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {request.fields.map((field) => (
+            <Box key={field.id}>
+              {renderField(field)}
+            </Box>
+          ))}
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 2, mt: 4, justifyContent: 'flex-end' }}>
+          {request.options.allowSkip && (
+            <Button variant="outlined" onClick={handleSkip} disabled={isSubmitting}>
+              {request.options.skipLabel || 'Skip'}
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            size="large"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <CircularProgress size={24} /> : (request.options.submitLabel || 'Submit')}
+          </Button>
+        </Box>
+      </Paper>
+    </Box>
+  );
 };
-
-
-

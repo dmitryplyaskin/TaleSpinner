@@ -9,10 +9,13 @@ export async function historyNode(
   state: WorldGenerationStateType
 ): Promise<Partial<WorldGenerationStateType>> {
   // History получает контекст от других агентов
-  if (!state.base || !state.factions || !state.locations || !state.races) {
-    throw new Error(
-      "historyNode requires base, factions, locations, and races"
-    );
+  if (!state.base) {
+    throw new Error("historyNode requires base world data");
+  }
+
+  // Skip if not requested
+  if (state.config && !state.config.hasHistory) {
+    return { currentNode: "generateHistory" };
   }
 
   const settings = await ApiSettingsService.getInternalSettings();
@@ -30,9 +33,9 @@ export async function historyNode(
     schema: HistoryResultSchema,
     prompt: buildHistoryPrompt({
       base: state.base,
-      factions: state.factions,
-      locations: state.locations,
-      races: state.races,
+      factions: state.factions || [],
+      locations: state.locations || [],
+      races: state.races || [],
       collectedInfo: state.collectedInfo,
       outputLanguage: state.outputLanguage,
     }),
@@ -43,4 +46,3 @@ export async function historyNode(
     currentNode: "generateHistory",
   };
 }
-

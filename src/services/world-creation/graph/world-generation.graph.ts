@@ -9,6 +9,7 @@ import {
   magicNode,
   reviewNode,
   refineNode,
+  architectNode,
 } from "./nodes";
 
 // Условная функция для review
@@ -34,6 +35,7 @@ function shouldRefine(state: WorldGenerationStateType): "refineWorld" | "end" {
 export function createWorldGenerationGraph(checkpointer?: MemorySaver) {
   const workflow = new StateGraph(WorldGenerationState)
     // Добавляем узлы
+    .addNode("architect", architectNode)
     .addNode("generateBase", baseNode)
     .addNode("generateFactions", factionsNode)
     .addNode("generateLocations", locationsNode)
@@ -43,8 +45,13 @@ export function createWorldGenerationGraph(checkpointer?: MemorySaver) {
     .addNode("reviewWorld", reviewNode)
     .addNode("refineWorld", refineNode)
 
-    // Edges: START -> generateBase
-    .addEdge("__start__", "generateBase")
+    // Edges: START -> architect
+    .addEdge("__start__", "architect")
+    
+    // architect -> generateBase
+    .addEdge("architect", "generateBase")
+
+    // generateBase -> параллельный запуск factions, locations, races
 
     // generateBase -> параллельный запуск factions, locations, races
     .addEdge("generateBase", "generateFactions")

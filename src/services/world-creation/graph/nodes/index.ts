@@ -6,3 +6,4 @@ export { historyNode } from "./history.node";
 export { magicNode } from "./magic.node";
 export { reviewNode } from "./review.node";
 export { refineNode } from "./refine.node";
+export { architectNode } from "./architect.node";

@@ -12,6 +12,11 @@ export async function racesNode(
     throw new Error("racesNode requires base world data");
   }
 
+  // Skip if not requested
+  if (state.config && !state.config.hasRaces) {
+    return { currentNode: "generateRaces" };
+  }
+
   const settings = await ApiSettingsService.getInternalSettings();
 
   if (!settings?.token) {

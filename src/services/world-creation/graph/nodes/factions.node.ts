@@ -12,6 +12,11 @@ export async function factionsNode(
     throw new Error("factionsNode requires base world data");
   }
 
+  // Skip if not requested
+  if (state.config && !state.config.hasFactions) {
+    return { currentNode: "generateFactions" };
+  }
+
   const settings = await ApiSettingsService.getInternalSettings();
 
   if (!settings?.token) {
