@@ -4,69 +4,49 @@ export const components: Components<Omit<Theme, 'components'>> = {
 	MuiButton: {
 		styleOverrides: {
 			root: {
-				borderRadius: '6px',
-				padding: '10px 24px',
-				transition: 'all 0.3s ease',
-				boxShadow: '0 2px 8px rgba(212, 175, 55, 0.15)',
-				'&:hover': {
-					transform: 'translateY(-2px)',
-					boxShadow: '0 4px 12px rgba(212, 175, 55, 0.25)',
-				},
-				// Исправляем читаемость текста в разных состояниях
+				borderRadius: '12px',
+				padding: '12px 32px',
+				textTransform: 'none',
+				fontWeight: 500,
+				transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
 				'&.Mui-disabled': {
-					color: '#7a6f60 !important',
-					backgroundColor: 'rgba(244, 232, 208, 0.12) !important',
+					color: '#9e9e9e !important',
+					backgroundColor: 'rgba(255, 255, 255, 0.12) !important',
 				},
 			},
 			contained: {
-				background: 'linear-gradient(135deg, #d4af37 0%, #b89730 100%)',
-				color: '#1a1a1a !important', // Принудительно темный текст на золотом фоне
+				background: 'linear-gradient(135deg, #d4af37 0%, #f4d775 100%)',
+				color: '#0a0a0a !important',
+				boxShadow: '0 4px 20px rgba(212, 175, 55, 0.4)',
 				'&:hover': {
-					background: 'linear-gradient(135deg, #e6c757 0%, #d4af37 100%)',
-					color: '#1a1a1a !important',
+					background: 'linear-gradient(135deg, #f4d775 0%, #fff4d0 100%)',
+					boxShadow: '0 6px 30px rgba(212, 175, 55, 0.6)',
+					transform: 'translateY(-2px)',
 				},
 				'&:active': {
-					background: 'linear-gradient(135deg, #b89730 0%, #9c8429 100%)',
-					color: '#1a1a1a !important',
-				},
-				'&:focus': {
-					background: 'linear-gradient(135deg, #d4af37 0%, #b89730 100%)',
-					color: '#1a1a1a !important',
-					boxShadow: '0 0 0 3px rgba(212, 175, 55, 0.3)',
+					transform: 'translateY(0)',
+					boxShadow: '0 2px 10px rgba(212, 175, 55, 0.4)',
 				},
 			},
 			outlined: {
 				borderWidth: '2px',
+				borderColor: 'rgba(212, 175, 55, 0.5)',
 				color: '#d4af37 !important',
-				borderColor: '#d4af37',
+				background: 'rgba(212, 175, 55, 0.05)',
+				backdropFilter: 'blur(10px)',
 				'&:hover': {
 					borderWidth: '2px',
-					backgroundColor: 'rgba(212, 175, 55, 0.08)',
-					borderColor: '#e6c757',
-					color: '#e6c757 !important',
-				},
-				'&:active': {
-					borderColor: '#b89730',
-					color: '#b89730 !important',
-				},
-				'&:focus': {
 					borderColor: '#d4af37',
-					color: '#d4af37 !important',
-					boxShadow: '0 0 0 2px rgba(212, 175, 55, 0.2)',
+					background: 'rgba(212, 175, 55, 0.15)',
+					boxShadow: '0 0 20px rgba(212, 175, 55, 0.3)',
+					transform: 'translateY(-2px)',
 				},
 			},
 			text: {
 				color: '#d4af37 !important',
 				'&:hover': {
 					backgroundColor: 'rgba(212, 175, 55, 0.08)',
-					color: '#e6c757 !important',
-				},
-				'&:active': {
-					color: '#b89730 !important',
-				},
-				'&:focus': {
-					color: '#d4af37 !important',
-					backgroundColor: 'rgba(212, 175, 55, 0.12)',
+					color: '#f4d775 !important',
 				},
 			},
 		},
@@ -74,22 +54,29 @@ export const components: Components<Omit<Theme, 'components'>> = {
 	MuiPaper: {
 		styleOverrides: {
 			root: {
-				backgroundImage: 'linear-gradient(135deg, #1a1618 0%, #221e20 100%)',
-				border: '1px solid rgba(212, 175, 55, 0.1)',
-				boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+				background: 'rgba(255, 255, 255, 0.05)',
+				backdropFilter: 'blur(20px)',
+				WebkitBackdropFilter: 'blur(20px)',
+				border: '1px solid rgba(255, 255, 255, 0.18)',
+				boxShadow: '0 8px 32px rgba(0, 0, 0, 0.37)',
 			},
 		},
 	},
 	MuiCard: {
 		styleOverrides: {
 			root: {
-				background: 'linear-gradient(135deg, #1a1618 0%, #1f1b1d 100%)',
-				border: '1px solid rgba(212, 175, 55, 0.15)',
-				transition: 'all 0.3s ease',
+				background: 'rgba(255, 255, 255, 0.05)',
+				backdropFilter: 'blur(20px) saturate(180%)',
+				WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+				border: '1px solid rgba(255, 255, 255, 0.18)',
+				borderRadius: '16px',
+				boxShadow: '0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 1px rgba(255, 255, 255, 0.1)',
+				transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
 				'&:hover': {
-					transform: 'translateY(-4px)',
-					boxShadow: '0 12px 40px rgba(212, 175, 55, 0.15)',
+					background: 'rgba(255, 255, 255, 0.08)',
 					borderColor: 'rgba(212, 175, 55, 0.3)',
+					transform: 'translateY(-6px)',
+					boxShadow: '0 12px 48px rgba(0, 0, 0, 0.5), 0 0 30px rgba(212, 175, 55, 0.2)',
 				},
 			},
 		},
@@ -125,15 +112,13 @@ export const components: Components<Omit<Theme, 'components'>> = {
 	MuiChip: {
 		styleOverrides: {
 			root: {
-				background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.1) 100%)',
+				background: 'rgba(212, 175, 55, 0.15)',
 				border: '1px solid rgba(212, 175, 55, 0.3)',
-				color: '#f4e8d0',
+				borderRadius: '12px',
+				color: '#f8f9fa',
+				backdropFilter: 'blur(10px)',
 				'&:hover': {
-					background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(212, 175, 55, 0.2) 100%)',
-				},
-				'&:focus': {
-					background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(212, 175, 55, 0.2) 100%)',
-					boxShadow: '0 0 0 2px rgba(212, 175, 55, 0.4)',
+					background: 'rgba(212, 175, 55, 0.25)',
 				},
 			},
 		},
@@ -141,19 +126,14 @@ export const components: Components<Omit<Theme, 'components'>> = {
 	MuiTooltip: {
 		styleOverrides: {
 			tooltip: {
-				backgroundColor: '#2a2426',
-				border: '1px solid rgba(212, 175, 55, 0.3)',
+				background: 'rgba(255, 255, 255, 0.1)',
+				backdropFilter: 'blur(20px)',
+				WebkitBackdropFilter: 'blur(20px)',
+				border: '1px solid rgba(255, 255, 255, 0.2)',
+				borderRadius: '8px',
 				fontSize: '0.875rem',
-				fontFamily: '"Crimson Text", "Philosopher", "Rubik", "Arial", sans-serif',
-				fontWeight: 400,
 				boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
-				color: '#f4e8d0',
-			},
-			arrow: {
-				color: '#2a2426',
-				'&::before': {
-					border: '1px solid rgba(212, 175, 55, 0.3)',
-				},
+				color: '#f8f9fa',
 			},
 		},
 	},

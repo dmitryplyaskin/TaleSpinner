@@ -49,8 +49,8 @@ export const WelcomeScreen: React.FC = () => {
 				</IconButton>
 			</Tooltip>
 
-			<Container maxWidth="md" sx={{ py: 6 }}>
-				<Box display="flex" flexDirection="column" alignItems="center" gap={4}>
+			<Container maxWidth="md" sx={{ py: 8 }}>
+				<Box display="flex" flexDirection="column" alignItems="center" gap={5}>
 					{/* Логотип и заголовок */}
 					<Box textAlign="center" sx={{ mb: 2 }}>
 						<Typography
@@ -59,6 +59,7 @@ export const WelcomeScreen: React.FC = () => {
 							sx={{
 								color: 'primary.main',
 								mb: 1,
+								textShadow: '0 0 30px rgba(212, 175, 55, 0.4)',
 							}}
 						>
 							TaleSpinner
@@ -78,7 +79,7 @@ export const WelcomeScreen: React.FC = () => {
 						<ActionCard
 							title="Создать новый мир"
 							description="Начните новое приключение в уникальном мире"
-							icon={<Add color="primary" fontSize="large" />}
+							icon={<Add fontSize="large" />}
 							onClick={handleCreateNewWorld}
 							buttonText="Создать"
 							variant="contained"
