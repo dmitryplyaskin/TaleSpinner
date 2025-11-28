@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { Container, Typography, Box, IconButton, Tooltip } from '@mui/material';
-import { Settings, Add } from '@mui/icons-material';
+import { Container, Typography, Box } from '@mui/material';
+import { Add } from '@mui/icons-material';
 import { goToWorldCreation, goToWorldPreparation } from '../model/app-navigation';
 import { ActionCard } from '../ui';
 import { GameSessionsGrid } from './game-sessions-grid';
-import { openSettings } from '../features/settings';
 import { loadSavedWorldsFx } from '@model/game-sessions';
+import { MainLayout, Sidebar } from './layout';
 
 export const WelcomeScreen: React.FC = () => {
 	useEffect(() => {
@@ -20,79 +20,75 @@ export const WelcomeScreen: React.FC = () => {
 		goToWorldPreparation(worldId);
 	};
 
-	const handleSettings = () => {
-		openSettings();
-	};
-
 	return (
-		<Box sx={{ minHeight: '100vh', position: 'relative' }}>
-			{/* Кнопка настроек в правом верхнем углу */}
-			<Tooltip title="Настройки" placement="left">
-				<IconButton
-					onClick={handleSettings}
-					sx={{
-						position: 'fixed',
-						top: 16,
-						right: 16,
-						color: 'text.secondary',
-						backgroundColor: 'background.paper',
-						border: '1px solid',
-						borderColor: 'divider',
-						'&:hover': {
-							color: 'primary.main',
-							borderColor: 'primary.main',
-							backgroundColor: 'action.hover',
-						},
+		<MainLayout
+			sidebar={<Sidebar onSelectWorld={handlePlaySession} />}
+			showSidebar={true}
+			showRightPanel={false}
+		>
+			<Box
+				sx={{
+					height: '100%',
+					overflowY: 'auto',
+				}}
+			>
+				<Container 
+					maxWidth="md" 
+					sx={{ 
+						py: 8,
+						minHeight: '100%',
+						display: 'flex',
+						flexDirection: 'column',
+						alignItems: 'center',
+						justifyContent: 'center',
 					}}
 				>
-					<Settings />
-				</IconButton>
-			</Tooltip>
+					<Box display="flex" flexDirection="column" alignItems="center" gap={5}>
+						{/* Логотип и заголовок */}
+						<Box textAlign="center" sx={{ mb: 2 }}>
+							<Typography
+								variant="h1"
+								component="h1"
+								sx={{
+									color: 'primary.main',
+									mb: 1,
+									fontSize: { xs: '2.5rem', md: '3.5rem' },
+									textShadow: '0 0 30px rgba(212, 175, 55, 0.4)',
+								}}
+							>
+								Добро пожаловать
+							</Typography>
+							<Typography
+								variant="h5"
+								component="h2"
+								color="text.secondary"
+								sx={{ fontStyle: 'italic' }}
+							>
+								в мир приключений TaleSpinner
+							</Typography>
+						</Box>
 
-			<Container maxWidth="md" sx={{ py: 6 }}>
-				<Box display="flex" flexDirection="column" alignItems="center" gap={4}>
-					{/* Логотип и заголовок */}
-					<Box textAlign="center" sx={{ mb: 2 }}>
-						<Typography
-							variant="h1"
-							component="h1"
-							sx={{
-								color: 'primary.main',
-								mb: 1,
-							}}
-						>
-							TaleSpinner
-						</Typography>
-						<Typography
-							variant="h5"
-							component="h2"
-							color="text.secondary"
-							sx={{ fontStyle: 'italic' }}
-						>
-							Добро пожаловать в мир приключений
-						</Typography>
+						{/* Карточка создания нового мира */}
+						<Box sx={{ width: '100%', maxWidth: 400 }}>
+							<ActionCard
+								title="Создать новый мир"
+								description="Начните новое приключение в уникальном мире"
+								icon={<Add fontSize="large" />}
+								onClick={handleCreateNewWorld}
+								buttonText="Создать"
+								variant="contained"
+								width={400}
+							/>
+						</Box>
+
+						{/* Секция с сохранёнными мирами */}
+						<Box sx={{ mt: 4, width: '100%' }}>
+							<GameSessionsGrid onPlaySession={handlePlaySession} />
+						</Box>
 					</Box>
-
-					{/* Карточка создания нового мира */}
-					<Box sx={{ width: '100%', maxWidth: 400 }}>
-						<ActionCard
-							title="Создать новый мир"
-							description="Начните новое приключение в уникальном мире"
-							icon={<Add color="primary" fontSize="large" />}
-							onClick={handleCreateNewWorld}
-							buttonText="Создать"
-							variant="contained"
-							width={400}
-						/>
-					</Box>
-
-					{/* Секция с сохранёнными мирами */}
-					<Box sx={{ mt: 4, width: '100%' }}>
-						<GameSessionsGrid onPlaySession={handlePlaySession} />
-					</Box>
-				</Box>
-			</Container>
-
-		</Box>
+				</Container>
+			</Box>
+		</MainLayout>
 	);
 };
+

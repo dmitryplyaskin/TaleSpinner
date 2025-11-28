@@ -18,7 +18,8 @@ import {
 	Container,
 } from '@mui/material';
 import { ArrowBack, Warning } from '@mui/icons-material';
-import { goToWelcome } from '../../../../model/app-navigation';
+import { goToWelcome, goToWorldPreparation } from '../../../../model/app-navigation';
+import { MainLayout, Sidebar } from '../../../../components/layout';
 import {
 	$step,
 	$sessionId,
@@ -77,145 +78,153 @@ export const Wizard: React.FC = () => {
 	const activeStepIndex = stepToIndex[step] ?? 0;
 
 	return (
-		<Container maxWidth="lg" sx={{ py: 4 }}>
-			{/* Header */}
-			<Box
-				sx={{
-					display: 'flex',
-					alignItems: 'center',
-					gap: 2,
-					mb: 4,
-				}}
-			>
-				<IconButton
-					onClick={handleExitClick}
-					size="large"
-					sx={{
-						border: '1px solid',
-						borderColor: 'divider',
-						'&:hover': {
-							borderColor: 'warning.main',
-							bgcolor: 'rgba(255, 143, 0, 0.08)',
-						},
-					}}
-				>
-					<ArrowBack />
-				</IconButton>
-				<Box>
-					<Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-						Создание мира
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
-						Пошаговый мастер создания игрового мира
-					</Typography>
-				</Box>
-			</Box>
-
-			{/* Stepper */}
-			<Stepper
-				activeStep={activeStepIndex}
-				sx={{
-					mb: 4,
-					'& .MuiStepLabel-label': {
-						fontSize: '0.9rem',
-					},
-					'& .MuiStepIcon-root.Mui-active': {
-						color: 'primary.main',
-					},
-					'& .MuiStepIcon-root.Mui-completed': {
-						color: 'success.main',
-					},
-				}}
-			>
-				{steps.map((label) => (
-					<Step key={label}>
-						<StepLabel
+		<MainLayout
+			sidebar={<Sidebar onSelectWorld={(id) => goToWorldPreparation(id)} />}
+			showSidebar={true}
+			showRightPanel={false}
+		>
+			<Box sx={{ height: '100%', overflowY: 'auto' }}>
+				<Container maxWidth="lg" sx={{ py: 4 }}>
+					{/* Header */}
+					<Box
+						sx={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: 2,
+							mb: 4,
+						}}
+					>
+						<IconButton
+							onClick={handleExitClick}
+							size="large"
 							sx={{
-								'& .MuiStepLabel-label.Mui-active': {
-									color: 'primary.main',
-									fontWeight: 600,
+								border: '1px solid',
+								borderColor: 'divider',
+								'&:hover': {
+									borderColor: 'warning.main',
+									bgcolor: 'rgba(255, 143, 0, 0.08)',
 								},
 							}}
 						>
-							{label}
-						</StepLabel>
-					</Step>
-				))}
-			</Stepper>
+							<ArrowBack />
+						</IconButton>
+						<Box>
+							<Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+								Создание мира
+							</Typography>
+							<Typography variant="body2" color="text.secondary">
+								Пошаговый мастер создания игрового мира
+							</Typography>
+						</Box>
+					</Box>
 
-			{/* Error Alert */}
-			{error && (
-				<Alert severity="error" sx={{ mb: 3 }} onClose={handleClearError}>
-					{error}
-				</Alert>
-			)}
-
-			{/* Content */}
-			<Paper
-				sx={{
-					p: 4,
-					minHeight: '60vh',
-					position: 'relative',
-					overflow: 'hidden',
-					'&::before': {
-						content: '""',
-						position: 'absolute',
-						top: 0,
-						left: 0,
-						right: 0,
-						height: '4px',
-						background: 'linear-gradient(90deg, #d4af37 0%, #8b4789 50%, #4a90a4 100%)',
-					},
-				}}
-			>
-				{step === 'setting' && <GenreSelection />}
-				{step === 'input' && <WorldInput />}
-				{step === 'questions' && <QuestionForm />}
-				{step === 'generating' && <GenerationProgress />}
-				{step === 'review' && <WorldReview />}
-			</Paper>
-
-			{/* Exit Confirmation Dialog */}
-			<Dialog
-				open={exitDialogOpen}
-				onClose={handleCloseExitDialog}
-				PaperProps={{
-					sx: {
-						borderTop: '4px solid',
-						borderColor: 'warning.main',
-					},
-				}}
-			>
-				<DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-					<Warning color="warning" />
-					Выйти из создания мира?
-				</DialogTitle>
-				<DialogContent>
-					<DialogContentText>
-						Весь прогресс создания мира будет потерян. Вы уверены, что хотите выйти?
-					</DialogContentText>
-				</DialogContent>
-				<DialogActions sx={{ px: 3, pb: 2 }}>
-					<Button onClick={handleCloseExitDialog} variant="outlined">
-						Остаться
-					</Button>
-					<Button
-						onClick={handleExitConfirm}
-						variant="contained"
-						color="warning"
+					{/* Stepper */}
+					<Stepper
+						activeStep={activeStepIndex}
 						sx={{
-							bgcolor: 'warning.main',
-							color: 'warning.contrastText',
-							'&:hover': {
-								bgcolor: 'warning.dark',
+							mb: 4,
+							'& .MuiStepLabel-label': {
+								fontSize: '0.9rem',
+							},
+							'& .MuiStepIcon-root.Mui-active': {
+								color: 'primary.main',
+							},
+							'& .MuiStepIcon-root.Mui-completed': {
+								color: 'success.main',
 							},
 						}}
 					>
-						Выйти
-					</Button>
-				</DialogActions>
-			</Dialog>
-		</Container>
+						{steps.map((label) => (
+							<Step key={label}>
+								<StepLabel
+									sx={{
+										'& .MuiStepLabel-label.Mui-active': {
+											color: 'primary.main',
+											fontWeight: 600,
+										},
+									}}
+								>
+									{label}
+								</StepLabel>
+							</Step>
+						))}
+					</Stepper>
+
+					{/* Error Alert */}
+					{error && (
+						<Alert severity="error" sx={{ mb: 3 }} onClose={handleClearError}>
+							{error}
+						</Alert>
+					)}
+
+					{/* Content */}
+					<Paper
+						sx={{
+							p: 4,
+							minHeight: '60vh',
+							position: 'relative',
+							overflow: 'hidden',
+							'&::before': {
+								content: '""',
+								position: 'absolute',
+								top: 0,
+								left: 0,
+								right: 0,
+								height: '4px',
+								background: 'linear-gradient(90deg, #d4af37 0%, #8b4789 50%, #4a90a4 100%)',
+							},
+						}}
+					>
+						{step === 'setting' && <GenreSelection />}
+						{step === 'input' && <WorldInput />}
+						{step === 'questions' && <QuestionForm />}
+						{step === 'generating' && <GenerationProgress />}
+						{step === 'review' && <WorldReview />}
+					</Paper>
+
+					{/* Exit Confirmation Dialog */}
+					<Dialog
+						open={exitDialogOpen}
+						onClose={handleCloseExitDialog}
+						PaperProps={{
+							sx: {
+								borderTop: '4px solid',
+								borderColor: 'warning.main',
+							},
+						}}
+					>
+						<DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+							<Warning color="warning" />
+							Выйти из создания мира?
+						</DialogTitle>
+						<DialogContent>
+							<DialogContentText>
+								Весь прогресс создания мира будет потерян. Вы уверены, что хотите выйти?
+							</DialogContentText>
+						</DialogContent>
+						<DialogActions sx={{ px: 3, pb: 2 }}>
+							<Button onClick={handleCloseExitDialog} variant="outlined">
+								Остаться
+							</Button>
+							<Button
+								onClick={handleExitConfirm}
+								variant="contained"
+								color="warning"
+								sx={{
+									bgcolor: 'warning.main',
+									color: 'warning.contrastText',
+									'&:hover': {
+										bgcolor: 'warning.dark',
+									},
+								}}
+							>
+								Выйти
+							</Button>
+						</DialogActions>
+					</Dialog>
+				</Container>
+			</Box>
+		</MainLayout>
 	);
 };
 

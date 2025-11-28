@@ -1,4 +1,4 @@
-/* Глобальные стили для TaleSpinner */
+/* Глобальные стили для TaleSpinner - Glassmorphism Edition */
 
 * {
   box-sizing: border-box;
@@ -14,43 +14,70 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
-  color: #f4e8d0;
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #0a0a0a 100%);
+  color: #f8f9fa;
   font-family: 'Lora', 'Cormorant Garamond', Georgia, serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
 }
 
-/* Кастомный скроллбар в стиле фэнтези */
+/* Светящиеся частицы на фоне */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(157, 78, 221, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Кастомный скроллбар в стиле glassmorphism */
 ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1618;
-  border: 1px solid rgba(212, 175, 55, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #d4af37 0%, #b89730 100%);
-  border-radius: 6px;
-  border: 1px solid rgba(212, 175, 55, 0.2);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.4), rgba(244, 215, 117, 0.4));
+  border-radius: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #e6c757 0%, #d4af37 100%);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.7), rgba(244, 215, 117, 0.7));
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
 }
 
 /* Выделение текста */
 ::selection {
   background: rgba(212, 175, 55, 0.3);
-  color: #f4e8d0;
+  color: #f8f9fa;
 }
 
 ::-moz-selection {
   background: rgba(212, 175, 55, 0.3);
-  color: #f4e8d0;
+  color: #f8f9fa;
+}
+
+/* CSS Variables for layout */
+:root {
+  --sidebar-width: 280px;
+  --right-panel-width: 320px;
+  --header-height: 60px;
+  --chat-input-height: 120px;
 }
 
 /* Анимация появления элементов */
@@ -59,6 +86,7 @@ body {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -69,9 +97,11 @@ body {
   0% {
     box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
   }
+
   50% {
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.4), 0 0 30px rgba(212, 175, 55, 0.2);
   }
+
   100% {
     box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
   }
@@ -81,9 +111,153 @@ body {
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
+}
+
+/* Новые анимации для glassmorphism */
+@keyframes float-gentle {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes particle-glow {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Glassmorphism классы */
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.37),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.3);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(212, 175, 55, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  transform: translateY(-6px);
+}
+
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 16px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 2px 2px rgba(255, 255, 255, 0.15);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 32px;
+}
+
+/* Layout utilities */
+.sidebar-panel {
+  background: rgba(15, 15, 15, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.main-content-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-info-panel {
+  background: rgba(15, 15, 15, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Session item in sidebar */
+.session-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.session-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.3);
+  transform: translateX(4px);
+}
+
+.session-item.active {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: rgba(212, 175, 55, 0.5);
+}
+
+/* Эффекты свечения */
+.glow-gold {
+  filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.5));
+}
+
+.glow-gold-strong {
+  filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.8));
+}
+
+.glow-mystic {
+  filter: drop-shadow(0 0 15px rgba(157, 78, 221, 0.5));
+}
+
+/* Плавающая анимация */
+.floating {
+  animation: float-gentle 6s ease-in-out infinite;
 }
 
 /* Магическое свечение для важных элементов */
@@ -93,12 +267,10 @@ body {
 
 /* Эффект мерцания для текста */
 .shimmer-text {
-  background: linear-gradient(
-    90deg,
-    #d4af37 0%,
-    #f4e8d0 40%,
-    #d4af37 100%
-  );
+  background: linear-gradient(90deg,
+      #d4af37 0%,
+      #f4e8d0 40%,
+      #d4af37 100%);
   background-size: 1000px 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -110,11 +282,11 @@ body {
 a {
   color: #d4af37;
   text-decoration: none;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 a:hover {
-  color: #e6c757;
+  color: #f4d775;
   text-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
 }
 
@@ -123,54 +295,30 @@ a:hover {
   animation: fadeIn 0.6s ease-out;
 }
 
+.fade-in-up {
+  animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .text-gold {
   color: #d4af37;
 }
 
 .text-mystic {
-  color: #8b4789;
+  color: #9d4edd;
 }
 
-.bg-parchment {
-  background: linear-gradient(135deg, #1a1618 0%, #221e20 100%);
+.bg-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .border-gold {
   border: 1px solid rgba(212, 175, 55, 0.3);
 }
 
-/* Эффект старой бумаги для контейнеров */
-.parchment-effect {
-  position: relative;
-  background: linear-gradient(135deg, #1a1618 0%, #221e20 100%);
-  border: 2px solid rgba(212, 175, 55, 0.2);
-  border-radius: 8px;
-  box-shadow: 
-    inset 0 0 30px rgba(0, 0, 0, 0.5),
-    0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.parchment-effect::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(
-    45deg,
-    transparent 30%,
-    rgba(212, 175, 55, 0.1) 50%,
-    transparent 70%
-  );
-  border-radius: 8px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.parchment-effect:hover::before {
-  opacity: 1;
+.border-glass {
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 /* Адаптивная типографика */
@@ -178,11 +326,29 @@ a:hover {
   body {
     font-size: 14px;
   }
+
+  .glass-card {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .floating {
+    animation: none;
+  }
+
+  :root {
+    --sidebar-width: 240px;
+    --right-panel-width: 0px;
+  }
 }
 
 @media (max-width: 480px) {
   body {
     font-size: 13px;
+  }
+
+  :root {
+    --sidebar-width: 60px;
   }
 }
 
@@ -196,12 +362,6 @@ a:hover {
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* Tooltip стили */
 .tooltip {
   position: relative;
@@ -210,10 +370,12 @@ a:hover {
 
 .tooltip .tooltip-text {
   visibility: hidden;
-  background-color: #2a2426;
-  color: #f4e8d0;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #f8f9fa;
   text-align: center;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 8px 12px;
   position: absolute;
   z-index: 1000;
@@ -222,7 +384,7 @@ a:hover {
   transform: translateX(-50%);
   opacity: 0;
   transition: opacity 0.3s;
-  border: 1px solid rgba(212, 175, 55, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   font-size: 0.875rem;
   white-space: nowrap;
@@ -233,16 +395,17 @@ a:hover {
   opacity: 1;
 }
 
-/* Эффект параллакса для фона */
-.parallax-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(ellipse at top, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom, rgba(139, 71, 137, 0.05) 0%, transparent 50%),
-    linear-gradient(135deg, #0a0a0a 0%, #1a1618 100%);
-  z-index: -1;
+/* Fallback для старых браузеров */
+@supports not (backdrop-filter: blur(20px)) {
+
+  .glass-card,
+  .glass-card-light,
+  .glass-panel {
+    background: rgba(26, 22, 24, 0.95);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+  }
+
+  .bg-glass {
+    background: rgba(26, 22, 24, 0.9);
+  }
 }

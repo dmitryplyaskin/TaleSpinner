@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Button, Typography } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import { Box, Typography, Button } from '@mui/material';
 import { ChatHeaderProps } from '../types';
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -9,31 +8,52 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 	onBack,
 }) => {
 	return (
-		<Box sx={{ position: 'relative', mb: 3, pt: 2 }}>
-			{/* Кнопка "Назад" в левом верхнем углу */}
-			{onBack && (
-				<Button
-					startIcon={<ArrowBack />}
-					onClick={onBack}
-					variant="outlined"
-					sx={{
-						position: 'absolute',
-						top: 0,
-						left: 0,
-						zIndex: 10,
+		<Box 
+			sx={{ 
+				position: 'relative', 
+				mb: 2, 
+				pt: 1,
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'space-between'
+			}}
+		>
+			{/* Кнопка "Назад" / "Выход" */}
+			<Box>
+				{onBack && (
+					<Button
+						onClick={onBack}
+						variant="outlined"
+						size="small"
+						sx={{
+							borderColor: 'rgba(255, 255, 255, 0.2)',
+							color: 'text.secondary',
+							'&:hover': {
+								borderColor: 'primary.main',
+								color: 'primary.main',
+								background: 'rgba(212, 175, 55, 0.05)',
+							},
+						}}
+					>
+						Выйти
+					</Button>
+				)}
+			</Box>
+
+			<Box sx={{ textAlign: 'center', flex: 1 }}>
+				<Typography 
+					variant="h5" 
+					component="h1" 
+					sx={{ 
+						fontWeight: 600,
+						color: 'text.primary',
+						textShadow: '0 0 20px rgba(212, 175, 55, 0.2)'
 					}}
 				>
-					Назад
-				</Button>
-			)}
-
-			{/* Центрированный заголовок */}
-			<Box textAlign="center">
-				<Typography variant="h4" component="h1" gutterBottom>
 					{title}
 				</Typography>
 				{subtitle && (
-					<Typography variant="body1" color="text.secondary">
+					<Typography variant="caption" color="text.secondary">
 						{subtitle}
 					</Typography>
 				)}
