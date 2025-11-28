@@ -37,8 +37,8 @@ export const palette: PaletteOptions = {
 		dark: '#2e5740',
 	},
 	background: {
-		default: '#0a0614', // Глубокий темно-фиолетовый
-		paper: 'rgba(255, 255, 255, 0.05)', // Полупрозрачный для glassmorphism
+		default: '#0f0f0f', // Глубокий черный
+		paper: 'rgba(255, 255, 255, 0.04)', // Очень прозрачный для glassmorphism
 	},
 	text: {
 		primary: '#f8f9fa', // Яркий белый

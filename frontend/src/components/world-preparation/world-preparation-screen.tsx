@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useStore } from 'effector-react';
 import { $selectedWorld } from '@model/game-sessions';
-import { goToWelcome } from '@model/app-navigation';
+import { goToWelcome, goToChat } from '@model/app-navigation';
 import {
 	Faction,
 	Location,
@@ -296,8 +296,7 @@ export const WorldPreparationScreen: React.FC = () => {
 	};
 
 	const handleStartGame = () => {
-		// TODO: Реализовать начало игры
-		console.log('Start game');
+		goToChat();
 	};
 
 	if (!selectedWorld) {
