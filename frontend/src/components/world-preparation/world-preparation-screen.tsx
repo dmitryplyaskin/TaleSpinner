@@ -6,31 +6,25 @@ import {
 	Button,
 	Chip,
 	Stack,
-	Accordion,
-	AccordionSummary,
-	AccordionDetails,
 	Card,
 	CardContent,
 	IconButton,
 	Tooltip,
 	CircularProgress,
-	Divider,
+	Tabs,
+	Tab,
 } from '@mui/material';
 import {
 	ArrowBack,
-	ExpandMore,
 	Public,
-	Groups,
-	LocationOn,
-	People,
-	History,
-	AutoAwesome,
-	PlayArrow,
 	Build,
+	PlayArrow,
 } from '@mui/icons-material';
 import { useStore } from 'effector-react';
 import { $selectedWorld } from '@model/game-sessions';
-import { goToWelcome, goToChat } from '@model/app-navigation';
+import { goToWelcome, goToChat, goToWorldPreparation } from '@model/app-navigation';
+import { MainLayout, Sidebar } from '../layout';
+
 import {
 	Faction,
 	Location,
@@ -285,6 +279,7 @@ const MagicSystemCard: React.FC<{ magic: MagicSystem }> = ({ magic }) => (
 
 export const WorldPreparationScreen: React.FC = () => {
 	const selectedWorld = useStore($selectedWorld);
+	const [activeTab, setActiveTab] = React.useState(0);
 
 	const handleBack = () => {
 		goToWelcome();
@@ -297,6 +292,10 @@ export const WorldPreparationScreen: React.FC = () => {
 
 	const handleStartGame = () => {
 		goToChat();
+	};
+
+	const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+		setActiveTab(newValue);
 	};
 
 	if (!selectedWorld) {
@@ -322,184 +321,171 @@ export const WorldPreparationScreen: React.FC = () => {
 	const hasMagic = !!data.magic;
 
 	return (
-		<Box sx={{ minHeight: '100vh', pb: 4 }}>
-			{/* Шапка с кнопкой назад */}
-			<Box
-				sx={{
-					position: 'sticky',
-					top: 0,
-					zIndex: 10,
-					backgroundColor: 'background.paper',
-					borderBottom: '1px solid',
-					borderColor: 'divider',
-					py: 2,
-				}}
-			>
-				<Container maxWidth="md">
-					<Box display="flex" alignItems="center" gap={2}>
-						<Tooltip title="Назад">
-							<IconButton onClick={handleBack}>
-								<ArrowBack />
-							</IconButton>
-						</Tooltip>
-						<Box sx={{ flex: 1 }}>
-							<Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
-								{selectedWorld.name}
-							</Typography>
-							<Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-								<Chip
-									label={selectedWorld.genre}
-									size="small"
-									icon={<Public sx={{ fontSize: '0.875rem' }} />}
+		<MainLayout
+			sidebar={<Sidebar onSelectWorld={(id) => goToWorldPreparation(id)} />}
+			showSidebar={true}
+			showRightPanel={false}
+		>
+			<Box sx={{ height: '100%', overflowY: 'auto' }}>
+				{/* Шапка с кнопкой назад */}
+				<Box
+					sx={{
+						position: 'sticky',
+						top: 0,
+						zIndex: 10,
+						backgroundColor: 'rgba(15, 15, 15, 0.9)',
+						backdropFilter: 'blur(10px)',
+						borderBottom: '1px solid',
+						borderColor: 'divider',
+						py: 2,
+					}}
+				>
+					<Container maxWidth="lg">
+						<Box display="flex" alignItems="center" gap={2}>
+							<Tooltip title="Назад">
+								<IconButton onClick={handleBack}>
+									<ArrowBack />
+								</IconButton>
+							</Tooltip>
+							<Box sx={{ flex: 1 }}>
+								<Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+									{selectedWorld.name}
+								</Typography>
+								<Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+									<Chip
+										label={selectedWorld.genre}
+										size="small"
+										icon={<Public sx={{ fontSize: '0.875rem' }} />}
+										variant="outlined"
+										color="primary"
+									/>
+									<Chip
+										label={selectedWorld.tone}
+										size="small"
+										variant="outlined"
+										color="secondary"
+									/>
+								</Stack>
+							</Box>
+							<Stack direction="row" spacing={2}>
+								<Button
 									variant="outlined"
-									color="primary"
-								/>
-								<Chip
-									label={selectedWorld.tone}
-									size="small"
-									variant="outlined"
-									color="secondary"
-								/>
+									startIcon={<Build />}
+									onClick={handlePrepareWorld}
+								>
+									Подготовить
+								</Button>
+								<Button
+									variant="contained"
+									startIcon={<PlayArrow />}
+									onClick={handleStartGame}
+								>
+									Играть
+								</Button>
 							</Stack>
 						</Box>
-					</Box>
-				</Container>
-			</Box>
 
-			<Container maxWidth="md" sx={{ py: 4 }}>
-				{/* Описание мира */}
-				<Card sx={{ mb: 4 }}>
-					<CardContent>
-						<Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-							Описание мира
-						</Typography>
-						<Typography
-							variant="body1"
-							sx={{ lineHeight: 1.8, whiteSpace: 'pre-wrap' }}
-						>
-							{data.world_primer}
-						</Typography>
-					</CardContent>
-				</Card>
+						<Box sx={{ mt: 2 }}>
+							<Tabs 
+								value={activeTab} 
+								onChange={handleTabChange} 
+								variant="scrollable"
+								scrollButtons="auto"
+								textColor="primary"
+								indicatorColor="primary"
+							>
+								<Tab label="Обзор" />
+								{hasFactions && <Tab label={`Фракции (${data.factions!.length})`} />}
+								{hasLocations && <Tab label={`Локации (${data.locations!.length})`} />}
+								{hasRaces && <Tab label={`Расы (${data.races!.length})`} />}
+								{hasHistory && <Tab label={`История (${data.history!.length})`} />}
+								{hasMagic && <Tab label="Магия" />}
+							</Tabs>
+						</Box>
+					</Container>
+				</Box>
 
-				{/* Аккордеоны с данными мира */}
-				<Stack spacing={2}>
-					{/* Фракции */}
-					{hasFactions && (
-						<Accordion defaultExpanded>
-							<AccordionSummary expandIcon={<ExpandMore />}>
-								<Box display="flex" alignItems="center" gap={1}>
-									<Groups color="primary" />
-									<Typography variant="h6">
-										Фракции ({data.factions!.length})
+				<Container maxWidth="lg" sx={{ py: 4 }}>
+					{/* Обзор */}
+					{activeTab === 0 && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<Card variant="outlined" sx={{ 
+								background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
+								backdropFilter: 'blur(10px)'
+							}}>
+								<CardContent sx={{ p: 4 }}>
+									<Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: 'primary.main', mb: 3 }}>
+										Описание мира
 									</Typography>
-								</Box>
-							</AccordionSummary>
-							<AccordionDetails>
+									<Typography
+										variant="body1"
+										sx={{ 
+											lineHeight: 1.8, 
+											whiteSpace: 'pre-wrap',
+											fontSize: '1.1rem',
+											color: 'text.primary'
+										}}
+									>
+										{data.world_primer}
+									</Typography>
+								</CardContent>
+							</Card>
+						</Box>
+					)}
+
+					{/* Фракции */}
+					{hasFactions && activeTab === 1 && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<Stack spacing={3}>
 								{data.factions!.map((faction, index) => (
 									<FactionCard key={index} faction={faction} />
 								))}
-							</AccordionDetails>
-						</Accordion>
+							</Stack>
+						</Box>
 					)}
 
 					{/* Локации */}
-					{hasLocations && (
-						<Accordion>
-							<AccordionSummary expandIcon={<ExpandMore />}>
-								<Box display="flex" alignItems="center" gap={1}>
-									<LocationOn color="primary" />
-									<Typography variant="h6">
-										Локации ({data.locations!.length})
-									</Typography>
-								</Box>
-							</AccordionSummary>
-							<AccordionDetails>
+					{hasLocations && activeTab === (hasFactions ? 2 : 1) && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<Stack spacing={3}>
 								{data.locations!.map((location, index) => (
 									<LocationCard key={index} location={location} />
 								))}
-							</AccordionDetails>
-						</Accordion>
+							</Stack>
+						</Box>
 					)}
 
 					{/* Расы */}
-					{hasRaces && (
-						<Accordion>
-							<AccordionSummary expandIcon={<ExpandMore />}>
-								<Box display="flex" alignItems="center" gap={1}>
-									<People color="primary" />
-									<Typography variant="h6">
-										Расы ({data.races!.length})
-									</Typography>
-								</Box>
-							</AccordionSummary>
-							<AccordionDetails>
+					{hasRaces && activeTab === (hasFactions ? (hasLocations ? 3 : 2) : (hasLocations ? 2 : 1)) && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<Stack spacing={3}>
 								{data.races!.map((race, index) => (
 									<RaceCard key={index} race={race} />
 								))}
-							</AccordionDetails>
-						</Accordion>
+							</Stack>
+						</Box>
 					)}
 
 					{/* История */}
-					{hasHistory && (
-						<Accordion>
-							<AccordionSummary expandIcon={<ExpandMore />}>
-								<Box display="flex" alignItems="center" gap={1}>
-									<History color="primary" />
-									<Typography variant="h6">
-										История ({data.history!.length})
-									</Typography>
-								</Box>
-							</AccordionSummary>
-							<AccordionDetails>
+					{hasHistory && activeTab === (hasFactions ? (hasLocations ? (hasRaces ? 4 : 3) : (hasRaces ? 3 : 2)) : (hasLocations ? (hasRaces ? 3 : 2) : (hasRaces ? 2 : 1))) && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<Stack spacing={3}>
 								{data.history!.map((event, index) => (
 									<TimelineEventCard key={index} event={event} />
 								))}
-							</AccordionDetails>
-						</Accordion>
+							</Stack>
+						</Box>
 					)}
 
 					{/* Магия */}
-					{hasMagic && (
-						<Accordion>
-							<AccordionSummary expandIcon={<ExpandMore />}>
-								<Box display="flex" alignItems="center" gap={1}>
-									<AutoAwesome color="primary" />
-									<Typography variant="h6">Магическая система</Typography>
-								</Box>
-							</AccordionSummary>
-							<AccordionDetails>
-								<MagicSystemCard magic={data.magic!} />
-							</AccordionDetails>
-						</Accordion>
+					{hasMagic && activeTab === (hasFactions ? (hasLocations ? (hasRaces ? (hasHistory ? 5 : 4) : (hasHistory ? 4 : 3)) : (hasRaces ? (hasHistory ? 4 : 3) : (hasHistory ? 3 : 2))) : (hasLocations ? (hasRaces ? (hasHistory ? 4 : 3) : (hasHistory ? 3 : 2)) : (hasRaces ? (hasHistory ? 3 : 2) : (hasHistory ? 2 : 1)))) && (
+						<Box sx={{ animation: 'fadeIn 0.3s ease-in-out' }}>
+							<MagicSystemCard magic={data.magic!} />
+						</Box>
 					)}
-				</Stack>
-
-				{/* Кнопки действий */}
-				<Divider sx={{ my: 4 }} />
-				<Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-					<Button
-						variant="outlined"
-						size="large"
-						startIcon={<Build />}
-						onClick={handlePrepareWorld}
-						sx={{ flex: 1 }}
-					>
-						Подготовить мир для игры
-					</Button>
-					<Button
-						variant="contained"
-						size="large"
-						startIcon={<PlayArrow />}
-						onClick={handleStartGame}
-						sx={{ flex: 1 }}
-					>
-						Начать играть
-					</Button>
-				</Stack>
-			</Container>
-		</Box>
+				</Container>
+			</Box>
+		</MainLayout>
 	);
 };
 
