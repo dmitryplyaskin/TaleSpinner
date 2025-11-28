@@ -32,6 +32,7 @@ import {
 	saveWorldFx,
 	fetchProgressFx,
 	continueGenerationFx,
+	startGenerationFx,
 } from './effects';
 
 // === Основные сторы ===
@@ -90,6 +91,7 @@ export const $generationProgress = createStore<GenerationProgress>(initialProgre
 /** HITL запрос на уточнение */
 export const $clarificationRequest = createStore<ClarificationRequest | null>(null)
 	.on(setClarificationRequest, (_, request) => request)
+	.on(startGenerationFx.doneData, (_, data) => data.clarification ?? null)
 	.on(continueGenerationFx.doneData, (_, data) => data.clarification ?? null)
 	.reset(resetWizard);
 
@@ -111,6 +113,7 @@ export const $error = createStore<string | null>(null)
 	.on(submitAnswersFx.failData, (_, error) => error.message)
 	.on(generateWorldFx.failData, (_, error) => error.message)
 	.on(saveWorldFx.failData, (_, error) => error.message)
+	.on(startGenerationFx.failData, (_, error) => error.message)
 	.on(continueGenerationFx.failData, (_, error) => error.message)
 	.on(clearError, () => null)
 	.reset([resetWizard, startSessionFx, analyzeInputFx, submitAnswersFx, generateWorldFx]);
@@ -140,6 +143,7 @@ export const $isLoading = combine(
 	continueGenerationFx.pending,
 	(...pendings) => pendings.some(Boolean)
 );
+
 
 
 

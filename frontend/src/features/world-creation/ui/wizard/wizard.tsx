@@ -16,6 +16,7 @@ import {
 	DialogActions,
 	Button,
 	Container,
+	CircularProgress,
 } from '@mui/material';
 import { ArrowBack, Warning } from '@mui/icons-material';
 import { goToWelcome, goToWorldPreparation } from '../../../../model/app-navigation';
@@ -35,6 +36,9 @@ import { WorldInput } from '../steps/world-input';
 import { QuestionForm } from '../steps/question-form';
 import { GenerationProgress } from '../steps/generation-progress';
 import { WorldReview } from '../steps/world-review';
+import { SkeletonPreview } from '../steps/skeleton-preview';
+import { $clarificationRequest } from '../../model';
+import { isSkeletonApprovalRequest } from '../../utils/clarification-utils';
 
 const steps = ['Выбор жанра', 'Описание мира', 'Уточнение деталей', 'Проверка и сохранение'];
 
@@ -48,11 +52,12 @@ const stepToIndex: Record<string, number> = {
 };
 
 export const Wizard: React.FC = () => {
-	const { step, sessionId, error, exitDialogOpen } = useUnit({
+	const { step, sessionId, error, exitDialogOpen, clarificationRequest } = useUnit({
 		step: $step,
 		sessionId: $sessionId,
 		error: $error,
 		exitDialogOpen: $exitDialogOpen,
+		clarificationRequest: $clarificationRequest,
 	});
 
 	const handleOpenExitDialog = useUnit(openExitDialog);
@@ -177,7 +182,19 @@ export const Wizard: React.FC = () => {
 					>
 						{step === 'setting' && <GenreSelection />}
 						{step === 'input' && <WorldInput />}
-						{step === 'questions' && <QuestionForm />}
+						{step === 'questions' && (
+							clarificationRequest ? (
+								isSkeletonApprovalRequest(clarificationRequest) ? (
+									<SkeletonPreview />
+								) : (
+									<QuestionForm />
+								)
+							) : (
+								<Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+									<CircularProgress />
+								</Box>
+							)
+						)}
 						{step === 'generating' && <GenerationProgress />}
 						{step === 'review' && <WorldReview />}
 					</Paper>
@@ -227,6 +244,7 @@ export const Wizard: React.FC = () => {
 		</MainLayout>
 	);
 };
+
 
 
 

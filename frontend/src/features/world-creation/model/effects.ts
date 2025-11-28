@@ -6,6 +6,7 @@ import {
 	generateWorld,
 	saveWorld,
 	fetchProgress,
+	startGeneration,
 	continueGeneration,
 } from '../api';
 import type {
@@ -53,10 +54,16 @@ export const fetchProgressFx = createEffect<string, GenerationProgress>({
 	handler: fetchProgress,
 });
 
+/** Запуск генерации графа с Architect */
+export const startGenerationFx = createEffect<string, ContinueGenerationResponse>({
+	handler: startGeneration,
+});
+
 /** Продолжение генерации после HITL уточнения */
 export const continueGenerationFx = createEffect<ContinueGenerationParams, ContinueGenerationResponse>({
 	handler: continueGeneration,
 });
+
 
 
 

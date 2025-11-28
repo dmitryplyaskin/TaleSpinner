@@ -5,9 +5,11 @@ export {
 	generateWorld,
 	saveWorld,
 	fetchProgress,
+	startGeneration,
 	continueGeneration,
 	getGenerationStreamUrl,
 } from './agent-api';
+
 
 
 

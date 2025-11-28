@@ -11,10 +11,10 @@ import {
 	generateWorldFx,
 	saveWorldFx,
 	continueGenerationFx,
+	startGenerationFx,
 } from './effects';
 
 import { goToStep } from './events';
-import { $sessionId } from './stores';
 
 // === Связи между событиями и эффектами ===
 
@@ -25,11 +25,27 @@ sample({
 	target: goToStep,
 });
 
-// После анализа: всегда показываем форму вопросов
-// (даже если вопросов нет - пользователь может нажать "Сгенерировать")
+// После анализа: запускаем генерацию графа (который вызовет Architect)
 sample({
 	clock: analyzeInputFx.doneData,
+	source: analyzeInputFx.done,
+	fn: ({ params }) => params.sessionId,
+	target: startGenerationFx,
+});
+
+// После старта генерации: проверяем статус
+sample({
+	clock: startGenerationFx.doneData,
+	filter: (data) => data.status === 'waiting_for_input' && data.clarification !== undefined,
 	fn: () => 'questions' as const,
+	target: goToStep,
+});
+
+// Если сразу completed (что маловероятно)
+sample({
+	clock: startGenerationFx.doneData,
+	filter: (data) => data.status === 'completed' && data.world !== undefined,
+	fn: () => 'review' as const,
 	target: goToStep,
 });
 
@@ -53,14 +69,24 @@ sample({
 	target: goToWelcome,
 });
 
-// После продолжения генерации: если completed -> получаем мир
+// После продолжения генерации: проверяем статус
 sample({
 	clock: continueGenerationFx.doneData,
-	source: $sessionId,
-	filter: (sessionId, data) => data.status === 'completed' && sessionId !== null,
-	fn: (sessionId) => ({ sessionId: sessionId! }),
-	target: generateWorldFx,
+	filter: (data) => data.status === 'waiting_for_input' && data.clarification !== undefined,
+	// Если нужны еще уточнения, остаемся на шаге questions
+	// (clarificationRequest обновится автоматически через стор)
+	fn: () => 'questions' as const,
+	target: goToStep,
 });
+
+// Если генерация завершена и есть world, переходим к review
+sample({
+	clock: continueGenerationFx.doneData,
+	filter: (data) => data.status === 'completed' && data.world !== undefined,
+	fn: () => 'review' as const,
+	target: goToStep,
+});
+
 
 
 

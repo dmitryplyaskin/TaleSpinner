@@ -56,3 +56,4 @@ export const TabsSystem: React.FC<TabsSystemProps> = ({ currentTab, onTabChange 
 
 
 
+

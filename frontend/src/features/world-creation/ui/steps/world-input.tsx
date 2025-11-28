@@ -43,9 +43,12 @@ export const WorldInput: React.FC = () => {
 		}
 	};
 
-	const handleNext = () => {
+	const handleNext = async () => {
 		if (sessionId) {
-			handleAnalyze({ sessionId, userInput });
+			// Сначала анализируем (сохраняем userInput в collectedInfo)
+			await handleAnalyze({ sessionId, userInput });
+			// После анализа переходим к вопросам (или архитектор сразу вернет скелет)
+			// Переход обработается в init.ts через sample
 		}
 	};
 
@@ -159,6 +162,7 @@ export const WorldInput: React.FC = () => {
 		</Box>
 	);
 };
+
 
 
 
