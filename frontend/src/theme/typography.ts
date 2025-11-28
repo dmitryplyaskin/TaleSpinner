@@ -2,90 +2,109 @@ import { ThemeOptions } from '@mui/material/styles';
 
 type TypographyOptions = ThemeOptions['typography'];
 
-// Шрифты для кириллицы - более жирные и читаемые
-const cyrillicFontStack = '"Philosopher", "Rubik", "Roboto", "Arial", sans-serif';
-const cyrillicHeadingFontStack = '"Philosopher", "Rubik", "PT Sans", sans-serif';
-const cyrillicButtonFontStack = '"Rubik", "PT Sans", "Arial", sans-serif';
+/**
+ * Новые шрифты с полной поддержкой кириллицы:
+ * 
+ * - Cormorant Garamond — элегантный serif для заголовков, похож на Cinzel
+ * - Cormorant SC — версия с small caps для акцентов и кнопок
+ * - Lora — книжный serif для основного текста
+ * - Alegreya — альтернатива для подзаголовков с характером
+ * - Alegreya SC — small caps версия
+ * - Marck Script — рукописный шрифт для декоративных элементов
+ */
 
-// Шрифты для латиницы
-const latinFontStack = '"Cinzel", "Playfair Display", "Georgia", serif';
-const latinHeadingFontStack = '"Cinzel Decorative", "Cinzel", serif';
-const latinButtonFontStack = '"Cinzel", serif';
+// Основной стек шрифтов для текста
+const bodyFontStack = '"Lora", "Cormorant Garamond", Georgia, serif';
 
-// Универсальный стек шрифтов с поддержкой обоих алфавитов
-const universalFontStack = `${latinFontStack}, ${cyrillicFontStack}`;
-const universalHeadingFontStack = `${latinHeadingFontStack}, ${cyrillicHeadingFontStack}`;
-const universalButtonFontStack = `${latinButtonFontStack}, ${cyrillicButtonFontStack}`;
+// Заголовки — элегантный Cormorant Garamond
+const headingFontStack = '"Cormorant Garamond", "Alegreya", Georgia, serif';
+
+// Декоративные заголовки с small caps
+const displayFontStack = '"Cormorant SC", "Alegreya SC", Georgia, serif';
+
+// Кнопки — small caps для элегантности
+const buttonFontStack = '"Alegreya SC", "Cormorant SC", Georgia, serif';
+
+// Рукописный шрифт для особых элементов
+const scriptFontStack = '"Marck Script", "Alegreya", cursive';
+
+// Подзаголовки — Alegreya с курсивом
+const subtitleFontStack = '"Alegreya", "Cormorant Garamond", Georgia, serif';
 
 export const typography: TypographyOptions = {
-	fontFamily: universalFontStack,
+	fontFamily: bodyFontStack,
 	h1: {
-		fontFamily: universalHeadingFontStack,
-		fontWeight: 700,
-		letterSpacing: '0.02em',
+		fontFamily: displayFontStack,
+		fontWeight: 600,
+		fontStyle: 'normal',
+		letterSpacing: '0.1em',
+		textTransform: 'uppercase',
 	},
 	h2: {
-		fontFamily: universalHeadingFontStack,
+		fontFamily: headingFontStack,
+		fontWeight: 500,
+		fontStyle: 'italic',
+		letterSpacing: '0.02em',
+	},
+	h3: {
+		fontFamily: headingFontStack,
 		fontWeight: 600,
 		letterSpacing: '0.01em',
 	},
-	h3: {
-		fontFamily: universalHeadingFontStack,
-		fontWeight: 600,
-	},
 	h4: {
-		fontFamily: universalHeadingFontStack,
+		fontFamily: headingFontStack,
 		fontWeight: 500,
 	},
 	h5: {
-		fontFamily: universalHeadingFontStack,
+		fontFamily: headingFontStack,
 		fontWeight: 500,
 	},
 	h6: {
-		fontFamily: universalHeadingFontStack,
+		fontFamily: headingFontStack,
 		fontWeight: 500,
 	},
 	subtitle1: {
-		fontFamily: `"Playfair Display", ${cyrillicFontStack}`,
-		fontWeight: 500,
-		letterSpacing: '0.00938em',
+		fontFamily: subtitleFontStack,
+		fontWeight: 400,
+		fontStyle: 'italic',
+		letterSpacing: '0.01em',
 	},
 	subtitle2: {
-		fontFamily: `"Playfair Display", ${cyrillicFontStack}`,
-		fontWeight: 600,
+		fontFamily: subtitleFontStack,
+		fontWeight: 500,
 		letterSpacing: '0.00714em',
 	},
 	body1: {
-		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
+		fontFamily: bodyFontStack,
 		fontSize: '1.05rem',
 		fontWeight: 400,
-		lineHeight: 1.7,
-		letterSpacing: '0.00938em',
+		lineHeight: 1.75,
+		letterSpacing: '0.01em',
 	},
 	body2: {
-		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
+		fontFamily: bodyFontStack,
 		fontSize: '0.95rem',
 		fontWeight: 400,
-		lineHeight: 1.6,
-		letterSpacing: '0.01071em',
+		lineHeight: 1.65,
+		letterSpacing: '0.01em',
 	},
 	button: {
-		fontFamily: universalButtonFontStack,
-		fontWeight: 600,
-		letterSpacing: '0.05em',
+		fontFamily: buttonFontStack,
+		fontWeight: 500,
+		letterSpacing: '0.12em',
 		textTransform: 'uppercase',
 	},
 	caption: {
-		fontFamily: `"Crimson Text", ${cyrillicFontStack}`,
+		fontFamily: bodyFontStack,
 		fontSize: '0.85rem',
 		fontWeight: 400,
-		letterSpacing: '0.03333em',
+		letterSpacing: '0.02em',
 	},
 	overline: {
-		fontFamily: universalButtonFontStack,
+		fontFamily: buttonFontStack,
 		fontSize: '0.75rem',
-		fontWeight: 600,
-		letterSpacing: '0.1em',
+		fontWeight: 500,
+		letterSpacing: '0.15em',
 		textTransform: 'uppercase',
 	},
 };

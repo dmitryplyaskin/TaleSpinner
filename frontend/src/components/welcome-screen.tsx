@@ -3,9 +3,8 @@ import { Container, Typography, Box, IconButton, Tooltip } from '@mui/material';
 import { Settings, Add } from '@mui/icons-material';
 import { goToWorldCreation, goToWorldPreparation } from '../model/app-navigation';
 import { ActionCard } from '../ui';
-import { SettingsModal } from './settings-modal';
 import { GameSessionsGrid } from './game-sessions-grid';
-import { openSettingsModal } from '../model/settings';
+import { openSettings } from '../features/settings';
 import { loadSavedWorldsFx } from '@model/game-sessions';
 
 export const WelcomeScreen: React.FC = () => {
@@ -22,7 +21,7 @@ export const WelcomeScreen: React.FC = () => {
 	};
 
 	const handleSettings = () => {
-		openSettingsModal();
+		openSettings();
 	};
 
 	return (
@@ -55,12 +54,9 @@ export const WelcomeScreen: React.FC = () => {
 					{/* Логотип и заголовок */}
 					<Box textAlign="center" sx={{ mb: 2 }}>
 						<Typography
-							variant="h2"
+							variant="h1"
 							component="h1"
 							sx={{
-								fontFamily: '"Cinzel", serif',
-								fontWeight: 700,
-								letterSpacing: '0.05em',
 								color: 'primary.main',
 								mb: 1,
 							}}
@@ -97,7 +93,6 @@ export const WelcomeScreen: React.FC = () => {
 				</Box>
 			</Container>
 
-			<SettingsModal />
 		</Box>
 	);
 };
