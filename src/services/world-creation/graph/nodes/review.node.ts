@@ -6,7 +6,10 @@ import { v4 as uuidv4 } from "uuid";
 import type { WorldGenerationStateType, ReviewIssue } from "../state";
 import { buildReviewPrompt } from "../prompts/review.prompt";
 import { ApiSettingsService } from "@services/api-settings.service";
-import type { ClarificationRequest, ClarificationResponse } from "@shared/types/human-in-the-loop";
+import type {
+  ClarificationRequest,
+  ClarificationResponse,
+} from "@shared/types/human-in-the-loop";
 
 const ReviewResultSchema = z.object({
   isConsistent: z.boolean(),
@@ -34,7 +37,7 @@ function createConflictResolutionRequest(
   outputLanguage: "ru" | "en"
 ): ClarificationRequest {
   const isRussian = outputLanguage === "ru";
-  
+
   const criticalIssues = issues.filter((i) => i.severity === "critical");
   const issueDescriptions = criticalIssues
     .map((i) => `- ${i.category}: ${i.description}`)
@@ -79,7 +82,9 @@ function createConflictResolutionRequest(
     ],
     options: {
       allowSkip: true,
-      skipLabel: isRussian ? "Исправь как считаешь нужным" : "Fix as you see fit",
+      skipLabel: isRussian
+        ? "Исправь как считаешь нужным"
+        : "Fix as you see fit",
       submitLabel: isRussian ? "Применить" : "Apply",
     },
     meta: {
@@ -120,17 +125,35 @@ export async function reviewNode(
       state.outputLanguage
     );
 
-    const userResponse = interrupt(clarificationRequest) as ClarificationResponse;
+    // Check if we're resuming after interrupt
+    if (state.pendingClarification) {
+      // We're resuming - get response from interrupt
+      const userResponse = interrupt(
+        state.pendingClarification
+      ) as ClarificationResponse;
 
-    // Если пользователь выбрал "оставить как есть"
-    if (!userResponse.skipped && userResponse.answers.resolution_approach === "keep_as_is") {
+      // Если пользователь выбрал "оставить как есть"
+      if (
+        !userResponse.skipped &&
+        userResponse.answers.resolution_approach === "keep_as_is"
+      ) {
+        return {
+          isConsistent: true, // Считаем консистентным по желанию пользователя
+          reviewIssues: issues,
+          iterationCount: state.iterationCount + 1,
+          currentNode: "reviewWorld",
+          pendingClarification: null,
+          clarificationHistory: [userResponse],
+        };
+      }
+    } else {
+      // First time hitting this interrupt - set pendingClarification and return
       return {
-        isConsistent: true, // Считаем консистентным по желанию пользователя
+        isConsistent: false,
         reviewIssues: issues,
-        iterationCount: state.iterationCount + 1,
+        iterationCount: state.iterationCount,
         currentNode: "reviewWorld",
-        pendingClarification: null,
-        clarificationHistory: [userResponse],
+        pendingClarification: clarificationRequest,
       };
     }
   }

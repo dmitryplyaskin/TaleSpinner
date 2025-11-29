@@ -81,3 +81,6 @@ export const continueGeneration = async (params: ContinueGenerationParams): Prom
 export const getGenerationStreamUrl = (sessionId: string): string => {
 	return `/api/world-creation/agent/generate/${sessionId}/stream`;
 };
+
+
+

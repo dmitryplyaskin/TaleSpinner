@@ -47,17 +47,32 @@ export async function baseNode(
       outputLanguage: state.outputLanguage,
     });
 
-    // Прерываем выполнение и ждём ответа пользователя
-    const userResponse = interrupt(clarificationRequest) as ClarificationResponse;
+    // Check if we're resuming after interrupt
+    if (state.pendingClarification) {
+      // We're resuming - get response from interrupt
+      const userResponse = interrupt(
+        state.pendingClarification
+      ) as ClarificationResponse;
 
-    // Продолжаем с ответом пользователя
-    if (!userResponse.skipped) {
-      const refinedWorld = refineBaseWorldWithAnswers(baseWorld, userResponse.answers);
+      // Продолжаем с ответом пользователя
+      if (!userResponse.skipped) {
+        const refinedWorld = refineBaseWorldWithAnswers(
+          baseWorld,
+          userResponse.answers
+        );
+        return {
+          base: refinedWorld,
+          currentNode: "generateBase",
+          pendingClarification: null,
+          clarificationHistory: [userResponse],
+        };
+      }
+    } else {
+      // First time hitting this interrupt - set pendingClarification and return
       return {
-        base: refinedWorld,
+        base: baseWorld,
+        pendingClarification: clarificationRequest,
         currentNode: "generateBase",
-        pendingClarification: null,
-        clarificationHistory: [userResponse],
       };
     }
   }

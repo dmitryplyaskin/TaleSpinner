@@ -12,8 +12,34 @@ import {
   architectNode,
 } from "./nodes";
 
+// Условная функция для architect
+function shouldContinueArchitect(
+  state: WorldGenerationStateType
+): "architect" | "generateBase" {
+  if (state.pendingClarification) {
+    return "architect";
+  }
+  return "generateBase";
+}
+
+// Условная функция для base
+function shouldContinueBase(
+  state: WorldGenerationStateType
+): "generateBase" | ["generateFactions", "generateLocations", "generateRaces"] {
+  if (state.pendingClarification) {
+    return "generateBase";
+  }
+  return ["generateFactions", "generateLocations", "generateRaces"];
+}
+
 // Условная функция для review
-function shouldRefine(state: WorldGenerationStateType): "refineWorld" | "end" {
+function shouldRefine(
+  state: WorldGenerationStateType
+): "reviewWorld" | "refineWorld" | "end" {
+  if (state.pendingClarification) {
+    return "reviewWorld";
+  }
+
   // Максимум 2 итерации рефайнмента
   if (state.iterationCount >= 2) {
     return "end";
@@ -47,16 +73,20 @@ export function createWorldGenerationGraph(checkpointer?: MemorySaver) {
 
     // Edges: START -> architect
     .addEdge("__start__", "architect")
-    
-    // architect -> generateBase
-    .addEdge("architect", "generateBase")
 
-    // generateBase -> параллельный запуск factions, locations, races
+    // architect -> conditional
+    .addConditionalEdges("architect", shouldContinueArchitect, {
+      architect: "architect",
+      generateBase: "generateBase",
+    })
 
-    // generateBase -> параллельный запуск factions, locations, races
-    .addEdge("generateBase", "generateFactions")
-    .addEdge("generateBase", "generateLocations")
-    .addEdge("generateBase", "generateRaces")
+    // generateBase -> conditional
+    .addConditionalEdges("generateBase", shouldContinueBase, [
+      "generateBase",
+      "generateFactions",
+      "generateLocations",
+      "generateRaces",
+    ])
 
     // factions, locations, races -> history (ждёт всех)
     .addEdge("generateFactions", "generateHistory")
@@ -71,7 +101,8 @@ export function createWorldGenerationGraph(checkpointer?: MemorySaver) {
 
     // review -> conditional (refine или end)
     .addConditionalEdges("reviewWorld", shouldRefine, {
-      refine: "refineWorld",
+      reviewWorld: "reviewWorld",
+      refineWorld: "refineWorld",
       end: END,
     })
 
@@ -104,4 +135,3 @@ export function getWorldGenerationGraph(checkpointer?: MemorySaver) {
 export type WorldGenerationGraphResult = Awaited<
   ReturnType<ReturnType<typeof createWorldGenerationGraph>["invoke"]>
 >;
-
