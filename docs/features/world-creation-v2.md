@@ -2,6 +2,18 @@
 
 Новая система создания миров с HITL (Human-in-the-Loop) паттерном.
 
+## Интеграция
+
+Wizard активируется при нажатии кнопки "Создать новый мир":
+- Кнопка в `Sidebar` (`frontend/src/components/layout/Sidebar.tsx`)
+- Кнопка на `WelcomeScreen` (`frontend/src/components/welcome-screen.tsx`)
+
+Навигация: `goToWorldCreation()` → step `agent-wizard` → `WizardV2`.
+
+Файлы интеграции:
+- `frontend/src/App.tsx` - рендеринг `WizardV2`
+- `frontend/src/model/app-navigation.ts` - навигационные функции
+
 ## Структура
 
 ### Backend

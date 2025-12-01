@@ -5,7 +5,7 @@ import { useUnit } from 'effector-react';
 import { $currentStep, initializeAppNavigation, getCurrentScreen } from './model/app-navigation';
 import { loadSettingsFx, SettingsDrawer } from './features/settings';
 import { WelcomeScreen } from './components/welcome-screen';
-import { Wizard } from './features/world-creation';
+import { WizardV2 } from './features/world-creation-v2';
 import { ChatPage } from './components/chat';
 import { WorldPreparationScreen } from './components/world-preparation';
 import { theme } from './theme';
@@ -29,7 +29,7 @@ function App() {
 			case 'chat':
 				return <ChatPage />;
 			case 'agent-wizard':
-				return <Wizard />;
+				return <WizardV2 />;
 			default:
 				return <WelcomeScreen />;
 		}

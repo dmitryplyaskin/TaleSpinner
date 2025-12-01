@@ -35,6 +35,8 @@ import {
   resetWizard,
   clearError,
 } from "../../model/events";
+import { MainLayout, Sidebar } from "../../../../components/layout";
+import { goToWelcome, goToWorldPreparation } from "../../../../model/app-navigation";
 
 /**
  * Основной компонент Wizard V2
@@ -55,7 +57,7 @@ export const WizardV2: React.FC = () => {
   const handleExitClick = () => {
     if (step === "genre" && !sessionId) {
       // Просто закрываем без подтверждения
-      window.history.back();
+      goToWelcome();
       return;
     }
     handleOpenExitDialog();
@@ -64,7 +66,7 @@ export const WizardV2: React.FC = () => {
   const handleExitConfirm = () => {
     handleCloseExitDialog();
     handleResetWizard();
-    window.history.back();
+    goToWelcome();
   };
 
   const renderStep = () => {
@@ -87,137 +89,110 @@ export const WizardV2: React.FC = () => {
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
-        py: 4,
-      }}
+    <MainLayout
+      sidebar={<Sidebar onSelectWorld={(id) => goToWorldPreparation(id)} />}
+      showSidebar={true}
+      showRightPanel={false}
     >
-      <Container maxWidth="lg">
-        {/* Header */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            mb: 4,
-          }}
-        >
-          <IconButton
-            onClick={handleExitClick}
-            sx={{
-              color: "text.primary",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              "&:hover": {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                borderColor: "rgba(255, 255, 255, 0.3)",
-              },
-            }}
-          >
-            <ArrowBack />
-          </IconButton>
-          <Box>
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 700,
-                background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%)",
-                backgroundClip: "text",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              Создание мира
-            </Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Новая версия мастера создания миров
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Step Indicator */}
-        <StepIndicator currentStep={step} />
-
-        {/* Error Alert */}
-        {error && (
-          <Alert
-            severity="error"
-            onClose={handleClearError}
-            sx={{
-              mb: 3,
-              backgroundColor: "rgba(211, 47, 47, 0.1)",
-              color: "error.main",
-              "& .MuiAlert-icon": {
-                color: "error.main",
-              },
-            }}
-          >
-            {error}
-          </Alert>
-        )}
-
-        {/* Content */}
-        <GlassCard
-          sx={{
-            p: 4,
-            minHeight: "60vh",
-          }}
-        >
-          {renderStep()}
-        </GlassCard>
-
-        {/* Exit Confirmation Dialog */}
-        <Dialog
-          open={exitDialogOpen}
-          onClose={handleCloseExitDialog}
-          PaperProps={{
-            sx: {
-              backgroundColor: "#1a1a2e",
-              backgroundImage: "none",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-            },
-          }}
-        >
-          <DialogTitle
+      <Box sx={{ height: "100%", overflowY: "auto" }}>
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          {/* Header */}
+          <Box
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 1,
-              color: "warning.main",
+              gap: 2,
+              mb: 4,
             }}
           >
-            <Warning />
-            Выйти из создания мира?
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ color: "text.secondary" }}>
-              Весь прогресс создания мира будет потерян. Вы уверены, что хотите
-              выйти?
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button
-              onClick={handleCloseExitDialog}
-              variant="outlined"
+            <IconButton
+              onClick={handleExitClick}
+              size="large"
               sx={{
-                borderColor: "rgba(255, 255, 255, 0.2)",
-                color: "text.primary",
+                border: "1px solid",
+                borderColor: "divider",
+                "&:hover": {
+                  borderColor: "warning.main",
+                  bgcolor: "rgba(255, 143, 0, 0.08)",
+                },
               }}
             >
-              Остаться
-            </Button>
-            <Button
-              onClick={handleExitConfirm}
-              variant="contained"
-              color="warning"
-            >
-              Выйти
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
-    </Box>
+              <ArrowBack />
+            </IconButton>
+            <Box>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+                Создание мира
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Пошаговый мастер создания игрового мира
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Step Indicator */}
+          <StepIndicator currentStep={step} />
+
+          {/* Error Alert */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }} onClose={handleClearError}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Content */}
+          <GlassCard
+            sx={{
+              p: 4,
+              minHeight: "60vh",
+            }}
+          >
+            {renderStep()}
+          </GlassCard>
+
+          {/* Exit Confirmation Dialog */}
+          <Dialog
+            open={exitDialogOpen}
+            onClose={handleCloseExitDialog}
+            PaperProps={{
+              sx: {
+                borderTop: "4px solid",
+                borderColor: "warning.main",
+              },
+            }}
+          >
+            <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Warning color="warning" />
+              Выйти из создания мира?
+            </DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                Весь прогресс создания мира будет потерян. Вы уверены, что хотите
+                выйти?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={handleCloseExitDialog} variant="outlined">
+                Остаться
+              </Button>
+              <Button
+                onClick={handleExitConfirm}
+                variant="contained"
+                color="warning"
+                sx={{
+                  bgcolor: "warning.main",
+                  color: "warning.contrastText",
+                  "&:hover": {
+                    bgcolor: "warning.dark",
+                  },
+                }}
+              >
+                Выйти
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Container>
+      </Box>
+    </MainLayout>
   );
 };
 

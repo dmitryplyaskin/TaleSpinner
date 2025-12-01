@@ -7,7 +7,13 @@ import { architectNode, elementsNode } from "./nodes";
  */
 function shouldContinueArchitect(
   state: WorldCreationV2StateType
-): "architect" | "waitForApproval" {
+): "architect" | "waitForApproval" | "end" {
+  // Если возникла ошибка - завершаем граф
+  if (state.currentPhase === "error") {
+    console.log("[Graph] Error detected, ending graph");
+    return "end";
+  }
+
   // Если скелет готов - ждём одобрения
   if (state.skeleton && state.currentPhase === "skeleton_ready") {
     return "waitForApproval";
@@ -84,6 +90,7 @@ export function createWorldCreationV2Graph(checkpointer: MemorySaver) {
     .addConditionalEdges("architect", shouldContinueArchitect, {
       architect: "architect",
       waitForApproval: "waitForApproval",
+      end: END,
     })
 
     // Ожидание одобрения -> условный переход

@@ -8,6 +8,7 @@ import {
   setGeneratedWorld,
   setGenerationProgress,
   clearAnswers,
+  resetWizard,
 } from "./events";
 import {
   $sessionId,
@@ -22,7 +23,9 @@ import {
   startGenerationFx,
   respondToClarificationFx,
   approveSkeletonFx,
+  saveWorldFx,
 } from "./effects";
+import { goToWelcome } from "../../../model/app-navigation";
 
 // ============ Шаг 1 -> 2: После выбора жанра создаём сессию ============
 
@@ -145,5 +148,20 @@ sample({
   clock: approveSkeletonFx.doneData,
   fn: () => "generation" as const,
   target: goToStep,
+});
+
+// ============ Шаг 5: После сохранения мира ============
+
+// После успешного сохранения сбрасываем wizard и переходим на главную
+sample({
+  clock: saveWorldFx.doneData,
+  filter: (result) => result.success,
+  target: resetWizard,
+});
+
+sample({
+  clock: saveWorldFx.doneData,
+  filter: (result) => result.success,
+  target: goToWelcome,
 });
 

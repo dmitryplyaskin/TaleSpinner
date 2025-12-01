@@ -1,5 +1,30 @@
 export const API_BASE_URL = 'http://localhost:5000';
 
+/**
+ * Универсальная функция для API запросов
+ */
+export async function apiRequest<T>(
+	endpoint: string,
+	options: RequestInit = {}
+): Promise<T> {
+	const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+	
+	const response = await fetch(url, {
+		headers: {
+			'Content-Type': 'application/json',
+			...options.headers,
+		},
+		...options,
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`HTTP Error ${response.status}: ${errorText}`);
+	}
+
+	return response.json();
+}
+
 // Универсальные HTTP методы
 export const httpClient = {
 	get: async <T>(endpoint: string): Promise<T> => {

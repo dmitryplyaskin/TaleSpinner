@@ -1,6 +1,6 @@
 import { interrupt } from "@langchain/langgraph";
 import { generateObject } from "ai";
-import { openrouter } from "@openrouter/ai-sdk-provider";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { z } from "zod";
 import type { WorldCreationV2StateType } from "../state";
 import {
@@ -76,6 +76,17 @@ export async function elementsNode(
   // Получаем настройки API
   const apiSettings = await ApiSettingsService.getInternalSettings();
   const modelId = apiSettings?.model || "anthropic/claude-sonnet-4";
+  const apiKey = apiSettings?.token;
+
+  if (!apiKey) {
+    console.error("[ElementsNode] No API key configured");
+    return {
+      errors: ["API ключ OpenRouter не настроен. Перейдите в настройки и добавьте токен."],
+      currentPhase: "error",
+    };
+  }
+
+  const openrouter = createOpenRouter({ apiKey });
 
   const prompt = elementsPrompt(skeleton, nextElementType, generatedTypes);
 
