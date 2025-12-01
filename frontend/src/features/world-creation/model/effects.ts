@@ -55,18 +55,19 @@ export const fetchProgressFx = createEffect<string, GenerationProgress>({
 });
 
 /** Запуск генерации графа с Architect */
-export const startGenerationFx = createEffect<string, ContinueGenerationResponse>({
-	handler: startGeneration,
+export const startGenerationFx = createEffect<
+	string | { sessionId: string; userInput?: string },
+	ContinueGenerationResponse
+>({
+	handler: async (params) => {
+		if (typeof params === 'string') {
+			return startGeneration(params);
+		}
+		return startGeneration(params.sessionId, params.userInput);
+	},
 });
 
 /** Продолжение генерации после HITL уточнения */
 export const continueGenerationFx = createEffect<ContinueGenerationParams, ContinueGenerationResponse>({
 	handler: continueGeneration,
 });
-
-
-
-
-
-
-

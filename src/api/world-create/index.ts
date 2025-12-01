@@ -46,7 +46,13 @@ routerBuilder.addRoute({
     const { sessionId } = req.params;
 
     try {
-      const result = await agentWorldService.startGeneration(sessionId);
+      // Pass userInput to startGeneration if provided (it might be needed for initialization)
+      // Note: startGeneration service method needs to be updated to accept userInput or we update it separately.
+      // Let's update agentWorldService.startGeneration to accept userInput.
+      const result = await agentWorldService.startGeneration(
+        sessionId,
+        req.body.userInput
+      );
       res.json(result);
     } catch (error) {
       console.error("Generation start error:", error);

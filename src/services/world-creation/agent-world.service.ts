@@ -161,16 +161,37 @@ export class AgentWorldService {
   /**
    * Запуск генерации мира с поддержкой HITL
    */
-  async startGeneration(sessionId: string): Promise<GenerationResult> {
+  async startGeneration(
+    sessionId: string,
+    userInput?: string
+  ): Promise<GenerationResult> {
     const session = await this.getSession(sessionId);
     const outputLanguage = await this.getOutputLanguage();
+
+    // If userInput is provided, add it to collectedInfo if not already there
+    let collectedInfo = session.collected_info;
+    if (userInput) {
+      // Update session with new input if needed
+      // We assume input was not added via analyzeInput
+      if (Array.isArray(collectedInfo)) {
+        collectedInfo.push(userInput);
+      } else {
+        collectedInfo = [userInput];
+      }
+
+      // Save to DB
+      await this.db.query(
+        `UPDATE world_generation_sessions SET collected_info = $1 WHERE id = $2`,
+        [JSON.stringify(collectedInfo), sessionId]
+      );
+    }
 
     const graph = getWorldGenerationGraph(checkpointer);
 
     const initialState: GraphInput = {
       sessionId,
       setting: session.setting,
-      collectedInfo: session.collected_info,
+      collectedInfo,
       outputLanguage,
     };
 

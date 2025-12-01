@@ -68,6 +68,9 @@ export interface ClarificationRequest {
     generatedAt: string;
     estimatedImpact: "minor" | "moderate" | "significant";
   };
+  
+  // Дополнительные данные (например, полный объект скелета)
+  data?: any;
 }
 
 // Ответ пользователя

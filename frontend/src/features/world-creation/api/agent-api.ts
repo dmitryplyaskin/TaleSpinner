@@ -59,10 +59,10 @@ export const fetchProgress = async (sessionId: string): Promise<GenerationProgre
 /**
  * Старт генерации (с HITL поддержкой)
  */
-export const startGeneration = async (sessionId: string): Promise<ContinueGenerationResponse> => {
-	return httpClient.post<ContinueGenerationResponse>(
-		`/api/world-creation/agent/generate/${sessionId}/start`
-	);
+export const startGeneration = async (sessionId: string, userInput?: string): Promise<ContinueGenerationResponse> => {
+	return httpClient.post<ContinueGenerationResponse>(`/api/world-creation/agent/generate/${sessionId}/start`, {
+		userInput,
+	});
 };
 
 /**
@@ -71,7 +71,7 @@ export const startGeneration = async (sessionId: string): Promise<ContinueGenera
 export const continueGeneration = async (params: ContinueGenerationParams): Promise<ContinueGenerationResponse> => {
 	return httpClient.post<ContinueGenerationResponse>(
 		`/api/world-creation/agent/generate/${params.sessionId}/continue`,
-		{ response: params.response }
+		{ response: params.response },
 	);
 };
 
@@ -81,6 +81,3 @@ export const continueGeneration = async (params: ContinueGenerationParams): Prom
 export const getGenerationStreamUrl = (sessionId: string): string => {
 	return `/api/world-creation/agent/generate/${sessionId}/stream`;
 };
-
-
-

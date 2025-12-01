@@ -13,6 +13,7 @@ import type {
   ClarificationRequest,
   ClarificationResponse,
   ClarificationOption,
+  ClarificationField,
 } from "@shared/types/human-in-the-loop";
 import { ApiSettingsService } from "@services/api-settings.service";
 
@@ -42,22 +43,31 @@ function buildQuestionsRequest(
         ? "Недостаточно данных для генерации"
         : "Insufficient data for generation",
     },
-    fields: questions.map((q) => ({
-      id: q.id,
-      type: "radio", // Using radio for suggested options
-      label: q.text,
-      required: true,
-      options: q.options.map((opt) => ({
-        value: opt,
-        label: opt,
-      })),
-      // We can enable custom input via a separate mechanism or if the UI supports 'other' in radio
-      // For now, let's assume the UI handles 'custom' or we add a text field if needed.
-      // But the schema says 'allowCustom'.
-      // Since ClarificationFieldType includes 'custom', but we want radio + custom.
-      // Let's stick to 'radio' and hope the frontend allows custom or we add a text field.
-      // Actually, let's just use 'radio' for now.
-    })),
+    fields: questions
+      .map((q) => ({
+        id: q.id,
+        type: "radio" as const,
+        label: q.text,
+        required: true,
+        options: q.options.map((opt) => ({
+          value: opt,
+          label:
+            opt === "custom" ? (isRussian ? "Свой вариант" : "Custom") : opt,
+        })),
+      }))
+      .flatMap((f) => [
+        f,
+        {
+          id: `${f.id}_custom`,
+          type: "textarea" as const,
+          label: isRussian ? "Ваш ответ" : "Your answer",
+          required: false,
+          conditional: {
+            dependsOn: f.id,
+            showWhen: ["custom"],
+          },
+        },
+      ]) as ClarificationField[],
     options: {
       allowSkip: true,
       skipLabel: isRussian ? "Решай сам" : "You decide",
@@ -132,14 +142,42 @@ function buildSkeletonApprovalRequest(
     context: {
       title: isRussian ? "Подтверждение Концепта" : "Concept Approval",
       description: isRussian
-        ? `Я подготовил черновик мира: **${skeleton.title}**\n\n${skeleton.synopsis}\n\nТон: ${skeleton.tone}`
-        : `I've prepared a world draft: **${skeleton.title}**\n\n${skeleton.synopsis}\n\nTone: ${skeleton.tone}`,
+        ? "Пожалуйста, проверьте и отредактируйте концепцию вашего мира перед полной генерацией."
+        : "Please review and edit your world concept before full generation.",
       currentNode: "architect",
       reason: isRussian
         ? "Требуется утверждение структуры"
         : "Structure approval required",
     },
     fields: [
+      {
+        id: "title",
+        type: "text",
+        label: isRussian ? "Название" : "Title",
+        required: true,
+        defaultValue: skeleton.title,
+      },
+      {
+        id: "synopsis",
+        type: "textarea",
+        label: isRussian ? "Синопсис" : "Synopsis",
+        required: true,
+        defaultValue: skeleton.synopsis,
+      },
+      {
+        id: "tone",
+        type: "text",
+        label: isRussian ? "Тон" : "Tone",
+        required: true,
+        defaultValue: skeleton.tone,
+      },
+      {
+        id: "themes",
+        type: "text",
+        label: isRussian ? "Ключевые темы" : "Key Themes",
+        required: true,
+        defaultValue: skeleton.key_themes.join(", "),
+      },
       {
         id: "modules",
         type: "multiselect",
@@ -154,10 +192,10 @@ function buildSkeletonApprovalRequest(
       {
         id: "feedback",
         type: "textarea",
-        label: isRussian ? "Пожелания / Правки" : "Wishes / Edits",
+        label: isRussian ? "Комментарий к генерации" : "Generation Feedback",
         description: isRussian
-          ? "Оставьте пустым, если всё устраивает"
-          : "Leave empty if everything looks good",
+          ? "Дополнительные пожелания для агентов"
+          : "Additional instructions for agents",
         required: false,
       },
       {
@@ -188,6 +226,9 @@ function buildSkeletonApprovalRequest(
       generatedAt: new Date().toISOString(),
       estimatedImpact: "significant",
     },
+    data: {
+      skeleton,
+    },
   };
 }
 
@@ -195,8 +236,9 @@ export async function architectNode(
   state: WorldGenerationStateType
 ): Promise<Partial<WorldGenerationStateType>> {
   let currentInfo = [...state.collectedInfo];
-  let iteration = 0;
-  const MAX_ITERATIONS = 5; // Safety break
+  // Persist iteration count from state
+  let iteration = state.iterationCount || 0;
+  const MAX_ITERATIONS = 3;
 
   while (iteration < MAX_ITERATIONS) {
     iteration++;
@@ -211,19 +253,23 @@ export async function architectNode(
 
     // 2. If Questions Needed
     if (!response.is_ready && response.questions) {
+      // Transform questions to include "Custom" option logic
+      const questionsWithCustom = response.questions.map((q) => ({
+        ...q,
+        options: [...q.options, "custom"],
+      }));
+
       const request = buildQuestionsRequest(
-        response.questions,
+        questionsWithCustom,
         state.outputLanguage
       );
 
       // Check if we already have a pending clarification (resuming after interrupt)
-      // We check if pendingClarification exists and if it looks like a questions request
       if (
         state.pendingClarification &&
         state.pendingClarification.id.startsWith("architect-questions-")
       ) {
         // We're resuming - get response from interrupt
-        // Use the EXISTING request from state to ensure ID match for interrupt
         const userResponse = interrupt(
           state.pendingClarification
         ) as ClarificationResponse;
@@ -233,12 +279,26 @@ export async function architectNode(
         } else {
           // Format answers as "Question: Answer"
           for (const [key, value] of Object.entries(userResponse.answers)) {
+            // Skip custom fields processing directly, handle them with main fields
+            if (key.endsWith("_custom")) continue;
+
             const q = response.questions.find((q) => q.id === key);
             const qText = q ? q.text : key;
-            currentInfo.push(`Q: ${qText}\nA: ${value}`);
+
+            let finalValue = value;
+            if (value === "custom") {
+              finalValue =
+                userResponse.answers[`${key}_custom`] ||
+                "User selected custom but provided no input";
+            }
+
+            currentInfo.push(`Q: ${qText}\nA: ${finalValue}`);
           }
         }
         // Loop continues to re-analyze
+        // NOTE: We do NOT return here, we let the loop continue with increased iteration count
+        // to re-run agent with new info.
+        // We update state.iterationCount at the end or when yielding.
         continue;
       } else {
         // First time hitting this interrupt - set pendingClarification and return
@@ -246,6 +306,7 @@ export async function architectNode(
           pendingClarification: request,
           collectedInfo: currentInfo,
           currentNode: "architect",
+          iterationCount: iteration, // Save progress
         };
       }
     }
@@ -271,7 +332,24 @@ export async function architectNode(
         const feedback = userResponse.answers.feedback as string;
         const selectedModules = userResponse.answers.modules as string[];
 
+        // Extract edited fields
+        const editedTitle = userResponse.answers.title as string;
+        const editedSynopsis = userResponse.answers.synopsis as string;
+        const editedTone = userResponse.answers.tone as string;
+        const editedThemes = userResponse.answers.themes as string;
+
         if (action === "approve") {
+          // Update skeleton with user edits
+          const finalSkeleton = {
+            ...response.skeleton,
+            title: editedTitle || response.skeleton.title,
+            synopsis: editedSynopsis || response.skeleton.synopsis,
+            tone: editedTone || response.skeleton.tone,
+            key_themes: editedThemes
+              ? editedThemes.split(",").map((t) => t.trim())
+              : response.skeleton.key_themes,
+          };
+
           // Construct final config based on user selection
           const finalConfig: GenerationConfig = {
             hasFactions: selectedModules.includes("hasFactions"),
@@ -290,18 +368,19 @@ export async function architectNode(
           // Add approved skeleton to collected info so other agents follow it
           currentInfo.push(
             `Approved World Skeleton:\nTitle: ${
-              response.skeleton.title
-            }\nSynopsis: ${response.skeleton.synopsis}\nTone: ${
-              response.skeleton.tone
-            }\nThemes: ${response.skeleton.key_themes.join(", ")}`
+              finalSkeleton.title
+            }\nSynopsis: ${finalSkeleton.synopsis}\nTone: ${
+              finalSkeleton.tone
+            }\nThemes: ${finalSkeleton.key_themes.join(", ")}`
           );
 
           return {
-            skeleton: response.skeleton,
+            skeleton: finalSkeleton,
             config: finalConfig,
             collectedInfo: currentInfo,
             currentNode: "architect",
             pendingClarification: null,
+            iterationCount: iteration,
           };
         } else {
           // User wants to refine
@@ -316,6 +395,7 @@ export async function architectNode(
           pendingClarification: request,
           collectedInfo: currentInfo,
           currentNode: "architect",
+          iterationCount: iteration,
         };
       }
     }
@@ -324,5 +404,8 @@ export async function architectNode(
     currentInfo.push("Error: Agent returned ready but no skeleton. Retrying.");
   }
 
+  // If we exceeded max iterations, we should probably just finish with what we have or error.
+  // Ideally, we might want to return a default skeleton or error out.
+  // For now, let's error as before.
   throw new Error("Architect loop exceeded max iterations");
 }

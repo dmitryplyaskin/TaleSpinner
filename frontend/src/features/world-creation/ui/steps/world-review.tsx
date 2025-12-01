@@ -14,6 +14,7 @@ import {
 	Paper,
 	Chip,
 	CircularProgress,
+	Grid,
 } from '@mui/material';
 import {
 	ExpandMore as ExpandMoreIcon,
@@ -24,16 +25,10 @@ import {
 	People,
 	History,
 	AutoAwesome,
+	Edit as EditIcon,
+	Check as CheckIcon,
 } from '@mui/icons-material';
-import {
-	$worldData,
-	$sessionId,
-	$isSaving,
-	$error,
-	updateWorldData,
-	saveWorldFx,
-	clearError,
-} from '../../model';
+import { $worldData, $sessionId, $isSaving, $error, updateWorldData, saveWorldFx, clearError } from '../../model';
 
 interface TabPanelProps {
 	children?: React.ReactNode;
@@ -47,9 +42,53 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
 	</Box>
 );
 
+const FieldDisplay = ({
+	label,
+	value,
+	isEditing,
+	onChange,
+	multiline = false,
+	rows = 1,
+}: {
+	label: string;
+	value?: string;
+	isEditing: boolean;
+	onChange: (val: string) => void;
+	multiline?: boolean;
+	rows?: number;
+}) => {
+	if (isEditing) {
+		return (
+			<TextField
+				label={label}
+				value={value || ''}
+				fullWidth
+				multiline={multiline}
+				rows={rows}
+				onChange={(e) => onChange(e.target.value)}
+				variant="outlined"
+				size="small"
+				sx={{ mb: 2 }}
+			/>
+		);
+	}
+
+	return (
+		<Box sx={{ mb: 3 }}>
+			<Typography variant="subtitle2" color="text.secondary" gutterBottom>
+				{label}
+			</Typography>
+			<Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+				{value || '—'}
+			</Typography>
+		</Box>
+	);
+};
+
 export const WorldReview: React.FC = () => {
 	const [tab, setTab] = useState(0);
 	const [saveSuccess, setSaveSuccess] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
 
 	const world = useUnit($worldData);
 	const sessionId = useUnit($sessionId);
@@ -86,13 +125,23 @@ export const WorldReview: React.FC = () => {
 
 	return (
 		<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-			<Box sx={{ textAlign: 'center', mb: 2 }}>
-				<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-					Проверьте ваш мир
-				</Typography>
-				<Typography variant="body1" color="text.secondary">
-					Просмотрите и отредактируйте сгенерированные данные перед сохранением
-				</Typography>
+			<Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+				<Box>
+					<Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+						Проверьте ваш мир
+					</Typography>
+					<Typography variant="body1" color="text.secondary">
+						Просмотрите и отредактируйте сгенерированные данные перед сохранением
+					</Typography>
+				</Box>
+				<Button
+					variant={isEditing ? 'contained' : 'outlined'}
+					startIcon={isEditing ? <CheckIcon /> : <EditIcon />}
+					onClick={() => setIsEditing(!isEditing)}
+					color={isEditing ? 'success' : 'primary'}
+				>
+					{isEditing ? 'Завершить' : 'Редактировать'}
+				</Button>
 			</Box>
 
 			{error && (
@@ -133,97 +182,121 @@ export const WorldReview: React.FC = () => {
 					))}
 				</Tabs>
 
-				<Box sx={{ p: 3, minHeight: 400 }}>
+				<Box sx={{ p: 4, minHeight: 400 }}>
 					{/* Overview Tab */}
 					<TabPanel value={tab} index={0}>
-						<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-							<TextField
-								label="Название мира"
-								value={world.name}
-								fullWidth
-								onChange={(e) => handleUpdateWorldData({ name: e.target.value })}
-							/>
-							<Box sx={{ display: 'flex', gap: 2 }}>
-								<TextField
+						<Grid container spacing={4}>
+							<Grid size={{ xs: 12 }}>
+								<FieldDisplay
+									label="Название мира"
+									value={world.name}
+									isEditing={isEditing}
+									onChange={(val) => handleUpdateWorldData({ name: val })}
+								/>
+							</Grid>
+							<Grid size={{ xs: 12, sm: 6 }}>
+								<FieldDisplay
 									label="Жанр"
 									value={world.genre}
-									fullWidth
-									onChange={(e) => handleUpdateWorldData({ genre: e.target.value })}
+									isEditing={isEditing}
+									onChange={(val) => handleUpdateWorldData({ genre: val })}
 								/>
-								<TextField
+							</Grid>
+							<Grid size={{ xs: 12, sm: 6 }}>
+								<FieldDisplay
 									label="Атмосфера"
 									value={world.tone}
-									fullWidth
-									onChange={(e) => handleUpdateWorldData({ tone: e.target.value })}
+									isEditing={isEditing}
+									onChange={(val) => handleUpdateWorldData({ tone: val })}
 								/>
-							</Box>
-							<TextField
-								label="Описание мира"
-								value={world.world_primer}
-								multiline
-								rows={8}
-								fullWidth
-								onChange={(e) => handleUpdateWorldData({ world_primer: e.target.value })}
-							/>
-						</Box>
+							</Grid>
+							<Grid size={{ xs: 12 }}>
+								<FieldDisplay
+									label="Описание мира"
+									value={world.world_primer}
+									isEditing={isEditing}
+									multiline
+									rows={8}
+									onChange={(val) => handleUpdateWorldData({ world_primer: val })}
+								/>
+							</Grid>
+						</Grid>
 					</TabPanel>
 
 					{/* Factions Tab */}
 					<TabPanel value={tab} index={1}>
 						{world.factions && world.factions.length > 0 ? (
 							world.factions.map((faction, idx) => (
-								<Accordion key={idx} defaultExpanded={idx === 0}>
+								<Accordion
+									key={idx}
+									defaultExpanded={idx === 0}
+									elevation={0}
+									sx={{ border: '1px solid', borderColor: 'divider', mb: 2, borderRadius: 1 }}
+								>
 									<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
 											<Groups color="primary" />
-											<Typography fontWeight={500}>{faction.name}</Typography>
+											<Typography fontWeight={500} sx={{ flex: 1 }}>
+												{faction.name}
+											</Typography>
 											{faction.type && <Chip label={faction.type} size="small" variant="outlined" />}
 										</Box>
 									</AccordionSummary>
-									<AccordionDetails sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-										<TextField
-											label="Название"
-											value={faction.name}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.factions || [])];
-												updated[idx] = { ...updated[idx], name: e.target.value };
-												handleUpdateWorldData({ factions: updated });
-											}}
-										/>
-										<TextField
-											label="Тип организации"
-											value={faction.type}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.factions || [])];
-												updated[idx] = { ...updated[idx], type: e.target.value };
-												handleUpdateWorldData({ factions: updated });
-											}}
-										/>
-										<TextField
-											label="Идеология и цели"
-											value={faction.ideology_and_goals}
-											fullWidth
-											multiline
-											rows={3}
-											onChange={(e) => {
-												const updated = [...(world.factions || [])];
-												updated[idx] = { ...updated[idx], ideology_and_goals: e.target.value };
-												handleUpdateWorldData({ factions: updated });
-											}}
-										/>
-										<TextField
-											label="Структура"
-											value={faction.structure}
-											fullWidth
-											multiline
-											onChange={(e) => {
-												const updated = [...(world.factions || [])];
-												updated[idx] = { ...updated[idx], structure: e.target.value };
-												handleUpdateWorldData({ factions: updated });
-											}}
-										/>
+									<AccordionDetails>
+										<Grid container spacing={2}>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Название"
+													value={faction.name}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.factions || [])];
+														updated[idx] = { ...updated[idx], name: val };
+														handleUpdateWorldData({ factions: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Тип организации"
+													value={faction.type}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.factions || [])];
+														updated[idx] = { ...updated[idx], type: val };
+														handleUpdateWorldData({ factions: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Идеология и цели"
+													value={faction.ideology_and_goals}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.factions || [])];
+														updated[idx] = { ...updated[idx], ideology_and_goals: val };
+														handleUpdateWorldData({ factions: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Структура"
+													value={faction.structure}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.factions || [])];
+														updated[idx] = { ...updated[idx], structure: val };
+														handleUpdateWorldData({ factions: updated });
+													}}
+												/>
+											</Grid>
+										</Grid>
 									</AccordionDetails>
 								</Accordion>
 							))
@@ -238,47 +311,62 @@ export const WorldReview: React.FC = () => {
 					<TabPanel value={tab} index={2}>
 						{world.locations && world.locations.length > 0 ? (
 							world.locations.map((location, idx) => (
-								<Accordion key={idx} defaultExpanded={idx === 0}>
+								<Accordion
+									key={idx}
+									defaultExpanded={idx === 0}
+									elevation={0}
+									sx={{ border: '1px solid', borderColor: 'divider', mb: 2, borderRadius: 1 }}
+								>
 									<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
 											<LocationOn color="primary" />
-											<Typography fontWeight={500}>{location.name}</Typography>
+											<Typography fontWeight={500} sx={{ flex: 1 }}>
+												{location.name}
+											</Typography>
 											{location.type && <Chip label={location.type} size="small" variant="outlined" />}
 										</Box>
 									</AccordionSummary>
-									<AccordionDetails sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-										<TextField
-											label="Название"
-											value={location.name}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.locations || [])];
-												updated[idx] = { ...updated[idx], name: e.target.value };
-												handleUpdateWorldData({ locations: updated });
-											}}
-										/>
-										<TextField
-											label="Тип локации"
-											value={location.type}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.locations || [])];
-												updated[idx] = { ...updated[idx], type: e.target.value };
-												handleUpdateWorldData({ locations: updated });
-											}}
-										/>
-										<TextField
-											label="Описание"
-											value={location.appearance}
-											fullWidth
-											multiline
-											rows={3}
-											onChange={(e) => {
-												const updated = [...(world.locations || [])];
-												updated[idx] = { ...updated[idx], appearance: e.target.value };
-												handleUpdateWorldData({ locations: updated });
-											}}
-										/>
+									<AccordionDetails>
+										<Grid container spacing={2}>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Название"
+													value={location.name}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.locations || [])];
+														updated[idx] = { ...updated[idx], name: val };
+														handleUpdateWorldData({ locations: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Тип локации"
+													value={location.type}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.locations || [])];
+														updated[idx] = { ...updated[idx], type: val };
+														handleUpdateWorldData({ locations: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Описание"
+													value={location.appearance}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.locations || [])];
+														updated[idx] = { ...updated[idx], appearance: val };
+														handleUpdateWorldData({ locations: updated });
+													}}
+												/>
+											</Grid>
+										</Grid>
 									</AccordionDetails>
 								</Accordion>
 							))
@@ -293,47 +381,63 @@ export const WorldReview: React.FC = () => {
 					<TabPanel value={tab} index={3}>
 						{world.races && world.races.length > 0 ? (
 							world.races.map((race, idx) => (
-								<Accordion key={idx} defaultExpanded={idx === 0}>
+								<Accordion
+									key={idx}
+									defaultExpanded={idx === 0}
+									elevation={0}
+									sx={{ border: '1px solid', borderColor: 'divider', mb: 2, borderRadius: 1 }}
+								>
 									<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
 											<People color="primary" />
-											<Typography fontWeight={500}>{race.name}</Typography>
+											<Typography fontWeight={500} sx={{ flex: 1 }}>
+												{race.name}
+											</Typography>
 										</Box>
 									</AccordionSummary>
-									<AccordionDetails sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-										<TextField
-											label="Название"
-											value={race.name}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.races || [])];
-												updated[idx] = { ...updated[idx], name: e.target.value };
-												handleUpdateWorldData({ races: updated });
-											}}
-										/>
-										<TextField
-											label="Описание"
-											value={race.description}
-											fullWidth
-											multiline
-											rows={3}
-											onChange={(e) => {
-												const updated = [...(world.races || [])];
-												updated[idx] = { ...updated[idx], description: e.target.value };
-												handleUpdateWorldData({ races: updated });
-											}}
-										/>
-										<TextField
-											label="Особые способности"
-											value={race.special_abilities}
-											fullWidth
-											multiline
-											onChange={(e) => {
-												const updated = [...(world.races || [])];
-												updated[idx] = { ...updated[idx], special_abilities: e.target.value };
-												handleUpdateWorldData({ races: updated });
-											}}
-										/>
+									<AccordionDetails>
+										<Grid container spacing={2}>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Название"
+													value={race.name}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.races || [])];
+														updated[idx] = { ...updated[idx], name: val };
+														handleUpdateWorldData({ races: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Описание"
+													value={race.description}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.races || [])];
+														updated[idx] = { ...updated[idx], description: val };
+														handleUpdateWorldData({ races: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Особые способности"
+													value={race.special_abilities}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.races || [])];
+														updated[idx] = { ...updated[idx], special_abilities: val };
+														handleUpdateWorldData({ races: updated });
+													}}
+												/>
+											</Grid>
+										</Grid>
 									</AccordionDetails>
 								</Accordion>
 							))
@@ -348,47 +452,62 @@ export const WorldReview: React.FC = () => {
 					<TabPanel value={tab} index={4}>
 						{world.history && world.history.length > 0 ? (
 							world.history.map((event, idx) => (
-								<Accordion key={idx} defaultExpanded={idx === 0}>
+								<Accordion
+									key={idx}
+									defaultExpanded={idx === 0}
+									elevation={0}
+									sx={{ border: '1px solid', borderColor: 'divider', mb: 2, borderRadius: 1 }}
+								>
 									<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+										<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
 											<History color="primary" />
-											<Typography fontWeight={500}>{event.name}</Typography>
+											<Typography fontWeight={500} sx={{ flex: 1 }}>
+												{event.name}
+											</Typography>
 											{event.timeframe && <Chip label={event.timeframe} size="small" variant="outlined" />}
 										</Box>
 									</AccordionSummary>
-									<AccordionDetails sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-										<TextField
-											label="Название события"
-											value={event.name}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.history || [])];
-												updated[idx] = { ...updated[idx], name: e.target.value };
-												handleUpdateWorldData({ history: updated });
-											}}
-										/>
-										<TextField
-											label="Временной период"
-											value={event.timeframe}
-											fullWidth
-											onChange={(e) => {
-												const updated = [...(world.history || [])];
-												updated[idx] = { ...updated[idx], timeframe: e.target.value };
-												handleUpdateWorldData({ history: updated });
-											}}
-										/>
-										<TextField
-											label="Описание"
-											value={event.description}
-											fullWidth
-											multiline
-											rows={3}
-											onChange={(e) => {
-												const updated = [...(world.history || [])];
-												updated[idx] = { ...updated[idx], description: e.target.value };
-												handleUpdateWorldData({ history: updated });
-											}}
-										/>
+									<AccordionDetails>
+										<Grid container spacing={2}>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Название события"
+													value={event.name}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.history || [])];
+														updated[idx] = { ...updated[idx], name: val };
+														handleUpdateWorldData({ history: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12, sm: 6 }}>
+												<FieldDisplay
+													label="Временной период"
+													value={event.timeframe}
+													isEditing={isEditing}
+													onChange={(val) => {
+														const updated = [...(world.history || [])];
+														updated[idx] = { ...updated[idx], timeframe: val };
+														handleUpdateWorldData({ history: updated });
+													}}
+												/>
+											</Grid>
+											<Grid size={{ xs: 12 }}>
+												<FieldDisplay
+													label="Описание"
+													value={event.description}
+													isEditing={isEditing}
+													multiline
+													rows={3}
+													onChange={(val) => {
+														const updated = [...(world.history || [])];
+														updated[idx] = { ...updated[idx], description: val };
+														handleUpdateWorldData({ history: updated });
+													}}
+												/>
+											</Grid>
+										</Grid>
 									</AccordionDetails>
 								</Accordion>
 							))
@@ -402,97 +521,108 @@ export const WorldReview: React.FC = () => {
 					{/* Magic Tab */}
 					<TabPanel value={tab} index={5}>
 						{world.magic ? (
-							<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-								<TextField
-									label="Основы магии"
-									value={world.magic.magic_fundamentals}
-									fullWidth
-									multiline
-									rows={4}
-									onChange={(e) =>
-										handleUpdateWorldData({
-											magic: { ...world.magic!, magic_fundamentals: e.target.value },
-										})
-									}
-								/>
-								<TextField
-									label="Источники силы"
-									value={world.magic.power_sources}
-									fullWidth
-									multiline
-									rows={3}
-									onChange={(e) =>
-										handleUpdateWorldData({
-											magic: { ...world.magic!, power_sources: e.target.value },
-										})
-									}
-								/>
-								<TextField
-									label="Ограничения и цена"
-									value={world.magic.limitations_and_costs}
-									fullWidth
-									multiline
-									rows={3}
-									onChange={(e) =>
-										handleUpdateWorldData({
-											magic: { ...world.magic!, limitations_and_costs: e.target.value },
-										})
-									}
-								/>
-								<TextField
-									label="Отношение общества"
-									value={world.magic.societal_attitude}
-									fullWidth
-									multiline
-									rows={2}
-									onChange={(e) =>
-										handleUpdateWorldData({
-											magic: { ...world.magic!, societal_attitude: e.target.value },
-										})
-									}
-								/>
+							<Grid container spacing={3}>
+								<Grid size={{ xs: 12 }}>
+									<FieldDisplay
+										label="Основы магии"
+										value={world.magic.magic_fundamentals}
+										isEditing={isEditing}
+										multiline
+										rows={4}
+										onChange={(val) =>
+											handleUpdateWorldData({
+												magic: { ...world.magic!, magic_fundamentals: val },
+											})
+										}
+									/>
+								</Grid>
+								<Grid size={{ xs: 12 }}>
+									<FieldDisplay
+										label="Источники силы"
+										value={world.magic.power_sources}
+										isEditing={isEditing}
+										multiline
+										rows={3}
+										onChange={(val) =>
+											handleUpdateWorldData({
+												magic: { ...world.magic!, power_sources: val },
+											})
+										}
+									/>
+								</Grid>
+								<Grid size={{ xs: 12 }}>
+									<FieldDisplay
+										label="Ограничения и цена"
+										value={world.magic.limitations_and_costs}
+										isEditing={isEditing}
+										multiline
+										rows={3}
+										onChange={(val) =>
+											handleUpdateWorldData({
+												magic: { ...world.magic!, limitations_and_costs: val },
+											})
+										}
+									/>
+								</Grid>
+								<Grid size={{ xs: 12 }}>
+									<FieldDisplay
+										label="Отношение общества"
+										value={world.magic.societal_attitude}
+										isEditing={isEditing}
+										multiline
+										rows={2}
+										onChange={(val) =>
+											handleUpdateWorldData({
+												magic: { ...world.magic!, societal_attitude: val },
+											})
+										}
+									/>
+								</Grid>
 
 								{world.magic.magic_schools && world.magic.magic_schools.length > 0 && (
-									<>
-										<Typography variant="h6" sx={{ mt: 2 }}>
+									<Grid size={{ xs: 12 }}>
+										<Typography variant="h6" sx={{ mb: 2 }}>
 											Школы магии
 										</Typography>
 										{world.magic.magic_schools.map((school, idx) => (
-											<Paper key={idx} sx={{ p: 2 }}>
-												<Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-													<TextField
-														label="Название школы"
-														value={school.name}
-														fullWidth
-														size="small"
-														onChange={(e) => {
-															const updated = [...world.magic!.magic_schools];
-															updated[idx] = { ...updated[idx], name: e.target.value };
-															handleUpdateWorldData({
-																magic: { ...world.magic!, magic_schools: updated },
-															});
-														}}
-													/>
-													<TextField
-														label="Описание"
-														value={school.description}
-														fullWidth
-														multiline
-														size="small"
-														onChange={(e) => {
-															const updated = [...world.magic!.magic_schools];
-															updated[idx] = { ...updated[idx], description: e.target.value };
-															handleUpdateWorldData({
-																magic: { ...world.magic!, magic_schools: updated },
-															});
-														}}
-													/>
-												</Box>
+											<Paper key={idx} sx={{ p: 2, mb: 2 }} variant="outlined">
+												<Grid container spacing={2}>
+													<Grid size={{ xs: 12 }}>
+														<FieldDisplay
+															label="Название школы"
+															value={school.name}
+															isEditing={isEditing}
+															onChange={(val) => {
+																const updated = [...world.magic!.magic_schools];
+																updated[idx] = { ...updated[idx], name: val };
+																handleUpdateWorldData({
+																	magic: { ...world.magic!, magic_schools: updated },
+																});
+															}}
+														/>
+													</Grid>
+													<Grid size={{ xs: 12 }}>
+														<FieldDisplay
+															label="Описание"
+															value={school.description}
+															isEditing={isEditing}
+															multiline
+															rows={2}
+															onChange={(val) => {
+																const updated = [...world.magic!.magic_schools];
+																updated[idx] = { ...updated[idx], description: val };
+																handleUpdateWorldData({
+																	magic: { ...world.magic!, magic_schools: updated },
+																});
+															}}
+														/>
+													</Grid>
+												</Grid>
 											</Paper>
 										))}
-									</>
+									</Grid>
 								)}
-							</Box>
+							</Grid>
 						) : (
 							<Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
 								Система магии не сгенерирована
@@ -522,10 +652,3 @@ export const WorldReview: React.FC = () => {
 		</Box>
 	);
 };
-
-
-
-
-
-
-

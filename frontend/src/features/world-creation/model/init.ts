@@ -6,7 +6,6 @@ import { goToWelcome } from '../../../model/app-navigation';
 
 import {
 	startSessionFx,
-	analyzeInputFx,
 	submitAnswersFx,
 	generateWorldFx,
 	saveWorldFx,
@@ -25,15 +24,7 @@ sample({
 	target: goToStep,
 });
 
-// После анализа: запускаем генерацию графа (который вызовет Architect)
-sample({
-	clock: analyzeInputFx.doneData,
-	source: analyzeInputFx.done,
-	fn: ({ params }) => params.sessionId,
-	target: startGenerationFx,
-});
-
-// После старта генерации: проверяем статус
+// После запуска генерации (из WorldInput) -> проверяем статус
 sample({
 	clock: startGenerationFx.doneData,
 	filter: (data) => data.status === 'waiting_for_input' && data.clarification !== undefined,
@@ -86,10 +77,3 @@ sample({
 	fn: () => 'review' as const,
 	target: goToStep,
 });
-
-
-
-
-
-
-

@@ -125,44 +125,49 @@ export const SkeletonPreview: React.FC = () => {
 	const isSubmitting = useUnit($isContinuing);
 	const handleContinue = useUnit(continueGenerationFx);
 
-	const [selectedModules, setSelectedModules] = useState<string[]>([]);
-	const [feedback, setFeedback] = useState<string>('');
+	const [formState, setFormState] = useState({
+		title: '',
+		synopsis: '',
+		tone: '',
+		themes: '',
+		modules: [] as string[],
+		feedback: '',
+	});
 
-	// Parse skeleton from request
-	const skeleton = React.useMemo(() => {
-		if (!request) return null;
-
-		// Extract skeleton info from description (it's in markdown format)
-		const description = request.context.description;
-		const titleMatch = description.match(/\*\*(.+?)\*\*/);
-		const title = titleMatch ? titleMatch[1] : 'Черновик Мира';
-
-		// Extract modules from defaults
-		const modulesField = request.fields.find((f) => f.id === 'modules');
-		const defaultModules = (modulesField?.defaultValue as string[]) || [];
-
-		return {
-			title,
-			description,
-			modules: defaultModules,
-		};
-	}, [request]);
-
-	// Initialize selected modules from defaults
+	// Initialize form from request defaults
 	useEffect(() => {
-		if (skeleton) {
-			setSelectedModules(skeleton.modules);
+		if (request) {
+			const getFieldDefault = (id: string, fallback: any) => {
+				const field = request.fields.find((f) => f.id === id);
+				return field?.defaultValue ?? fallback;
+			};
+
+			setFormState({
+				title: getFieldDefault('title', ''),
+				synopsis: getFieldDefault('synopsis', ''),
+				tone: getFieldDefault('tone', ''),
+				themes: getFieldDefault('themes', ''),
+				modules: getFieldDefault('modules', []),
+				feedback: '',
+			});
 		}
-	}, [skeleton]);
+	}, [request]);
 
 	if (!request || request.context.currentNode !== 'architect') {
 		return null;
 	}
 
 	const handleModuleToggle = (moduleKey: string) => {
-		setSelectedModules((prev) =>
-			prev.includes(moduleKey) ? prev.filter((m) => m !== moduleKey) : [...prev, moduleKey],
-		);
+		setFormState((prev) => ({
+			...prev,
+			modules: prev.modules.includes(moduleKey)
+				? prev.modules.filter((m) => m !== moduleKey)
+				: [...prev.modules, moduleKey],
+		}));
+	};
+
+	const handleChange = (field: string, value: string) => {
+		setFormState((prev) => ({ ...prev, [field]: value }));
 	};
 
 	const handleApprove = () => {
@@ -173,8 +178,7 @@ export const SkeletonPreview: React.FC = () => {
 					requestId: request.id,
 					skipped: false,
 					answers: {
-						modules: selectedModules,
-						feedback: feedback.trim(),
+						...formState,
 						action: 'approve',
 					},
 				},
@@ -190,8 +194,7 @@ export const SkeletonPreview: React.FC = () => {
 					requestId: request.id,
 					skipped: false,
 					answers: {
-						modules: selectedModules,
-						feedback: feedback.trim(),
+						...formState,
 						action: 'refine',
 					},
 				},
@@ -202,27 +205,25 @@ export const SkeletonPreview: React.FC = () => {
 	return (
 		<Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
 			{/* Header with Status */}
-			<Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-				<Box>
-					<Typography
-						variant="h4"
-						gutterBottom
-						color="primary"
-						sx={{ display: 'flex', alignItems: 'center', gap: 2, fontWeight: 600 }}
-					>
-						<CheckCircleIcon fontSize="large" />
-						Паспорт Мира
-					</Typography>
-					<Typography variant="body1" color="text.secondary">
-						Концепция сформирована. Выберите модули для детальной генерации.
-					</Typography>
-				</Box>
+			<Box sx={{ mb: 4 }}>
+				<Typography
+					variant="h4"
+					gutterBottom
+					color="primary"
+					sx={{ display: 'flex', alignItems: 'center', gap: 2, fontWeight: 600 }}
+				>
+					<CheckCircleIcon fontSize="large" />
+					Паспорт Мира
+				</Typography>
+				<Typography variant="body1" color="text.secondary">
+					Проверьте и отредактируйте концепцию перед финальной генерацией.
+				</Typography>
 			</Box>
 
 			{/* Main Content Grid */}
 			<Grid container spacing={4}>
-				{/* Left Column: Skeleton Info */}
-				<Grid size={{ xs: 12, md: 4 }}>
+				{/* Left Column: Editable Skeleton Info */}
+				<Grid size={{ xs: 12, md: 5 }}>
 					<Paper
 						elevation={0}
 						sx={{
@@ -231,50 +232,56 @@ export const SkeletonPreview: React.FC = () => {
 							border: '1px solid',
 							borderColor: 'divider',
 							height: '100%',
+							display: 'flex',
+							flexDirection: 'column',
+							gap: 3,
 						}}
 					>
-						<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3, color: 'primary.main' }}>
+						<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
 							<ArticleIcon />
 							<Typography variant="h6" fontWeight={600}>
 								Концепция
 							</Typography>
 						</Box>
 
-						<Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-							{skeleton?.title}
-						</Typography>
-						<Typography
-							variant="body1"
-							sx={{
-								whiteSpace: 'pre-wrap',
-								color: 'text.secondary',
-								lineHeight: 1.6,
-							}}
-						>
-							{request.context.description.replace(/\*\*(.+?)\*\*/g, '$1')}
-						</Typography>
-
-						<Divider sx={{ my: 3 }} />
-
-						<Typography variant="subtitle2" gutterBottom color="text.secondary">
-							Ваши комментарии к концепции:
-						</Typography>
 						<TextField
+							label="Название мира"
+							value={formState.title}
+							onChange={(e) => handleChange('title', e.target.value)}
+							fullWidth
+							variant="outlined"
+						/>
+
+						<TextField
+							label="Синопсис"
+							value={formState.synopsis}
+							onChange={(e) => handleChange('synopsis', e.target.value)}
 							fullWidth
 							multiline
-							rows={4}
-							placeholder="Например: 'Сделай мир более мрачным' или 'Добавь больше политических интриг'"
-							value={feedback}
-							onChange={(e) => setFeedback(e.target.value)}
-							disabled={isSubmitting}
+							rows={6}
 							variant="outlined"
-							size="small"
+						/>
+
+						<TextField
+							label="Тон и Атмосфера"
+							value={formState.tone}
+							onChange={(e) => handleChange('tone', e.target.value)}
+							fullWidth
+							variant="outlined"
+						/>
+
+						<TextField
+							label="Ключевые Темы (через запятую)"
+							value={formState.themes}
+							onChange={(e) => handleChange('themes', e.target.value)}
+							fullWidth
+							variant="outlined"
 						/>
 					</Paper>
 				</Grid>
 
-				{/* Right Column: Module Selection */}
-				<Grid size={{ xs: 12, md: 8 }}>
+				{/* Right Column: Module Selection & Actions */}
+				<Grid size={{ xs: 12, md: 7 }}>
 					<Box sx={{ mb: 4 }}>
 						<Typography
 							variant="h5"
@@ -291,7 +298,7 @@ export const SkeletonPreview: React.FC = () => {
 							{Object.entries(MODULE_LABELS).map(([key, { label, description }]) => (
 								<Grid size={{ xs: 12, sm: 6 }} key={key}>
 									<ModuleCard
-										selected={selectedModules.includes(key)}
+										selected={formState.modules.includes(key)}
 										onClick={() => handleModuleToggle(key)}
 										icon={MODULE_ICONS[key as keyof ModuleConfig]}
 										label={label}
@@ -302,11 +309,30 @@ export const SkeletonPreview: React.FC = () => {
 							))}
 						</Grid>
 
-						{selectedModules.length === 0 && (
+						{formState.modules.length === 0 && (
 							<Alert severity="warning" sx={{ mt: 3 }}>
 								Необходимо выбрать хотя бы один модуль для генерации!
 							</Alert>
 						)}
+					</Box>
+
+					<Divider sx={{ my: 3 }} />
+
+					<Box>
+						<Typography variant="subtitle2" gutterBottom>
+							Комментарий к генерации (опционально):
+						</Typography>
+						<TextField
+							fullWidth
+							multiline
+							rows={2}
+							placeholder="Что нужно учесть или исправить..."
+							value={formState.feedback}
+							onChange={(e) => handleChange('feedback', e.target.value)}
+							disabled={isSubmitting}
+							variant="outlined"
+							size="small"
+						/>
 					</Box>
 
 					<Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 4 }}>
@@ -318,13 +344,13 @@ export const SkeletonPreview: React.FC = () => {
 							startIcon={<EditIcon />}
 							sx={{ px: 3 }}
 						>
-							Доработать концепцию
+							Перегенерировать
 						</Button>
 						<Button
 							variant="contained"
 							size="large"
 							onClick={handleApprove}
-							disabled={isSubmitting || selectedModules.length === 0}
+							disabled={isSubmitting || formState.modules.length === 0}
 							startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <CheckCircleIcon />}
 							sx={{ px: 4 }}
 						>
