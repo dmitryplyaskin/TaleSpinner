@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import fs from "fs";
 import path from "path";
+import { runWorldCreationV2Migrations } from "@services/world-creation-v2/db";
 
 export class DbService {
   private static instance: DbService;
@@ -65,6 +66,9 @@ export class DbService {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
+      // Миграции для WorldCreationV2
+      await runWorldCreationV2Migrations(this.db);
 
       console.log("Database initialized successfully.");
     } catch (error) {
