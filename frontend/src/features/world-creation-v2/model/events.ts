@@ -22,6 +22,9 @@ export const resetWizard = createEvent();
 /** Выбрать жанр */
 export const selectGenre = createEvent<Genre>();
 
+/** Подтвердить выбор жанра и создать сессию */
+export const submitGenreStep = createEvent();
+
 // ============ Шаг 2: Ввод ============
 
 /** Обновить ввод пользователя */

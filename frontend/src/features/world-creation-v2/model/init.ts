@@ -2,6 +2,7 @@ import { sample } from "effector";
 import {
   goToStep,
   selectGenre,
+  submitGenreStep,
   setArchitectClarification,
   setSkeleton,
   setElementsClarification,
@@ -27,10 +28,12 @@ import {
 } from "./effects";
 import { goToWelcome } from "../../../model/app-navigation";
 
-// ============ Шаг 1 -> 2: После выбора жанра создаём сессию ============
+// ============ Шаг 1 -> 2: После подтверждения выбора жанра создаём сессию ============
 
 sample({
-  clock: selectGenre,
+  clock: submitGenreStep,
+  source: $genre,
+  filter: (genre): genre is Genre => genre !== null,
   target: createSessionFx,
 });
 
