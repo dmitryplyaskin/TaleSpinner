@@ -3,6 +3,7 @@ export * from "./schema/chat-entry-parts";
 export * from "./schema/instructions";
 export * from "./schema/operation-profiles";
 export * from "./schema/llm";
+export * from "./schema/rag";
 export * from "./schema/ui";
 export * from "./schema/ui-theme";
 export * from "./schema/user-persons";
