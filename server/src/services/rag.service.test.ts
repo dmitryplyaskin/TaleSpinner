@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +22,18 @@ vi.mock('@services/llm/llm-repository', () => ({
 	listTokens: mocks.listTokens,
 }));
 
-import { ensureRagPresetState, listRagModels, ragService } from './rag.service';
+import { applyMigrations } from '../db/apply-migrations';
+import { initDb, resetDbForTests } from '../db/client';
+
+import {
+	ensureRagPresetState,
+	getRagProviderConfig,
+	getRagRuntime,
+	listRagModels,
+	patchRagProviderConfig,
+	patchRagRuntime,
+	ragService,
+} from './rag.service';
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -28,6 +43,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 	mocks.getTokenPlaintext.mockResolvedValue('secret');
+	mocks.listTokens.mockResolvedValue([]);
 	mocks.axiosGet.mockResolvedValue({
 		data: {
 			data: [
@@ -124,5 +140,61 @@ describe('rag service', () => {
 
 		expect(state.settings.selectedId).toBe('preset-1');
 		expect(saveSettingsSpy).toHaveBeenCalledWith({ selectedId: 'preset-1' });
+	});
+
+	test('db-backed RAG storage initializes defaults and persists runtime/config changes', async () => {
+		const prevDataDir = process.env.TALESPINNER_DATA_DIR;
+		const tempDir = await mkdtemp(path.join(tmpdir(), 'talespinner-rag-db-'));
+
+		try {
+			process.env.TALESPINNER_DATA_DIR = tempDir;
+			resetDbForTests();
+			await initDb();
+			await applyMigrations();
+
+			const state = await ensureRagPresetState();
+			expect(state.presets).toHaveLength(1);
+			expect(state.settings.selectedId).toBe(state.presets[0]?.id ?? null);
+
+			const runtimeBefore = await getRagRuntime();
+			expect(runtimeBefore.activeProviderId).toBe('openrouter');
+
+			await patchRagRuntime({
+				activeProviderId: 'ollama',
+				activeModel: 'nomic-embed-text',
+				activeTokenId: null,
+			});
+			await patchRagProviderConfig('ollama', {
+				baseUrl: 'http://127.0.0.1:11434',
+				keepAlive: '10m',
+			});
+
+			const runtimeAfter = await getRagRuntime();
+			expect(runtimeAfter.activeProviderId).toBe('ollama');
+			expect(runtimeAfter.activeModel).toBe('nomic-embed-text');
+
+			const configAfter = await getRagProviderConfig('ollama');
+			expect(configAfter.baseUrl).toBe('http://127.0.0.1:11434');
+			expect(configAfter.keepAlive).toBe('10m');
+
+			resetDbForTests();
+			await initDb();
+
+			const persistedRuntime = await getRagRuntime();
+			expect(persistedRuntime.activeProviderId).toBe('ollama');
+			expect(persistedRuntime.activeModel).toBe('nomic-embed-text');
+
+			const persistedConfig = await getRagProviderConfig('ollama');
+			expect(persistedConfig.baseUrl).toBe('http://127.0.0.1:11434');
+			expect(persistedConfig.keepAlive).toBe('10m');
+		} finally {
+			resetDbForTests();
+			if (typeof prevDataDir === 'string') {
+				process.env.TALESPINNER_DATA_DIR = prevDataDir;
+			} else {
+				delete process.env.TALESPINNER_DATA_DIR;
+			}
+			await rm(tempDir, { recursive: true, force: true });
+		}
 	});
 });
