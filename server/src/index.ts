@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
+import { loadBackendEnvOnce } from "./config/load-backend-env";
 
-import { startAppServer } from "./app";
-
-dotenv.config();
+loadBackendEnvOnce();
 
 const DEFAULT_PORT = 5000;
 const MIN_PORT = 1;
@@ -27,6 +25,7 @@ function resolvePort(rawPort: string | undefined): number {
 }
 
 async function main(): Promise<void> {
+  const { startAppServer } = await import("./app");
   const port = resolvePort(process.env.PORT);
   await startAppServer({ port });
   console.log(`Server is running on port ${port}`);

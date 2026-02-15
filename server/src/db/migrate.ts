@@ -1,8 +1,9 @@
-import "dotenv/config";
+import { loadBackendEnvOnce } from "../config/load-backend-env";
 
-import { applyMigrations, resolveMigrationsFolder } from "./apply-migrations";
+loadBackendEnvOnce();
 
 async function main(): Promise<void> {
+  const { applyMigrations, resolveMigrationsFolder } = await import("./apply-migrations");
   await applyMigrations();
   console.log(`Migrations applied from: ${resolveMigrationsFolder()}`);
 }
