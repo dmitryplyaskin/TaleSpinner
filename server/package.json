@@ -25,10 +25,10 @@
     "zod-express-middleware": "^1.4.0"
   },
   "scripts": {
-    "start": "node dist/src/index.js",
+    "start": "node dist/server/src/index.js",
     "start:dev": "nodemon",
     "start:frontend": "cd ../web && yarn dev",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json -w",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -75,6 +75,7 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "tsconfig-paths": "^4.2.0",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.0",
     "vite-tsconfig-paths": "^6.0.5",
