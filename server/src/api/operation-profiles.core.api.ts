@@ -13,17 +13,17 @@ import {
   resolveImportedOperationBlockName,
 } from "../services/operations/operation-blocks-repository";
 import {
+  getOperationProfileSettings,
+  setActiveOperationProfile,
+} from "../services/operations/operation-profile-settings-repository";
+import { validateOperationProfileImport } from "../services/operations/operation-profile-validator";
+import {
   createOperationProfile,
   deleteOperationProfile,
   getOperationProfileById,
   listOperationProfiles,
   updateOperationProfile,
 } from "../services/operations/operation-profiles-repository";
-import {
-  getOperationProfileSettings,
-  setActiveOperationProfile,
-} from "../services/operations/operation-profile-settings-repository";
-import { validateOperationProfileImport } from "../services/operations/operation-profile-validator";
 
 const router = express.Router();
 

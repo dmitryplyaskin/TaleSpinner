@@ -432,7 +432,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		setGroups((prev) => ({ ...prev, [groupId]: { name: name.trim(), nodeIds: ids } }));
 		setSelectedGroupId(groupId);
 		setIsLayoutDirty(true);
-	}, [groups, selectedNodeIds]);
+	}, [groups, selectedNodeIds, t]);
 
 	const ungroupSelected = useCallback(() => {
 		if (!selectedGroupId) return;

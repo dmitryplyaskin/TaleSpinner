@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { DEFAULT_WORLD_INFO_ENTRY, buildDefaultWorldInfoSettings } from "./world-info-defaults";
 import { applyInclusionGroups, type GroupCandidate } from "./world-info-groups";
+
 import type { PreparedWorldInfoEntry } from "./world-info-types";
 
 function entry(hash: string, patch: Partial<PreparedWorldInfoEntry>): PreparedWorldInfoEntry {

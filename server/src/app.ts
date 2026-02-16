@@ -1,7 +1,9 @@
-import express, { type Express } from "express";
-import cors from "cors";
-import morgan from "morgan";
 import { type Server } from "node:http";
+
+import cors from "cors";
+import express, { type Express } from "express";
+import morgan from "morgan";
+
 
 import { routes } from "./api/_routes_";
 import staticRouter from "./api/static.api";

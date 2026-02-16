@@ -1,7 +1,7 @@
 import { Flex, Select } from '@mantine/core';
 import { type SamplerItemSettingsType, type SamplersItemType } from '@shared/types/samplers';
 import { useUnit } from 'effector-react';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { LuCopy, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
@@ -28,34 +28,39 @@ export const SamplerSettingsTab: React.FC = () => {
 	const { t } = useTranslation();
 	const settings = useUnit(samplersModel.$settings);
 	const items = useUnit(samplersModel.$items);
+	const selectedItem = useMemo(
+		() => items.find((item) => item.id === settings.selectedId) ?? null,
+		[items, settings.selectedId],
+	);
 	const llmSettingsFields = getLlmSettingsFields(t);
 
 	const methods = useForm<SamplerItemSettingsType>({
-		defaultValues: items.find((instr) => instr.id === settings.selectedId)?.settings,
+		defaultValues: selectedItem?.settings,
 	});
+	const { control, getValues, reset, watch } = methods;
 
 	useEffect(() => {
-		methods.reset(items.find((instr) => instr.id === settings.selectedId)?.settings);
-	}, [settings.selectedId]);
+		reset(selectedItem?.settings);
+	}, [reset, selectedItem]);
 
 	const handleSave = () => {
-		const item = items.find((instr) => instr.id === settings.selectedId) as SamplersItemType;
-		const newItem = { ...item, settings: methods.getValues() } as SamplersItemType;
+		if (!selectedItem) return;
+		const newItem = { ...selectedItem, settings: getValues() } as SamplersItemType;
 
 		samplersModel.updateItemFx(newItem);
 	};
 
 	useEffect(() => {
-		const { unsubscribe } = methods.watch((data) => {
-			const item = items.find((instr) => instr.id === settings.selectedId) as SamplersItemType;
-			const newItem = { ...item, settings: data } as SamplersItemType;
+		const subscription = watch((data) => {
+			if (!selectedItem) return;
+			const newItem = { ...selectedItem, settings: data as SamplerItemSettingsType } as SamplersItemType;
 
 			samplersModel.changeItemDebounced(newItem);
 		});
 		return () => {
-			unsubscribe();
+			subscription.unsubscribe();
 		};
-	}, [methods.watch]);
+	}, [selectedItem, watch]);
 
 	const options = items
 		.map((item) => ({
@@ -86,16 +91,14 @@ export const SamplerSettingsTab: React.FC = () => {
 						tooltip={t('llmSettings.actions.create')}
 						icon={<LuPlus />}
 						aria-label={t('llmSettings.actions.create')}
-						onClick={() => samplersModel.createItemFx(createEmptySampler(methods.getValues()))}
+						onClick={() => samplersModel.createItemFx(createEmptySampler(getValues()))}
 					/>
 					<IconButtonWithTooltip
 						tooltip={t('llmSettings.actions.duplicate')}
 						icon={<LuCopy />}
 						aria-label={t('llmSettings.actions.duplicate')}
 						disabled={!settings.selectedId}
-						onClick={() =>
-							samplersModel.duplicateItemFx(items.find((instr) => instr.id === settings.selectedId) as SamplersItemType)
-						}
+						onClick={() => selectedItem && samplersModel.duplicateItemFx(selectedItem)}
 					/>
 
 					<IconButtonWithTooltip
@@ -109,7 +112,7 @@ export const SamplerSettingsTab: React.FC = () => {
 			</Flex>
 
 			<FormProvider {...methods}>
-				<SamplerSettingsGrid control={methods.control} fields={llmSettingsFields} />
+				<SamplerSettingsGrid control={control} fields={llmSettingsFields} />
 			</FormProvider>
 		</Flex>
 	);

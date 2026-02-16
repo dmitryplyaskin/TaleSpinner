@@ -61,7 +61,7 @@ function readMigrationFilesSafe(migrationsFolder: string): Array<{
 
     if (parts.length !== partsRaw.length) {
       const removed = partsRaw.length - parts.length;
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[db] migration '${entry.tag}': ignored ${removed} empty SQL chunk(s)`
       );

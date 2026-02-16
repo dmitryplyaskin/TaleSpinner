@@ -1,8 +1,8 @@
-import type { OperationTrigger } from "@shared/types/operation-profiles";
 
 import { getChatById } from "../chat-core/chats-repository";
 import { getEntityProfileById } from "../chat-core/entity-profiles-repository";
 import { getSelectedUserPerson } from "../chat-core/user-persons-repository";
+
 import { resolveActiveWorldInfoBooks } from "./world-info-bindings";
 import {
   buildWorldInfoEntryHash,
@@ -20,11 +20,13 @@ import {
   applyTimedEffectsForActivatedEntries,
   loadTimedEffectsState,
 } from "./world-info-timed-effects";
+
 import type {
   PreparedWorldInfoEntry,
   WorldInfoResolveResult,
   WorldInfoRuntimeTrigger,
 } from "./world-info-types";
+import type { OperationTrigger } from "@shared/types/operation-profiles";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { OperationHook } from "@shared/types/operation-profiles";
+
 
 import { RunArtifactStore } from "../artifacts/run-artifact-store";
+
+import { commitEffectsPhase } from "./commit-effects-phase";
+import * as turnEffects from "./effect-handlers/turn-effects";
+
 import type {
   OperationExecutionResult,
   RunState,
   RuntimeEffect,
 } from "../contracts";
-import { commitEffectsPhase } from "./commit-effects-phase";
-import * as turnEffects from "./effect-handlers/turn-effects";
+import type { OperationHook } from "@shared/types/operation-profiles";
 
 function makeRunState(): RunState {
   return {

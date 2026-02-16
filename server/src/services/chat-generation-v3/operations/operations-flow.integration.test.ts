@@ -1,12 +1,14 @@
 import { describe, expect, test } from "vitest";
 
-import type { OperationInProfile, OperationOutput } from "@shared/types/operation-profiles";
 
-import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 import { RunArtifactStore } from "../artifacts/run-artifact-store";
-import type { RunState } from "../contracts";
+
 import { commitEffectsPhase } from "./commit-effects-phase";
 import { executeOperationsPhase } from "./execute-operations-phase";
+
+import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
+import type { RunState } from "../contracts";
+import type { OperationInProfile, OperationOutput } from "@shared/types/operation-profiles";
 
 type TemplateOp = Extract<OperationInProfile, { kind: "template" }>;
 

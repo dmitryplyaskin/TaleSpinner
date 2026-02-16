@@ -1,9 +1,9 @@
 import { createGeneration } from "../../chat-core/generations-repository";
 import { resolveGatewayModel } from "../../llm/llm-gateway-adapter";
 import { getProviderConfig, getRuntime } from "../../llm/llm-repository";
+import { resolveCompiledOperationProfile } from "../../operations/operation-profile-resolver";
 import { getOperationProfileSettings } from "../../operations/operation-profile-settings-repository";
 import { getOperationProfileById } from "../../operations/operation-profiles-repository";
-import { resolveCompiledOperationProfile } from "../../operations/operation-profile-resolver";
 import { stripChatGenerationDebugSettings } from "../debug";
 
 import type { ProfileSnapshot, RunContext, RunRequest } from "../contracts";

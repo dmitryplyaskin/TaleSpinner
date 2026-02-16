@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 
+import { type AppSettings } from "@shared/types/app-settings";
 import { eq } from "drizzle-orm";
 
-import { type AppSettings } from "@shared/types/app-settings";
 
 import { initDb } from "../../db/client";
 import { uiAppSettings } from "../../db/schema";

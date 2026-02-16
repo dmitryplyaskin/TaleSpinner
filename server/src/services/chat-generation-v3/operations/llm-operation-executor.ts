@@ -1,12 +1,14 @@
 import { llmGateway } from "@core/llm-gateway";
-import type { GenerateMessage } from "@shared/types/generate";
-import type { OperationInProfile } from "@shared/types/operation-profiles";
+
 
 import { renderLiquidTemplate, type InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 import { buildGatewayStreamRequest } from "../../llm/llm-gateway-adapter";
 import { getProviderConfig, getTokenPlaintext } from "../../llm/llm-repository";
 import { compileLlmJsonSchemaSpec } from "../../operations/llm-json-schema-spec";
 import { parseLlmOperationParams } from "../../operations/llm-operation-params";
+
+import type { GenerateMessage } from "@shared/types/generate";
+import type { OperationInProfile } from "@shared/types/operation-profiles";
 
 type LlmOperation = Extract<OperationInProfile, { kind: "llm" }>;
 

@@ -1,5 +1,6 @@
 import { renderLiquidTemplate } from "./prompt-template-renderer";
 
+import type { InstructionRenderContext } from "./prompt-template-renderer";
 import type {
   InstructionMeta,
   StAdvancedConfig,
@@ -8,7 +9,6 @@ import type {
   StPromptOrder,
   TsInstructionMetaV1,
 } from "@shared/types/instructions";
-import type { InstructionRenderContext } from "./prompt-template-renderer";
 
 const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant.";
 const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;

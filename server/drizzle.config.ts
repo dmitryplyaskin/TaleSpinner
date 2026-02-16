@@ -1,4 +1,5 @@
 import { defineConfig } from "drizzle-kit";
+
 import { loadBackendEnvOnce } from "./src/config/load-backend-env";
 import { resolveDbPath } from "./src/config/path-resolver";
 

@@ -1,6 +1,6 @@
+import type { RuntimeEffect } from "../contracts";
 import type { OperationHook } from "@shared/types/operation-profiles";
 
-import type { RuntimeEffect } from "../contracts";
 
 type PolicyResult = { ok: true } | { ok: false; code: string; message: string };
 

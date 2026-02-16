@@ -152,7 +152,7 @@ export const VirtualizedChatList = ({
 			return;
 		}
 		scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: 'auto' });
-	}, [scrollElement, scrollToBottomSignal, shouldVirtualize]);
+	}, [scrollElement, scrollToBottomSignal, shouldVirtualize, virtualizer]);
 
 	if (!entries.length) return null;
 

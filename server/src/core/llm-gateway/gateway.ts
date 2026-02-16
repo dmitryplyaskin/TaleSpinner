@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { LlmGatewayError } from "./types";
+
 import type {
   LlmGatewayLogger,
   LlmGatewayPlugin,
@@ -11,7 +13,6 @@ import type {
   LlmProviderAdapter,
   LlmSamplingParams,
 } from "./types";
-import { LlmGatewayError } from "./types";
 
 const requestSchema = z.object({
   provider: z.object({

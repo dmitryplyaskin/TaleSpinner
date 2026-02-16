@@ -11,6 +11,7 @@ vi.mock("../../chat-core/generations-repository", () => ({
 }));
 
 import { finalizeRun } from "./finalize-run";
+
 import type { RunContext, RunResult } from "../contracts";
 
 function makeContext(): RunContext {

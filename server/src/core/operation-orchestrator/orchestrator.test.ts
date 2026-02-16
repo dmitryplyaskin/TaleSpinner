@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 
-import type { OrchestratorEvent, OrchestratorTask } from "./types";
 import { runOrchestrator } from "./orchestrator";
+
+import type { OrchestratorEvent, OrchestratorTask } from "./types";
 
 test("filters disabled and filtered_out tasks", async () => {
   const calls: string[] = [];

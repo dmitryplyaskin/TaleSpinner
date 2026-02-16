@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { ProfileSessionArtifactStore } from "../../artifacts/profile-session-artifact-store";
 import { RunArtifactStore } from "../../artifacts/run-artifact-store";
+
 import { applyArtifactEffect } from "./artifact-effects";
 
 describe("applyArtifactEffect", () => {

@@ -1,6 +1,8 @@
-import type { OrchestratorPlan, OrchestratorPlanningResult } from "./planner";
-import { buildOrchestratorPlan } from "./planner";
 import { executeOrchestratorPlan } from "./executor";
+import { buildOrchestratorPlan } from "./planner";
+import { compareTaskIdsByOrderThenId, createSafeEventEmitter } from "./utils";
+
+import type { OrchestratorPlan, OrchestratorPlanningResult } from "./planner";
 import type {
   OrchestratorEvent,
   OrchestratorRunOptions,
@@ -9,7 +11,7 @@ import type {
   TaskId,
   TaskResult,
 } from "./types";
-import { compareTaskIdsByOrderThenId, createSafeEventEmitter } from "./utils";
+
 
 export async function runOrchestrator(
   params: OrchestratorRunParams,

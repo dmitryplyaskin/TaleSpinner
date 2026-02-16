@@ -1,6 +1,11 @@
-import type { OperationHook, OperationProfile } from "@shared/types/operation-profiles";
 
-import { RunArtifactStore } from "../artifacts/run-artifact-store";
+import { type RunArtifactStore } from "../artifacts/run-artifact-store";
+
+import { applyArtifactEffect } from "./effect-handlers/artifact-effects";
+import { applyPromptEffect } from "./effect-handlers/prompt-effects";
+import { persistUserTurnText } from "./effect-handlers/turn-effects";
+import { validateEffectForHook } from "./effect-policy";
+
 import type {
   CommitPhaseReport,
   OperationExecutionResult,
@@ -9,10 +14,7 @@ import type {
   TurnUserCanonicalizationRecord,
   UserTurnTarget,
 } from "../contracts";
-import { applyArtifactEffect } from "./effect-handlers/artifact-effects";
-import { applyPromptEffect } from "./effect-handlers/prompt-effects";
-import { persistUserTurnText } from "./effect-handlers/turn-effects";
-import { validateEffectForHook } from "./effect-policy";
+import type { OperationHook, OperationProfile } from "@shared/types/operation-profiles";
 
 type CommitOrderNode = {
   opId: string;

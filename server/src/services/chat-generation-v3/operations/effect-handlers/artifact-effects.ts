@@ -1,8 +1,9 @@
-import type { OperationProfile } from "@shared/types/operation-profiles";
 
 import { ProfileSessionArtifactStore } from "../../artifacts/profile-session-artifact-store";
-import { RunArtifactStore } from "../../artifacts/run-artifact-store";
+import { type RunArtifactStore } from "../../artifacts/run-artifact-store";
+
 import type { ArtifactValue } from "../../contracts";
+import type { OperationProfile } from "@shared/types/operation-profiles";
 
 export async function applyArtifactEffect(params: {
   ownerId: string;

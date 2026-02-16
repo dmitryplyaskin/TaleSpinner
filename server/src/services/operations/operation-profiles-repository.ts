@@ -2,16 +2,18 @@ import { and, asc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 import { HttpError } from "@core/middleware/error-handler";
+
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";
 import { operationProfiles } from "../../db/schema";
+
 import { getOperationBlockById } from "./operation-blocks-repository";
+import { validateOperationProfileUpsertInput } from "./operation-profile-validator";
 
 import type {
   OperationProfile,
   OperationProfileUpsertInput,
 } from "@shared/types/operation-profiles";
-import { validateOperationProfileUpsertInput } from "./operation-profile-validator";
 
 type OperationProfileSpecRow = {
   blockRefs: OperationProfile["blockRefs"];

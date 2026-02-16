@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { configureLlmOpenAiCompatible, createEntityProfileAndChat } from "./helpers/fixtures";
@@ -195,7 +196,7 @@ describe("backend e2e full matrix", () => {
           enabled: true,
           executionMode: "sequential",
           operationProfileSessionId: randomUUID(),
-          operations: [],
+          blockRefs: [],
         },
       },
     });

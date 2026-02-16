@@ -1,15 +1,16 @@
 import { OrchestratorError } from "./errors";
+import {
+  compareTaskIdsByOrderThenId,
+  compareTaskIdByOrderThenId,
+  uniqueStrings,
+} from "./utils";
+
 import type {
   OrchestratorRunParams,
   OrchestratorTask,
   TaskId,
   TaskResult,
 } from "./types";
-import {
-  compareTaskIdsByOrderThenId,
-  compareTaskIdByOrderThenId,
-  uniqueStrings,
-} from "./utils";
 
 export type OrchestratorPlan = {
   planTaskIds: TaskId[];

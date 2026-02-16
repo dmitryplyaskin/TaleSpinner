@@ -6,6 +6,7 @@ import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 
 import { idSchema, jsonValueSchema, ownerIdSchema } from "../chat-core/schemas";
+import { validateOperationBlockImport } from "../services/operations/operation-block-validator";
 import {
   createOperationBlock,
   deleteOperationBlock,
@@ -15,7 +16,6 @@ import {
   updateOperationBlock,
 } from "../services/operations/operation-blocks-repository";
 import { listOperationProfiles } from "../services/operations/operation-profiles-repository";
-import { validateOperationBlockImport } from "../services/operations/operation-block-validator";
 
 const router = express.Router();
 

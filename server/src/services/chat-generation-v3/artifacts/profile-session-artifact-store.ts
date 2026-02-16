@@ -5,13 +5,13 @@ import { safeJsonParse, safeJsonStringify } from "../../../chat-core/json";
 import { initDb } from "../../../db/client";
 import { operationProfileSessionArtifacts } from "../../../db/schema";
 
+import type { ArtifactValue } from "../contracts";
 import type {
   ArtifactSemantics,
   ArtifactUsage,
   OperationProfile,
 } from "@shared/types/operation-profiles";
 
-import type { ArtifactValue } from "../contracts";
 
 const MAX_HISTORY_ITEMS = 20;
 

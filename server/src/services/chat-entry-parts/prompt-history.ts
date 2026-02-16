@@ -1,9 +1,10 @@
-import type { GenerateMessage } from "@shared/types/generate";
 
 import { getBranchCurrentTurn } from "./branch-turn-repository";
 import { listEntriesWithActiveVariants } from "./entries-repository";
 import { getPromptProjection } from "./projection";
 import { serializePart } from "./prompt-serializers";
+
+import type { GenerateMessage } from "@shared/types/generate";
 
 export async function listProjectedPromptMessages(params: {
   chatId: string;

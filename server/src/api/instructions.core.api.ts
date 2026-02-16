@@ -12,6 +12,13 @@ import {
   updateInstructionBodySchema,
 } from "../chat-core/schemas";
 import {
+  createInstruction,
+  deleteInstruction,
+  getInstructionById,
+  listInstructions,
+  updateInstruction,
+} from "../services/chat-core/instructions-repository";
+import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../services/chat-core/prompt-template-context";
@@ -19,13 +26,6 @@ import {
   renderLiquidTemplate,
   validateLiquidTemplate,
 } from "../services/chat-core/prompt-template-renderer";
-import {
-  createInstruction,
-  deleteInstruction,
-  getInstructionById,
-  listInstructions,
-  updateInstruction,
-} from "../services/chat-core/instructions-repository";
 
 const router = express.Router();
 

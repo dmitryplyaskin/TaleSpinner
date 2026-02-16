@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "drizzle-orm";
 
-import { initDb } from "./client";
 import { validateOperationBlockUpsertInput } from "../services/operations/operation-block-validator";
+
+import { initDb } from "./client";
 
 type SqliteMasterRow = { name: string };
 type ProfileRow = {

@@ -1,11 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import type { OperationProfile } from "@shared/types/operation-profiles";
-
 import {
   applyTemplateOperationsAfterMainLlm,
   applyTemplateOperationsToPromptDraft,
 } from "./template-operations-runtime";
+
+import type { OperationProfile } from "@shared/types/operation-profiles";
+
 
 function makeProfile(operations: OperationProfile["operations"]): OperationProfile {
   const now = new Date();
