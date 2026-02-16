@@ -1,5 +1,4 @@
 import fs from "fs/promises";
-import path from "path";
 
 import express, { type Request } from "express";
 import { z } from "zod";

@@ -46,6 +46,7 @@ export const ChatWindow: React.FC = () => {
 		resetUnseenMessages,
 	]);
 	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+	const scrollElementRef = useRef<HTMLDivElement | null>(null);
 	const [scrollToBottomSignal, setScrollToBottomSignal] = useState(0);
 	const prevEntriesCountRef = useRef(0);
 	const prevScrollTopRef = useRef<number | null>(null);
@@ -53,6 +54,11 @@ export const ChatWindow: React.FC = () => {
 	const lastOlderLoadRequestedAtRef = useRef(0);
 	const prependAnchorRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<ChatAvatarPreview | null>(null);
+
+	const handleScrollElementRef = useCallback((node: HTMLDivElement | null) => {
+		scrollElementRef.current = node;
+		setScrollElement(node);
+	}, []);
 
 	useEffect(() => {
 		prevEntriesCountRef.current = 0;
@@ -76,7 +82,7 @@ export const ChatWindow: React.FC = () => {
 	}, [addUnseenMessages, chat, entries, pageInfo.isLoadingOlder, viewportState.isAtBottom]);
 
 	useEffect(() => {
-		const node = scrollElement;
+		const node = scrollElementRef.current;
 		if (!node) return;
 		const anchor = prependAnchorRef.current;
 		if (pageInfo.isLoadingOlder) return;
@@ -89,7 +95,7 @@ export const ChatWindow: React.FC = () => {
 				distanceToBottom: Math.max(0, node.scrollHeight - node.clientHeight - node.scrollTop),
 			});
 		}
-	}, [entries.length, onViewportChanged, pageInfo.isLoadingOlder, scrollElement]);
+	}, [entries.length, onViewportChanged, pageInfo.isLoadingOlder]);
 
 	useEffect(() => {
 		if (!pageInfo.isLoadingOlder) {
@@ -98,7 +104,8 @@ export const ChatWindow: React.FC = () => {
 	}, [pageInfo.isLoadingOlder]);
 
 	const requestOlderWithGuard = useCallback(() => {
-		if (!scrollElement) return;
+		const node = scrollElementRef.current;
+		if (!node) return;
 		if (!pageInfo.hasMoreOlder || !pageInfo.nextCursor || pageInfo.isLoadingOlder) return;
 		if (olderLoadPendingRef.current) return;
 
@@ -108,18 +115,19 @@ export const ChatWindow: React.FC = () => {
 		olderLoadPendingRef.current = true;
 
 		prependAnchorRef.current = {
-			scrollTop: scrollElement.scrollTop,
-			scrollHeight: scrollElement.scrollHeight,
+			scrollTop: node.scrollTop,
+			scrollHeight: node.scrollHeight,
 		};
 		requestOlderPage();
-	}, [pageInfo.hasMoreOlder, pageInfo.isLoadingOlder, pageInfo.nextCursor, requestOlderPage, scrollElement]);
+	}, [pageInfo.hasMoreOlder, pageInfo.isLoadingOlder, pageInfo.nextCursor, requestOlderPage]);
 
 	const handleScroll = useCallback(() => {
-		if (!scrollElement) return;
-		const currentTop = scrollElement.scrollTop;
+		const node = scrollElementRef.current;
+		if (!node) return;
+		const currentTop = node.scrollTop;
 		const distanceToBottom = Math.max(
 			0,
-			scrollElement.scrollHeight - scrollElement.clientHeight - scrollElement.scrollTop,
+			node.scrollHeight - node.clientHeight - node.scrollTop,
 		);
 		onViewportChanged({ distanceToBottom });
 		const prevTop = prevScrollTopRef.current;
@@ -129,16 +137,17 @@ export const ChatWindow: React.FC = () => {
 		if (prevTop > LOAD_OLDER_TRIGGER_PX && currentTop <= LOAD_OLDER_TRIGGER_PX) {
 			requestOlderWithGuard();
 		}
-	}, [onViewportChanged, requestOlderWithGuard, scrollElement]);
+	}, [onViewportChanged, requestOlderWithGuard]);
 
 	const handleWheel: React.WheelEventHandler<HTMLDivElement> = useCallback(
 		(event) => {
-			if (!scrollElement) return;
+			const node = scrollElementRef.current;
+			if (!node) return;
 			if (event.deltaY >= 0) return;
-			if (scrollElement.scrollTop > LOAD_OLDER_TRIGGER_PX) return;
+			if (node.scrollTop > LOAD_OLDER_TRIGGER_PX) return;
 			requestOlderWithGuard();
 		},
-		[requestOlderWithGuard, scrollElement],
+		[requestOlderWithGuard],
 	);
 
 	const jumpToLatest = useCallback(() => {
@@ -149,7 +158,7 @@ export const ChatWindow: React.FC = () => {
 	return (
 		<Box className="ts-chat-window" style={{ backgroundImage: `url(${BGImages})` }}>
 			<Box className="ts-chat-window__inner" data-preview-open={avatarPreview ? 'true' : 'false'}>
-				<Box className="ts-chat-scroll" ref={setScrollElement} onScroll={handleScroll} onWheel={handleWheel}>
+				<Box className="ts-chat-scroll" ref={handleScrollElementRef} onScroll={handleScroll} onWheel={handleWheel}>
 					<Box className="ts-chat-content">
 						<VirtualizedChatList
 							scrollElement={scrollElement}

@@ -2,7 +2,6 @@ import type { OperationHook, OperationProfile } from "@shared/types/operation-pr
 
 import { RunArtifactStore } from "../artifacts/run-artifact-store";
 import type {
-  ArtifactValue,
   CommitPhaseReport,
   OperationExecutionResult,
   RuntimeEffect,

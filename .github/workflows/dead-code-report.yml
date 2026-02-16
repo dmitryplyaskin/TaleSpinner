@@ -1,0 +1,63 @@
+name: Dead Code Report
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "server/**"
+      - "web/**"
+      - "shared/**"
+      - "scripts/deadcode-report.mjs"
+      - "package.json"
+      - "yarn.lock"
+      - ".github/workflows/dead-code-report.yml"
+  push:
+    branches: [main, dev]
+    paths:
+      - "server/**"
+      - "web/**"
+      - "shared/**"
+      - "scripts/deadcode-report.mjs"
+      - "package.json"
+      - "yarn.lock"
+      - ".github/workflows/dead-code-report.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dead-code-report-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install server dependencies
+        run: yarn --cwd server install --frozen-lockfile
+
+      - name: Install web dependencies
+        run: yarn --cwd web install --frozen-lockfile
+
+      - name: Generate dead-code report
+        run: yarn deadcode:report
+
+      - name: Upload dead-code report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadcode-report
+          path: deadcode-reports
+          if-no-files-found: error

@@ -357,7 +357,7 @@ export function applyWorldInfoToTemplateContext(
   return base;
 }
 
-export async function resolveWorldInfoForTemplateContext(params: {
+async function resolveWorldInfoForTemplateContext(params: {
   ownerId: string;
   chatId?: string;
   branchId?: string;

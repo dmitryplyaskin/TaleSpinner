@@ -24,17 +24,6 @@ function parseSpecJson(value: string): OperationProfileSpecRow {
   return { blockRefs: Array.isArray(refs) ? (refs as OperationProfile["blockRefs"]) : [] };
 }
 
-type LegacyOperationsSpecRow = {
-  operations: unknown[];
-};
-
-export function parseLegacyOperationsFromSpecJson(value: string): LegacyOperationsSpecRow {
-  const parsed = safeJsonParse<unknown>(value, { operations: [] });
-  if (!parsed || typeof parsed !== "object") return { operations: [] };
-  const ops = (parsed as { operations?: unknown }).operations;
-  return { operations: Array.isArray(ops) ? ops : [] };
-}
-
 function rowToDto(row: typeof operationProfiles.$inferSelect): OperationProfile {
   const spec = parseSpecJson(row.specJson);
   return {
