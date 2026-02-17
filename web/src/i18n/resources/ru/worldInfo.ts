@@ -50,10 +50,17 @@
 				duplicateEntry: 'Дублировать запись',
 				deleteEntry: 'Удалить запись',
 				searchEntries: 'Поиск записей',
+				pageSizeLabel: 'На страницу',
+				shownOfTotal: 'Показано {{shown}} из {{total}}',
 				selectEntry: 'Выберите запись для редактирования',
 				entryTitle: 'Запись #{{id}}',
 				noEntries: 'Записей нет',
+				noSearchResults: 'По вашему запросу записи не найдены',
 				noKeys: 'Ключи не заданы',
+				actions: {
+					moveUp: 'Переместить выше',
+					moveDown: 'Переместить ниже',
+				},
 				tabs: {
 					content: 'Контент',
 					matching: 'Матчинг',

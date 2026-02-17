@@ -1,6 +1,6 @@
-import { Accordion, Button, Divider, Group, MultiSelect, NumberInput, ScrollArea, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Accordion, Button, Divider, Group, MultiSelect, NumberInput, Pagination, ScrollArea, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuArrowDown, LuArrowUp, LuCopy, LuPlus, LuTrash2 } from 'react-icons/lu';
 
@@ -275,14 +275,39 @@ function buildDraft(book: WorldInfoBookDto): BookDraft {
 	};
 }
 
-function toSnapshot(draft: BookDraft | null): string {
-	return JSON.stringify(draft);
-}
-
 function nextEntryId(entries: EntryState[]): string {
 	const numeric = entries.map((entry) => Number(entry.id)).filter((value) => Number.isFinite(value) && value >= 0);
 	if (numeric.length === 0) return String(entries.length);
 	return String(Math.max(...numeric) + 1);
+}
+
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [
+	{ value: '10', label: '10' },
+	{ value: '25', label: '25' },
+	{ value: '50', label: '50' },
+];
+
+function filterEntries(entries: EntryState[], search: string): EntryState[] {
+	const query = search.trim().toLowerCase();
+	if (!query) return entries;
+	return entries.filter((entry) => {
+		const text = [entry.id, entry.draft.comment, entry.draft.content, ...entry.draft.key, ...entry.draft.keysecondary]
+			.join(' ')
+			.toLowerCase();
+		return text.includes(query);
+	});
+}
+
+function resolveEntryPage(entries: EntryState[], search: string, pageSize: number, entryId: string): number | null {
+	const visibleEntries = filterEntries(entries, search);
+	const index = visibleEntries.findIndex((entry) => entry.id === entryId);
+	if (index < 0) return null;
+	return Math.floor(index / pageSize) + 1;
+}
+
+function getEntryLabel(entry: EntryState): string {
+	return entry.draft.comment || entry.draft.key[0] || `entry #${entry.id}`;
 }
 
 function toEntryPayload(entry: EntryState): Record<string, unknown> {
@@ -337,54 +362,132 @@ export const WorldInfoEditorModal = ({ opened, book, saving, onClose, onSave }: 
 	const { t } = useTranslation();
 	const isMobile = useMediaQuery('(max-width: 48em)');
 	const [draft, setDraft] = useState<BookDraft | null>(null);
-	const [snapshot, setSnapshot] = useState('');
-	const [entryId, setEntryId] = useState<string | null>(null);
+	const [hasChanges, setHasChanges] = useState(false);
+	const [expandedEntryIds, setExpandedEntryIds] = useState<string[]>([]);
 	const [search, setSearch] = useState('');
+	const [currentPage, setCurrentPage] = useState(1);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
 	useEffect(() => {
 		if (!opened || !book) return;
 		const next = buildDraft(book);
 		setDraft(next);
-		setSnapshot(toSnapshot(next));
-		setEntryId(next.entries[0]?.id ?? null);
+		setHasChanges(false);
+		setExpandedEntryIds(next.entries[0] ? [next.entries[0].id] : []);
 		setSearch('');
+		setCurrentPage(1);
+		setPageSize(DEFAULT_PAGE_SIZE);
 	}, [book, opened]);
 
 	const visibleEntries = useMemo(() => {
 		if (!draft) return [];
-		const query = search.trim().toLowerCase();
-		if (!query) return draft.entries;
-		return draft.entries.filter((entry) => {
-			const text = [entry.id, entry.draft.comment, entry.draft.content, ...entry.draft.key, ...entry.draft.keysecondary]
-				.join(' ')
-				.toLowerCase();
-			return text.includes(query);
-		});
+		return filterEntries(draft.entries, search);
 	}, [draft, search]);
 
-	const activeEntry = useMemo(() => {
-		if (!draft || !entryId) return null;
-		return draft.entries.find((entry) => entry.id === entryId) ?? null;
-	}, [draft, entryId]);
+	const totalItems = visibleEntries.length;
+	const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+	const paginatedEntries = useMemo(() => {
+		const start = (currentPage - 1) * pageSize;
+		return visibleEntries.slice(start, start + pageSize);
+	}, [currentPage, pageSize, visibleEntries]);
 
-	const isDirty = toSnapshot(draft) !== snapshot;
+	useEffect(() => {
+		setCurrentPage((prev) => Math.min(Math.max(prev, 1), totalPages));
+	}, [totalPages]);
+
+	useEffect(() => {
+		setExpandedEntryIds((prev) => {
+			if (!draft) return [];
+			const ids = new Set(draft.entries.map((entry) => entry.id));
+			return prev.filter((id) => ids.has(id));
+		});
+	}, [draft]);
 
 	const requestClose = () => {
 		if (saving) return;
-		if (isDirty && !window.confirm(t('worldInfo.confirm.discardChanges'))) return;
+		if (hasChanges && !window.confirm(t('worldInfo.confirm.discardChanges'))) return;
 		onClose();
 	};
 
-	const mutateDraft = (updater: (current: BookDraft) => BookDraft) => {
-		setDraft((current) => (current ? updater(current) : current));
+	const mutateDraft = useCallback((updater: (current: BookDraft) => BookDraft) => {
+		setDraft((current) => {
+			if (!current) return current;
+			const next = updater(current);
+			if (next !== current) setHasChanges(true);
+			return next;
+		});
+	}, []);
+
+	const mutateEntry = useCallback((entryId: string, updater: (entry: EntryState) => EntryState) => {
+		mutateDraft((current) => {
+			const index = current.entries.findIndex((entry) => entry.id === entryId);
+			if (index < 0) return current;
+			const currentEntry = current.entries[index];
+			const nextEntry = updater(currentEntry);
+			if (nextEntry === currentEntry) return current;
+			const nextEntries = current.entries.slice();
+			nextEntries[index] = nextEntry;
+			return {
+				...current,
+				entries: nextEntries,
+			};
+		});
+	}, [mutateDraft]);
+
+	const addEntry = () => {
+		setSearch('');
+		mutateDraft((current) => {
+			if (!current) return current;
+			const id = nextEntryId(current.entries);
+			const nextEntries = [...current.entries, { id, original: {}, draft: normalizeEntry({ uid: current.entries.length }, current.entries.length) }];
+			setExpandedEntryIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+			setCurrentPage(Math.floor((nextEntries.length - 1) / pageSize) + 1);
+			return { ...current, entries: nextEntries };
+		});
 	};
 
-	const mutateActiveEntry = (updater: (entry: EntryState) => EntryState) => {
-		if (!entryId) return;
-		mutateDraft((current) => ({
-			...current,
-			entries: current.entries.map((entry) => (entry.id === entryId ? updater(entry) : entry)),
-		}));
+	const duplicateEntry = (sourceId: string) => {
+		setSearch('');
+		mutateDraft((current) => {
+			if (!current) return current;
+			const source = current.entries.find((entry) => entry.id === sourceId);
+			if (!source) return current;
+			const id = nextEntryId(current.entries);
+			const nextEntries = [...current.entries, { ...source, id }];
+			setExpandedEntryIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+			setCurrentPage(Math.floor((nextEntries.length - 1) / pageSize) + 1);
+			return { ...current, entries: nextEntries };
+		});
+	};
+
+	const deleteEntry = (entryId: string) => {
+		mutateDraft((current) => {
+			if (!current) return current;
+			const nextEntries = current.entries.filter((entry) => entry.id !== entryId);
+			setExpandedEntryIds((prev) => prev.filter((id) => id !== entryId));
+			const nextVisibleEntries = filterEntries(nextEntries, search);
+			const nextTotalPages = Math.max(1, Math.ceil(nextVisibleEntries.length / pageSize));
+			setCurrentPage((prev) => Math.min(prev, nextTotalPages));
+			return { ...current, entries: nextEntries };
+		});
+	};
+
+	const moveEntry = (entryId: string, direction: 'up' | 'down') => {
+		mutateDraft((current) => {
+			if (!current) return current;
+			const index = current.entries.findIndex((entry) => entry.id === entryId);
+			if (index < 0) return current;
+			if (direction === 'up' && index === 0) return current;
+			if (direction === 'down' && index === current.entries.length - 1) return current;
+			const targetIndex = direction === 'up' ? index - 1 : index + 1;
+			const nextEntries = current.entries.slice();
+			const temp = nextEntries[targetIndex];
+			nextEntries[targetIndex] = nextEntries[index];
+			nextEntries[index] = temp;
+			const nextPage = resolveEntryPage(nextEntries, search, pageSize, entryId);
+			if (nextPage) setCurrentPage(nextPage);
+			return { ...current, entries: nextEntries };
+		});
 	};
 
 	const save = () => {
@@ -404,7 +507,7 @@ export const WorldInfoEditorModal = ({ opened, book, saving, onClose, onSave }: 
 				data: { entries },
 				version: draft.version,
 			});
-			setSnapshot(toSnapshot(draft));
+			setHasChanges(false);
 		} catch (error) {
 			toaster.error({
 				title: t('worldInfo.toasts.invalidBookJson'),
@@ -437,106 +540,163 @@ export const WorldInfoEditorModal = ({ opened, book, saving, onClose, onSave }: 
 			{!draft ? (
 				<Text c="dimmed">{t('sidebars.selectBookToEdit')}</Text>
 			) : (
-				<Group align="stretch" wrap={isMobile ? 'wrap' : 'nowrap'} style={{ flex: 1, minHeight: 0 }}>
-					<Stack
-						gap="sm"
-						style={{
-							width: isMobile ? '100%' : 360,
-							minWidth: isMobile ? 0 : 320,
-							maxHeight: isMobile ? 320 : undefined,
-						}}
-					>
-						<TextInput label={t('worldInfo.fields.name')} value={draft.name} onChange={(event) => mutateDraft((current) => ({ ...current, name: event.currentTarget.value }))} />
-						<TextInput label={t('worldInfo.fields.slug')} value={draft.slug} onChange={(event) => mutateDraft((current) => ({ ...current, slug: event.currentTarget.value }))} />
-						<TextInput label={t('worldInfo.fields.description')} value={draft.description} onChange={(event) => mutateDraft((current) => ({ ...current, description: event.currentTarget.value }))} />
-						<Divider />
-						<Group justify="space-between" align="center">
-							<Text fw={600}>{t('worldInfo.editor.entriesTitle')}</Text>
-							<Group gap={4}>
-								<IconButtonWithTooltip
-									icon={<LuPlus />}
-									tooltip={t('worldInfo.editor.addEntry')}
-									aria-label={t('worldInfo.editor.addEntry')}
-									onClick={() => {
-										const id = nextEntryId(draft.entries);
-										mutateDraft((current) => ({ ...current, entries: [...current.entries, { id, original: {}, draft: normalizeEntry({ uid: current.entries.length }, current.entries.length) }] }));
-										setEntryId(id);
-									}}
-								/>
-								<IconButtonWithTooltip
-									icon={<LuCopy />}
-									tooltip={t('worldInfo.editor.duplicateEntry')}
-									aria-label={t('worldInfo.editor.duplicateEntry')}
-									disabled={!activeEntry}
-									onClick={() => {
-										if (!activeEntry) return;
-										const id = nextEntryId(draft.entries);
-										mutateDraft((current) => ({ ...current, entries: [...current.entries, { ...activeEntry, id }] }));
-										setEntryId(id);
-									}}
-								/>
-								<IconButtonWithTooltip
-									icon={<LuTrash2 />}
-									tooltip={t('worldInfo.editor.deleteEntry')}
-									aria-label={t('worldInfo.editor.deleteEntry')}
-									colorPalette="red"
-									disabled={!activeEntry}
-									onClick={() => {
-										if (!activeEntry) return;
-										mutateDraft((current) => {
-											const nextEntries = current.entries.filter((entry) => entry.id !== activeEntry.id);
-											setEntryId(nextEntries[0]?.id ?? null);
-											return { ...current, entries: nextEntries };
-										});
-									}}
-								/>
-							</Group>
-						</Group>
-						<TextInput placeholder={t('worldInfo.editor.searchEntries')} value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-						<ScrollArea style={{ flex: 1 }}>
-							<Stack gap="xs">
-								{visibleEntries.map((entry) => (
-									<Button key={entry.id} variant={entry.id === entryId ? 'light' : 'subtle'} justify="flex-start" onClick={() => setEntryId(entry.id)}>
-										{entry.draft.comment || entry.draft.key[0] || `entry #${entry.id}`}
-									</Button>
-								))}
-							</Stack>
-						</ScrollArea>
-					</Stack>
+				<Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+					<Group grow align="end" wrap={isMobile ? 'wrap' : 'nowrap'}>
+						<TextInput
+							label={t('worldInfo.fields.name')}
+							value={draft.name}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								mutateDraft((current) => ({ ...current, name: value }));
+							}}
+						/>
+						<TextInput
+							label={t('worldInfo.fields.slug')}
+							value={draft.slug}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								mutateDraft((current) => ({ ...current, slug: value }));
+							}}
+						/>
+						<TextInput
+							label={t('worldInfo.fields.description')}
+							value={draft.description}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								mutateDraft((current) => ({ ...current, description: value }));
+							}}
+						/>
+					</Group>
 
-					{!isMobile && <Divider orientation="vertical" />}
+					<Divider />
 
-					<Stack gap="sm" style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
-						{!activeEntry ? (
-							<Text c="dimmed" size="sm">{t('worldInfo.editor.selectEntry')}</Text>
+					<Group justify="space-between" align="center">
+						<Text fw={600}>{t('worldInfo.editor.entriesTitle')}</Text>
+						<IconButtonWithTooltip icon={<LuPlus />} tooltip={t('worldInfo.editor.addEntry')} aria-label={t('worldInfo.editor.addEntry')} onClick={addEntry} />
+					</Group>
+
+					<Group grow align="end" wrap={isMobile ? 'wrap' : 'nowrap'}>
+						<TextInput
+							label={t('worldInfo.editor.searchEntries')}
+							value={search}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								setSearch(value);
+								setCurrentPage(1);
+							}}
+						/>
+						<Select
+							label={t('worldInfo.editor.pageSizeLabel')}
+							value={String(pageSize)}
+							data={PAGE_SIZE_OPTIONS}
+							onChange={(value) => {
+								const nextPageSize = Number(value ?? DEFAULT_PAGE_SIZE);
+								setPageSize(nextPageSize);
+								setCurrentPage(1);
+							}}
+							comboboxProps={{ withinPortal: false }}
+						/>
+					</Group>
+
+					<Group justify="space-between" align="center" wrap="nowrap">
+						{totalItems > pageSize ? <Pagination total={totalPages} value={currentPage} onChange={setCurrentPage} withEdges /> : <div />}
+						<Text size="sm" c="dimmed" style={{ marginLeft: 'auto' }}>
+							{t('worldInfo.editor.shownOfTotal', { shown: paginatedEntries.length, total: totalItems })}
+						</Text>
+					</Group>
+
+					<ScrollArea style={{ flex: 1 }}>
+						{paginatedEntries.length === 0 ? (
+							<Text c="dimmed" size="sm">
+								{search.trim() ? t('worldInfo.editor.noSearchResults') : t('worldInfo.editor.noEntries')}
+							</Text>
 						) : (
-							<>
-								<Group justify="space-between" align="center">
-									<Text fw={600}>{t('worldInfo.editor.entryTitle', { id: activeEntry.id })}</Text>
-									<Group gap={4}>
-										<IconButtonWithTooltip icon={<LuArrowUp />} tooltip={t('agentCards.editor.actions.moveUp')} aria-label={t('agentCards.editor.actions.moveUp')} onClick={() => mutateDraft((current) => {
-											const index = current.entries.findIndex((entry) => entry.id === activeEntry.id);
-											if (index <= 0) return current;
-											const next = current.entries.slice();
-											const temp = next[index - 1];
-											next[index - 1] = next[index];
-											next[index] = temp;
-											return { ...current, entries: next };
-										})} />
-										<IconButtonWithTooltip icon={<LuArrowDown />} tooltip={t('agentCards.editor.actions.moveDown')} aria-label={t('agentCards.editor.actions.moveDown')} onClick={() => mutateDraft((current) => {
-											const index = current.entries.findIndex((entry) => entry.id === activeEntry.id);
-											if (index < 0 || index >= current.entries.length - 1) return current;
-											const next = current.entries.slice();
-											const temp = next[index + 1];
-											next[index + 1] = next[index];
-											next[index] = temp;
-											return { ...current, entries: next };
-										})} />
-									</Group>
-								</Group>
-
-								<ScrollArea style={{ flex: 1 }}>
-									<Stack gap="sm" pb="md">
+							<Accordion multiple value={expandedEntryIds} onChange={setExpandedEntryIds} variant="separated">
+								{paginatedEntries.map((entry) => {
+									const globalIndex = draft.entries.findIndex((item) => item.id === entry.id);
+									const canMoveUp = globalIndex > 0;
+									const canMoveDown = globalIndex >= 0 && globalIndex < draft.entries.length - 1;
+									const isExpanded = expandedEntryIds.includes(entry.id);
+									const activeEntry = entry;
+									const mutateActiveEntry = (updater: (item: EntryState) => EntryState) => {
+										const nextEntry = updater(activeEntry);
+										mutateEntry(entry.id, () => nextEntry);
+									};
+									return (
+										<Accordion.Item key={entry.id} value={entry.id}>
+											<Accordion.Control>
+												<Group justify="space-between" align="center" wrap="nowrap" style={{ width: '100%' }}>
+													<Stack gap={0}>
+														<Text fw={600}>{getEntryLabel(entry)}</Text>
+														<Text size="xs" c="dimmed">
+															{t('worldInfo.editor.entryTitle', { id: entry.id })}
+														</Text>
+													</Stack>
+													<Group gap={4} wrap="nowrap">
+														<IconButtonWithTooltip
+															icon={<LuArrowUp />}
+															tooltip={t('worldInfo.editor.actions.moveUp')}
+															aria-label={t('worldInfo.editor.actions.moveUp')}
+															disabled={!canMoveUp}
+															onMouseDown={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+															}}
+															onClick={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+																moveEntry(entry.id, 'up');
+															}}
+														/>
+														<IconButtonWithTooltip
+															icon={<LuArrowDown />}
+															tooltip={t('worldInfo.editor.actions.moveDown')}
+															aria-label={t('worldInfo.editor.actions.moveDown')}
+															disabled={!canMoveDown}
+															onMouseDown={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+															}}
+															onClick={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+																moveEntry(entry.id, 'down');
+															}}
+														/>
+														<IconButtonWithTooltip
+															icon={<LuCopy />}
+															tooltip={t('worldInfo.editor.duplicateEntry')}
+															aria-label={t('worldInfo.editor.duplicateEntry')}
+															onMouseDown={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+															}}
+															onClick={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+																duplicateEntry(entry.id);
+															}}
+														/>
+														<IconButtonWithTooltip
+															icon={<LuTrash2 />}
+															tooltip={t('worldInfo.editor.deleteEntry')}
+															aria-label={t('worldInfo.editor.deleteEntry')}
+															colorPalette="red"
+															onMouseDown={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+															}}
+															onClick={(event) => {
+																event.preventDefault();
+																event.stopPropagation();
+																deleteEntry(entry.id);
+															}}
+														/>
+													</Group>
+												</Group>
+											</Accordion.Control>
+											<Accordion.Panel>
+												{isExpanded ? <Stack gap="sm" pb="md">
 										<TextInput label={t('worldInfo.editor.fields.comment')} value={activeEntry.draft.comment} onChange={(event) => mutateActiveEntry((entry) => ({ ...entry, draft: { ...entry.draft, comment: event.currentTarget.value } }))} />
 										<Group grow align="end">
 											<Select label={t('worldInfo.editor.fields.strategy')} data={[{ value: 'normal', label: t('worldInfo.editor.strategy.normal') }, { value: 'constant', label: t('worldInfo.editor.strategy.constant') }, { value: 'vectorized', label: t('worldInfo.editor.strategy.vectorized') }]} value={getEntryStateMode(activeEntry.draft)} onChange={(value) => mutateActiveEntry((entry) => ({ ...entry, draft: applyEntryStateMode(entry.draft, (value as EntryStateMode) ?? 'normal') }))} comboboxProps={{ withinPortal: false }} />
@@ -630,12 +790,15 @@ export const WorldInfoEditorModal = ({ opened, book, saving, onClose, onSave }: 
 												</Accordion.Panel>
 											</Accordion.Item>
 										</Accordion>
-									</Stack>
-								</ScrollArea>
-							</>
+									</Stack> : null}
+											</Accordion.Panel>
+										</Accordion.Item>
+									);
+								})}
+							</Accordion>
 						)}
-					</Stack>
-				</Group>
+					</ScrollArea>
+				</Stack>
 			)}
 		</Dialog>
 	);
