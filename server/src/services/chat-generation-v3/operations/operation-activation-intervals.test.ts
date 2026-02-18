@@ -18,6 +18,8 @@ describe("operation activation intervals", () => {
         supportsCurrentTrigger: true,
       });
       expect(out.shouldRunNow).toBe(false);
+      expect(out.skipSnapshot?.everyNTurns).toBe(5);
+      expect(out.skipSnapshot?.turnsCounter).toBe(idx);
       state = out.nextState;
     }
 
@@ -29,6 +31,7 @@ describe("operation activation intervals", () => {
       supportsCurrentTrigger: true,
     });
     expect(fifth.shouldRunNow).toBe(true);
+    expect(fifth.skipSnapshot).toBeUndefined();
     expect(fifth.nextState.turnsCounter).toBe(0);
     expect(fifth.nextState.tokensCounter).toBe(0);
 
@@ -53,6 +56,7 @@ describe("operation activation intervals", () => {
     });
     expect(first.shouldRunNow).toBe(false);
     expect(first.nextState.tokensCounter).toBe(2500);
+    expect(first.skipSnapshot?.everyNContextTokens).toBe(4000);
 
     const shrunk = resolveOperationActivationState({
       activation: { everyNContextTokens: 4000 },
@@ -63,6 +67,7 @@ describe("operation activation intervals", () => {
     });
     expect(shrunk.shouldRunNow).toBe(false);
     expect(shrunk.nextState.tokensCounter).toBe(2500);
+    expect(shrunk.skipSnapshot?.tokensCounter).toBe(2500);
 
     const reached = resolveOperationActivationState({
       activation: { everyNContextTokens: 4000 },

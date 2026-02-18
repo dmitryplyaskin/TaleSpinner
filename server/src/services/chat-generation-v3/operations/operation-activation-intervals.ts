@@ -6,12 +6,20 @@ export type OperationActivationState = {
   lastContextTokens: number;
 };
 
+export type OperationActivationSkipSnapshot = {
+  everyNTurns?: number;
+  everyNContextTokens?: number;
+  turnsCounter: number;
+  tokensCounter: number;
+};
+
 export type RunActivationSource = "user_message" | "continue" | "regenerate" | "system_message";
 
 export type ResolveActivationResult = {
   hasActivation: boolean;
   shouldRunNow: boolean;
   nextState: OperationActivationState;
+  skipSnapshot?: OperationActivationSkipSnapshot;
 };
 
 export const INITIAL_OPERATION_ACTIVATION_STATE: OperationActivationState = {
@@ -87,9 +95,20 @@ export function resolveOperationActivationState(params: {
     next.lastContextTokens = currentContextTokens;
   }
 
+  const skipSnapshot =
+    !shouldRunNow
+      ? {
+          everyNTurns: normalizedActivation.everyNTurns,
+          everyNContextTokens: normalizedActivation.everyNContextTokens,
+          turnsCounter: next.turnsCounter,
+          tokensCounter: next.tokensCounter,
+        }
+      : undefined;
+
   return {
     hasActivation: true,
     shouldRunNow,
     nextState: next,
+    skipSnapshot,
   };
 }

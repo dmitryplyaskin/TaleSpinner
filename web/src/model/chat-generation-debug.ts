@@ -196,6 +196,13 @@ function getNumber(data: Record<string, unknown> | null, key: string): number | 
 	return typeof value === 'number' ? value : null;
 }
 
+function getStringArray(data: Record<string, unknown> | null, key: string): string[] {
+	if (!data) return [];
+	const value = data[key];
+	if (!Array.isArray(value)) return [];
+	return value.filter((item): item is string => typeof item === 'string');
+}
+
 function toPreview(value: unknown, max = 120): string {
 	const text = typeof value === 'string' ? value : String(value ?? '');
 	if (text.length <= max) return text;
@@ -438,6 +445,8 @@ function summarizeEvent(type: string, data: Record<string, unknown> | null): Rec
 	if (type === 'operation.finished') {
 		const error = data && isRecord(data.error) ? data.error : null;
 		const result = data && isRecord(data.result) ? data.result : null;
+		const skipDetails = data && isRecord(data.skipDetails) ? data.skipDetails : null;
+		const activation = skipDetails && isRecord(skipDetails.activation) ? skipDetails.activation : null;
 		const effects = result && Array.isArray(result.effects)
 			? result.effects.filter((effect): effect is Record<string, unknown> => isRecord(effect))
 			: [];
@@ -448,6 +457,16 @@ function summarizeEvent(type: string, data: Record<string, unknown> | null): Rec
 			name: getString(data, 'name'),
 			status: getString(data, 'status'),
 			skipReason: getString(data, 'skipReason'),
+			skipDetailsActivation: activation
+				? {
+						everyNTurns: getNumber(activation, 'everyNTurns'),
+						everyNContextTokens: getNumber(activation, 'everyNContextTokens'),
+						turnsCounter: getNumber(activation, 'turnsCounter'),
+						tokensCounter: getNumber(activation, 'tokensCounter'),
+					}
+				: null,
+			skipDetailsBlockedByOpIds: getStringArray(skipDetails, 'blockedByOpIds'),
+			skipDetailsBlockedByReason: getString(skipDetails, 'blockedByReason'),
 			errorCode: error ? getString(error, 'code') : null,
 			errorMessage: error ? getString(error, 'message') : null,
 			resultDebugSummary: result ? getString(result, 'debugSummary') : null,

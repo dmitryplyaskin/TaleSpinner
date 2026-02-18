@@ -19,6 +19,7 @@ import { buildBasePrompt } from "./prompt/build-base-prompt";
 
 import type {
   ArtifactValue,
+  OperationSkipDetails,
   PromptDraftMessage,
   PromptSnapshotV1,
   RunEvent,
@@ -197,7 +198,7 @@ function supportsCurrentTrigger(op: OperationInProfile, trigger: "generate" | "r
   return triggers.includes(trigger);
 }
 
-async function resolveEligibleOperationsByActivation(params: {
+async function resolveOperationActivationDecisions(params: {
   ownerId: string;
   chatId: string;
   branchId: string;
@@ -207,9 +208,11 @@ async function resolveEligibleOperationsByActivation(params: {
   profile: Awaited<ReturnType<typeof resolveRunContext>>["profile"];
   operations: OperationInProfile[];
   currentContextTokens: number;
-}): Promise<ReadonlySet<string>> {
-  const eligibleOperationIds = new Set<string>();
-  if (params.operations.length === 0) return eligibleOperationIds;
+}): Promise<{
+  activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
+}> {
+  const activationSkippedByOpId = new Map<string, NonNullable<OperationSkipDetails["activation"]>>();
+  if (params.operations.length === 0) return { activationSkippedByOpId };
 
   const previousStates = params.sessionKey
     ? await ProfileSessionArtifactStore.loadOperationActivationStates({
@@ -229,14 +232,15 @@ async function resolveEligibleOperationsByActivation(params: {
       supportsCurrentTrigger: supportsCurrentTrigger(op, params.trigger),
     });
 
-    if (!activationResolution.hasActivation) {
-      eligibleOperationIds.add(op.opId);
-      continue;
-    }
+    if (!activationResolution.hasActivation) continue;
 
     stateUpdates.set(op.opId, activationResolution.nextState);
-    if (activationResolution.shouldRunNow) {
-      eligibleOperationIds.add(op.opId);
+    if (
+      !activationResolution.shouldRunNow &&
+      supportsCurrentTrigger(op, params.trigger) &&
+      activationResolution.skipSnapshot
+    ) {
+      activationSkippedByOpId.set(op.opId, activationResolution.skipSnapshot);
     }
   }
 
@@ -256,7 +260,7 @@ async function resolveEligibleOperationsByActivation(params: {
     );
   }
 
-  return eligibleOperationIds;
+  return { activationSkippedByOpId };
 }
 
 function buildPromptDiagnosticsDebugJson(params: {
@@ -501,7 +505,7 @@ export async function* runChatGenerationV3(
     yield* flushEvents();
 
     const profileOperations = context.profileSnapshot?.operations ?? [];
-    const eligibleOperationIds = await resolveEligibleOperationsByActivation({
+    const activationDecisions = await resolveOperationActivationDecisions({
       ownerId: context.ownerId,
       chatId: context.chatId,
       branchId: context.branchId,
@@ -528,7 +532,7 @@ export async function* runChatGenerationV3(
         hook: "before_main_llm",
         trigger: context.trigger,
         operations: profileOperations,
-        eligibleOperationIds,
+        activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
         executionMode,
         baseMessages: runState.effectivePromptDraft,
         baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
@@ -579,7 +583,10 @@ export async function* runChatGenerationV3(
     emit("run.phase_changed", { phase: "before_barrier" });
     const barrierStartedAt = Date.now();
     const requiredBeforeNotDone = runState.operationResultsByHook.before_main_llm.filter(
-      (item) => item.required && item.status !== "done"
+      (item) =>
+        item.required &&
+        item.status !== "done" &&
+        item.skipReason !== "activation_not_reached"
     );
     const beforeBarrierFailed =
       requiredBeforeNotDone.length > 0 || commitBefore.requiredError;
@@ -686,7 +693,7 @@ export async function* runChatGenerationV3(
             hook: "after_main_llm",
             trigger: context.trigger,
             operations: profileOperations,
-            eligibleOperationIds,
+            activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
             executionMode,
             baseMessages: afterBaseMessages,
             baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
@@ -734,7 +741,10 @@ export async function* runChatGenerationV3(
         yield* flushEvents();
 
         const requiredAfterNotDone = runState.operationResultsByHook.after_main_llm.filter(
-          (item) => item.required && item.status !== "done"
+          (item) =>
+            item.required &&
+            item.status !== "done" &&
+            item.skipReason !== "activation_not_reached"
         );
         if (commitAfter.requiredError || requiredAfterNotDone.length > 0) {
           runState.finishedStatus = "failed";

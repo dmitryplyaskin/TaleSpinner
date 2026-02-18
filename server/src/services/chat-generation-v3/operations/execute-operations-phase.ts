@@ -6,6 +6,8 @@ import {
   mapOperationOutputToEffectType,
   type OperationFinishedEventData,
   type OperationExecutionResult,
+  type OperationSkipDetails,
+  type OperationSkipReason,
   type PromptDraftMessage,
   type RuntimeEffect,
 } from "../contracts";
@@ -211,10 +213,61 @@ function buildLiquidContextSnapshot(params: {
   };
 }
 
+function normalizeBlockedByOpIds(input: string[] | undefined): string[] {
+  if (!input || input.length === 0) return [];
+  return Array.from(new Set(input)).sort((a, b) => a.localeCompare(b));
+}
+
+function resolveSkipReasonAndDetails(params: {
+  reason: OperationSkipReason;
+  dependsOn: string[];
+  blockedByOpIds?: string[];
+  activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
+}): { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails } {
+  const blockedByOpIds = normalizeBlockedByOpIds(
+    params.blockedByOpIds?.length
+      ? params.blockedByOpIds
+      : params.reason === "dependency_missing" || params.reason === "dependency_not_done"
+        ? params.dependsOn
+        : []
+  );
+  const activationBlockedBy = blockedByOpIds.filter((opId) =>
+    params.activationSkippedByOpId.has(opId)
+  );
+  const allBlockedByActivation =
+    blockedByOpIds.length > 0 && activationBlockedBy.length === blockedByOpIds.length;
+
+  if (params.reason === "dependency_missing" && allBlockedByActivation) {
+    return {
+      skipReason: "dependency_not_done",
+      skipDetails: {
+        blockedByOpIds,
+        blockedByReason: "activation_not_reached",
+      },
+    };
+  }
+
+  if (params.reason === "dependency_missing" || params.reason === "dependency_not_done") {
+    return {
+      skipReason: params.reason,
+      skipDetails:
+        blockedByOpIds.length > 0
+          ? {
+              blockedByOpIds,
+              blockedByReason: allBlockedByActivation ? "activation_not_reached" : undefined,
+            }
+          : undefined,
+    };
+  }
+
+  return { skipReason: params.reason };
+}
+
 function mapTaskResult(params: {
   hook: OperationHook;
   task: TaskResult;
   op: OperationInProfile;
+  activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
 }): OperationExecutionResult {
   const { task, op } = params;
   if (task.status === "done") {
@@ -278,6 +331,12 @@ function mapTaskResult(params: {
     };
   }
 
+  const normalized = resolveSkipReasonAndDetails({
+    reason: task.reason as OperationSkipReason,
+    dependsOn: op.config.dependsOn ?? [],
+    blockedByOpIds: task.blockedByTaskIds,
+    activationSkippedByOpId: params.activationSkippedByOpId,
+  });
   return {
     opId: op.opId,
     name: op.name,
@@ -287,7 +346,8 @@ function mapTaskResult(params: {
     order: op.config.order,
     dependsOn: op.config.dependsOn ?? [],
     effects: [],
-    skipReason: task.reason,
+    skipReason: normalized.skipReason,
+    skipDetails: normalized.skipDetails,
   };
 }
 
@@ -296,7 +356,10 @@ export async function executeOperationsPhase(params: {
   hook: OperationHook;
   trigger: OperationTrigger;
   operations: OperationInProfile[];
-  eligibleOperationIds?: ReadonlySet<string>;
+  activationSkippedByOpId?: ReadonlyMap<
+    string,
+    NonNullable<OperationSkipDetails["activation"]>
+  >;
   executionMode: "concurrent" | "sequential";
   baseMessages: PromptDraftMessage[];
   baseArtifacts: Record<string, { value: string; history: string[] }>;
@@ -324,22 +387,60 @@ export async function executeOperationsPhase(params: {
     };
   }) => void;
 }): Promise<OperationExecutionResult[]> {
-  const filtered = params.operations.filter((op) => {
+  const candidateOperations = params.operations.filter((op) => {
     if (!op.config.enabled) return false;
     if (!op.config.hooks.includes(params.hook)) return false;
-    if (params.eligibleOperationIds && !params.eligibleOperationIds.has(op.opId)) return false;
     const triggers = op.config.triggers ?? ["generate", "regenerate"];
     return triggers.includes(params.trigger);
   });
 
-  if (filtered.length === 0) return [];
+  if (candidateOperations.length === 0) return [];
+  const activationSkippedByOpId = params.activationSkippedByOpId ?? new Map();
+  const activationSkippedResults: OperationExecutionResult[] = [];
+  const runnableOperations: OperationInProfile[] = [];
+  for (const op of candidateOperations) {
+    const activation = activationSkippedByOpId.get(op.opId);
+    if (!activation) {
+      runnableOperations.push(op);
+      continue;
+    }
+    const result: OperationExecutionResult = {
+      opId: op.opId,
+      name: op.name,
+      required: op.config.required,
+      hook: params.hook,
+      status: "skipped",
+      order: op.config.order,
+      dependsOn: op.config.dependsOn ?? [],
+      effects: [],
+      skipReason: "activation_not_reached",
+      skipDetails: {
+        activation: {
+          everyNTurns: activation.everyNTurns,
+          everyNContextTokens: activation.everyNContextTokens,
+          turnsCounter: activation.turnsCounter,
+          tokensCounter: activation.tokensCounter,
+        },
+      },
+    };
+    activationSkippedResults.push(result);
+    params.onOperationFinished?.({
+      hook: params.hook,
+      opId: op.opId,
+      name: op.name,
+      status: "skipped",
+      skipReason: "activation_not_reached",
+      skipDetails: result.skipDetails,
+    });
+  }
 
-  const executableOps = filtered.filter(
+  const executableOps = runnableOperations.filter(
     (op): op is Extract<OperationInProfile, { kind: "template" | "llm" }> =>
       op.kind === "template" || op.kind === "llm"
   );
   const executableOpsById = new Map(executableOps.map((op) => [op.opId, op]));
-  const unsupportedOps = filtered.filter(
+  const executableTaskIdSet = new Set(executableOps.map((op) => op.opId));
+  const unsupportedOps = runnableOperations.filter(
     (op): op is Exclude<OperationInProfile, Extract<OperationInProfile, { kind: "template" | "llm" }>> =>
       op.kind !== "template" && op.kind !== "llm"
   );
@@ -354,128 +455,164 @@ export async function executeOperationsPhase(params: {
     assistantText: params.assistantText,
   };
 
-  const orchestration = await runOrchestrator(
-    {
-      runId: `${params.runId}:${params.hook}`,
-      hook: params.hook,
-      trigger: params.trigger,
-      executionMode: params.executionMode,
-      signal: params.abortSignal,
-      tasks: executableOps.map((op) => ({
-        taskId: op.opId,
-        name: op.name,
-        enabled: op.config.enabled,
-        required: op.config.required,
-        order: op.config.order,
-        dependsOn: op.config.dependsOn,
-        run: async () => {
-          const depPreview = replayDependencyEffects(baseState, op.config.dependsOn ?? [], effectsByOpId);
-          const liquidContext = buildTemplateContext(params.templateContext, depPreview);
-          let resolvedRendered = "";
-          let debugSummary: string | undefined;
+  const skippedEventMetaByTaskId = new Map<
+    string,
+    { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
+  >();
+  const executableResults: OperationExecutionResult[] = [];
+  if (executableOps.length > 0) {
+    const orchestration = await runOrchestrator(
+      {
+        runId: `${params.runId}:${params.hook}`,
+        hook: params.hook,
+        trigger: params.trigger,
+        executionMode: params.executionMode,
+        signal: params.abortSignal,
+        tasks: executableOps.map((op) => ({
+          taskId: op.opId,
+          name: op.name,
+          enabled: op.config.enabled,
+          required: op.config.required,
+          order: op.config.order,
+          dependsOn: op.config.dependsOn,
+          run: async () => {
+            const depPreview = replayDependencyEffects(baseState, op.config.dependsOn ?? [], effectsByOpId);
+            const liquidContext = buildTemplateContext(params.templateContext, depPreview);
+            let resolvedRendered = "";
+            let debugSummary: string | undefined;
 
-          if (op.kind === "template") {
-            resolvedRendered = normalizeText(
-              await renderLiquidTemplate({
-                templateText: op.config.params.template,
-                context: liquidContext,
-                options: { strictVariables: Boolean(op.config.params.strictVariables) },
+            if (op.kind === "template") {
+              resolvedRendered = normalizeText(
+                await renderLiquidTemplate({
+                  templateText: op.config.params.template,
+                  context: liquidContext,
+                  options: { strictVariables: Boolean(op.config.params.strictVariables) },
+                })
+              );
+            }
+
+            if (op.kind === "llm") {
+              const llmResult = await executeLlmOperation({
+                op,
+                liquidContext,
+                abortSignal: params.abortSignal,
+              });
+              resolvedRendered = normalizeText(llmResult.rendered);
+              debugSummary = llmResult.debugSummary;
+            }
+
+            const effect = toRuntimeEffect({
+              opId: op.opId,
+              output: op.config.params.output,
+              rendered: resolvedRendered,
+            });
+            if (op.kind === "template") {
+              params.onTemplateDebug?.({
+                hook: params.hook,
+                opId: op.opId,
+                name: op.name,
+                template: op.config.params.template,
+                rendered: resolvedRendered,
+                effect,
+                liquidContext: buildLiquidContextSnapshot({
+                  base: liquidContext,
+                  state: depPreview,
+                }),
+              });
+            }
+            const effects: RuntimeEffect[] = [effect];
+            effectsByOpId.set(op.opId, effects);
+            taskResultByOpId.set(op.opId, {
+              effects,
+              debugSummary:
+                debugSummary ??
+                `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
+            });
+            return {
+              effects,
+              debugSummary:
+                debugSummary ??
+                `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
+            };
+          },
+        })),
+      },
+      {
+        onEvent: (evt) => {
+          if (evt.type === "orch.task.started") {
+            const op = executableOpsById.get(evt.data.taskId);
+            if (!op) return;
+            params.onOperationStarted?.({ hook: params.hook, opId: op.opId, name: op.name });
+            return;
+          }
+          if (evt.type === "orch.task.skipped") {
+            const op = executableOpsById.get(evt.data.taskId);
+            if (!op) return;
+            const missingDeps =
+              evt.data.reason === "dependency_missing"
+                ? (op.config.dependsOn ?? []).filter((depId) => !executableTaskIdSet.has(depId))
+                : op.config.dependsOn ?? [];
+            skippedEventMetaByTaskId.set(
+              op.opId,
+              resolveSkipReasonAndDetails({
+                reason: evt.data.reason as OperationSkipReason,
+                dependsOn: op.config.dependsOn ?? [],
+                blockedByOpIds: missingDeps,
+                activationSkippedByOpId,
               })
             );
+            return;
           }
-
-          if (op.kind === "llm") {
-            const llmResult = await executeLlmOperation({
-              op,
-              liquidContext,
-              abortSignal: params.abortSignal,
-            });
-            resolvedRendered = normalizeText(llmResult.rendered);
-            debugSummary = llmResult.debugSummary;
-          }
-
-          const effect = toRuntimeEffect({
-            opId: op.opId,
-            output: op.config.params.output,
-            rendered: resolvedRendered,
-          });
-          if (op.kind === "template") {
-            params.onTemplateDebug?.({
+          if (evt.type === "orch.task.finished") {
+            const op = executableOpsById.get(evt.data.taskId);
+            if (!op) return;
+            if (evt.data.status === "skipped") {
+              const normalized =
+                skippedEventMetaByTaskId.get(op.opId) ??
+                resolveSkipReasonAndDetails({
+                  reason: "dependency_not_done",
+                  dependsOn: op.config.dependsOn ?? [],
+                  activationSkippedByOpId,
+                });
+              params.onOperationFinished?.({
+                hook: params.hook,
+                opId: op.opId,
+                name: op.name,
+                status: "skipped",
+                skipReason: normalized.skipReason,
+                skipDetails: normalized.skipDetails,
+              });
+              return;
+            }
+            const result =
+              evt.data.status === "done" ? taskResultByOpId.get(op.opId) : undefined;
+            params.onOperationFinished?.({
               hook: params.hook,
               opId: op.opId,
               name: op.name,
-              template: op.config.params.template,
-              rendered: resolvedRendered,
-              effect,
-              liquidContext: buildLiquidContextSnapshot({
-                base: liquidContext,
-                state: depPreview,
-              }),
+              status: evt.data.status,
+              result,
             });
           }
-          const effects: RuntimeEffect[] = [effect];
-          effectsByOpId.set(op.opId, effects);
-          taskResultByOpId.set(op.opId, {
-            effects,
-            debugSummary:
-              debugSummary ??
-              `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
-          });
-          return {
-            effects,
-            debugSummary:
-              debugSummary ??
-              `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
-          };
         },
-      })),
-    },
-    {
-      onEvent: (evt) => {
-        if (evt.type === "orch.task.started") {
-          const op = executableOpsById.get(evt.data.taskId);
-          if (!op) return;
-          params.onOperationStarted?.({ hook: params.hook, opId: op.opId, name: op.name });
-          return;
-        }
-        if (evt.type === "orch.task.finished") {
-          const op = executableOpsById.get(evt.data.taskId);
-          if (!op) return;
-          const result =
-            evt.data.status === "done"
-              ? taskResultByOpId.get(op.opId)
-              : undefined;
-          params.onOperationFinished?.({
-            hook: params.hook,
-            opId: op.opId,
-            name: op.name,
-            status: evt.data.status,
-            result,
-          });
-          return;
-        }
-        if (evt.type === "orch.task.skipped") {
-          const op = executableOpsById.get(evt.data.taskId);
-          if (!op) return;
-          params.onOperationFinished?.({
-            hook: params.hook,
-            opId: op.opId,
-            name: op.name,
-            status: "skipped",
-            skipReason: evt.data.reason,
-          });
-        }
-      },
-    }
-  );
+      }
+    );
 
-  const executableResults = orchestration.tasks
-    .map((task) => {
-      const op = executableOpsById.get(task.taskId);
-      if (!op) return null;
-      return mapTaskResult({ hook: params.hook, op, task });
-    })
-    .filter((item): item is OperationExecutionResult => Boolean(item));
+    executableResults.push(
+      ...orchestration.tasks
+        .map((task) => {
+          const op = executableOpsById.get(task.taskId);
+          if (!op) return null;
+          return mapTaskResult({
+            hook: params.hook,
+            op,
+            task,
+            activationSkippedByOpId,
+          });
+        })
+        .filter((item): item is OperationExecutionResult => Boolean(item))
+    );
+  }
 
   const nonTemplateResults: OperationExecutionResult[] = unsupportedOps.map((op) => ({
     opId: op.opId,
@@ -489,7 +626,7 @@ export async function executeOperationsPhase(params: {
     skipReason: "unsupported_kind",
   }));
 
-  const all = [...executableResults, ...nonTemplateResults].sort((a, b) => {
+  const all = [...activationSkippedResults, ...executableResults, ...nonTemplateResults].sort((a, b) => {
     if (a.order !== b.order) return a.order - b.order;
     return a.opId.localeCompare(b.opId);
   });

@@ -153,6 +153,26 @@ export type RuntimeEffect =
 
 export type OperationExecutionStatus = "done" | "skipped" | "error" | "aborted";
 
+export type OperationSkipReason =
+  | "activation_not_reached"
+  | "dependency_not_done"
+  | "dependency_missing"
+  | "unsupported_kind"
+  | "orchestrator_aborted"
+  | "filtered_out"
+  | "disabled";
+
+export type OperationSkipDetails = {
+  activation?: {
+    everyNTurns?: number;
+    everyNContextTokens?: number;
+    turnsCounter: number;
+    tokensCounter: number;
+  };
+  blockedByOpIds?: string[];
+  blockedByReason?: "activation_not_reached";
+};
+
 export type OperationExecutionResult = {
   opId: string;
   name: string;
@@ -167,7 +187,8 @@ export type OperationExecutionResult = {
     code: string;
     message: string;
   };
-  skipReason?: string;
+  skipReason?: OperationSkipReason;
+  skipDetails?: OperationSkipDetails;
 };
 
 export type OperationFinishedEventData = {
@@ -175,7 +196,8 @@ export type OperationFinishedEventData = {
   opId: string;
   name: string;
   status: OperationExecutionStatus;
-  skipReason?: string;
+  skipReason?: OperationSkipReason;
+  skipDetails?: OperationSkipDetails;
   error?: { code: string; message: string };
   result?: {
     effects: RuntimeEffect[];

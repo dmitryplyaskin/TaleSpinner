@@ -181,6 +181,44 @@ describe("runChatGenerationV3", () => {
     expect(finished?.data.failedType).toBe("before_barrier");
   });
 
+  test("does not fail before barrier for required activation_not_reached skip", async () => {
+    mocks.executeOperationsPhase.mockResolvedValueOnce([
+      {
+        opId: "required-op",
+        name: "Required op",
+        required: true,
+        hook: "before_main_llm",
+        status: "skipped",
+        skipReason: "activation_not_reached",
+        skipDetails: {
+          activation: {
+            everyNTurns: 5,
+            turnsCounter: 2,
+            tokensCounter: 300,
+          },
+        },
+        order: 10,
+        dependsOn: [],
+        effects: [],
+      },
+    ]);
+    mocks.executeOperationsPhase.mockResolvedValueOnce([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events = [];
+    for await (const evt of runChatGenerationV3(makeRequest())) {
+      events.push(evt);
+    }
+
+    expect(mocks.runMainLlmPhase).toHaveBeenCalled();
+    const finished = events.find((e) => e.type === "run.finished");
+    expect(finished?.data.status).toBe("done");
+  });
+
   test("passes before artifacts into after execute phase", async () => {
     const executeCalls: any[] = [];
     mocks.executeOperationsPhase.mockImplementation(async (params: any) => {
@@ -364,6 +402,69 @@ describe("runChatGenerationV3", () => {
       opId: "op-with-result",
       tag: "x",
       value: "ok",
+    });
+  });
+
+  test("passes operation.finished skip details through run events", async () => {
+    mocks.executeOperationsPhase.mockImplementation(async (params: any) => {
+      if (params.hook === "before_main_llm") {
+        params.onOperationFinished?.({
+          hook: "before_main_llm",
+          opId: "op-activation-skip",
+          name: "Activation skip op",
+          status: "skipped",
+          skipReason: "activation_not_reached",
+          skipDetails: {
+            activation: {
+              everyNTurns: 5,
+              turnsCounter: 2,
+              tokensCounter: 500,
+            },
+          },
+        });
+        return [
+          {
+            opId: "op-activation-skip",
+            name: "Activation skip op",
+            required: false,
+            hook: "before_main_llm",
+            status: "skipped",
+            skipReason: "activation_not_reached",
+            skipDetails: {
+              activation: {
+                everyNTurns: 5,
+                turnsCounter: 2,
+                tokensCounter: 500,
+              },
+            },
+            order: 10,
+            dependsOn: [],
+            effects: [],
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events: any[] = [];
+    for await (const evt of runChatGenerationV3(makeRequest())) {
+      events.push(evt);
+    }
+
+    const finished = events.find(
+      (evt) => evt.type === "operation.finished" && evt.data?.opId === "op-activation-skip"
+    );
+    expect(finished?.data?.status).toBe("skipped");
+    expect(finished?.data?.skipReason).toBe("activation_not_reached");
+    expect(finished?.data?.skipDetails?.activation).toMatchObject({
+      everyNTurns: 5,
+      turnsCounter: 2,
+      tokensCounter: 500,
     });
   });
 
