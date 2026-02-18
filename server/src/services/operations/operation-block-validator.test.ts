@@ -12,13 +12,16 @@ describe("operation block validator", () => {
           opId: "6ff77029-5037-4d21-8ace-c9836f58a14b",
           name: "template-op",
           kind: "template",
-          config: {
-            enabled: true,
-            required: false,
-            hooks: ["before_main_llm"],
-            order: 10,
-            params: {
-              template: "Hello",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              activation: {
+                everyNTurns: 5,
+              },
+              order: 10,
+              params: {
+                template: "Hello",
               output: {
                 type: "artifacts",
                 writeArtifact: {
@@ -69,5 +72,48 @@ describe("operation block validator", () => {
         ],
       })
     ).toThrow(/unknown opId/);
+  });
+
+  test("rejects empty activation object", () => {
+    const payload = {
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "6ff77029-5037-4d21-8ace-c9836f58a14b",
+          name: "template-op",
+          kind: "template" as const,
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm" as const],
+            activation: {},
+            order: 10,
+            params: {
+              template: "Hello",
+              output: {
+                type: "artifacts" as const,
+                writeArtifact: {
+                  tag: "world_state",
+                  persistence: "run_only" as const,
+                  usage: "internal" as const,
+                  semantics: "intermediate",
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    expect(() => validateOperationBlockUpsertInput(payload)).toThrow(/Validation error/);
+
+    try {
+      validateOperationBlockUpsertInput(payload);
+      expect.unreachable("expected validation error");
+    } catch (error) {
+      const issues = (error as { details?: { issues?: Array<{ message?: string }> } }).details?.issues ?? [];
+      expect(issues.some((issue) => issue.message === "activation must include at least one interval")).toBe(true);
+    }
   });
 });

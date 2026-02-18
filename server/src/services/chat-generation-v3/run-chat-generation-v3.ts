@@ -11,6 +11,7 @@ import { RunArtifactStore } from "./artifacts/run-artifact-store";
 import { isChatGenerationDebugEnabled } from "./debug";
 import { runMainLlmPhase } from "./main-llm/run-main-llm-phase";
 import { commitEffectsPhase } from "./operations/commit-effects-phase";
+import { resolveOperationActivationState } from "./operations/operation-activation-intervals";
 import { executeOperationsPhase } from "./operations/execute-operations-phase";
 import { finalizeRun } from "./persist/finalize-run";
 import { resolveRunContext } from "./prepare/resolve-run-context";
@@ -28,6 +29,7 @@ import type {
   TurnUserCanonicalizationRecord,
 } from "./contracts";
 import type { GenerateMessage } from "@shared/types/generate";
+import type { OperationInProfile } from "@shared/types/operation-profiles";
 
 type PromptDiagnosticsSectionTokens = {
   systemInstruction: number;
@@ -180,6 +182,81 @@ function approxTokensByText(text: string): number {
 
 function sumTextLengths(values: string[]): number {
   return values.reduce((acc, value) => acc + String(value ?? "").length, 0);
+}
+
+function sumContextTokensByMessages(messages: PromptDraftMessage[]): number {
+  const chars = messages.reduce((acc, message) => {
+    if (message.role !== "user" && message.role !== "assistant") return acc;
+    return acc + String(message.content ?? "").length;
+  }, 0);
+  return approxTokensByChars(chars);
+}
+
+function supportsCurrentTrigger(op: OperationInProfile, trigger: "generate" | "regenerate"): boolean {
+  const triggers = op.config.triggers ?? ["generate", "regenerate"];
+  return triggers.includes(trigger);
+}
+
+async function resolveEligibleOperationsByActivation(params: {
+  ownerId: string;
+  chatId: string;
+  branchId: string;
+  source: RunRequest["source"];
+  trigger: "generate" | "regenerate";
+  sessionKey: string | null;
+  profile: Awaited<ReturnType<typeof resolveRunContext>>["profile"];
+  operations: OperationInProfile[];
+  currentContextTokens: number;
+}): Promise<ReadonlySet<string>> {
+  const eligibleOperationIds = new Set<string>();
+  if (params.operations.length === 0) return eligibleOperationIds;
+
+  const previousStates = params.sessionKey
+    ? await ProfileSessionArtifactStore.loadOperationActivationStates({
+        ownerId: params.ownerId,
+        sessionKey: params.sessionKey,
+        opIds: params.operations.map((op) => op.opId),
+      })
+    : {};
+  const stateUpdates = new Map<string, ReturnType<typeof resolveOperationActivationState>["nextState"]>();
+
+  for (const op of params.operations) {
+    const activationResolution = resolveOperationActivationState({
+      activation: op.config.activation,
+      previous: previousStates[op.opId],
+      source: params.source,
+      currentContextTokens: params.currentContextTokens,
+      supportsCurrentTrigger: supportsCurrentTrigger(op, params.trigger),
+    });
+
+    if (!activationResolution.hasActivation) {
+      eligibleOperationIds.add(op.opId);
+      continue;
+    }
+
+    stateUpdates.set(op.opId, activationResolution.nextState);
+    if (activationResolution.shouldRunNow) {
+      eligibleOperationIds.add(op.opId);
+    }
+  }
+
+  if (params.sessionKey && stateUpdates.size > 0) {
+    await Promise.all(
+      Array.from(stateUpdates.entries()).map(([opId, state]) =>
+        ProfileSessionArtifactStore.upsertOperationActivationState({
+          ownerId: params.ownerId,
+          sessionKey: params.sessionKey as string,
+          chatId: params.chatId,
+          branchId: params.branchId,
+          profile: params.profile,
+          opId,
+          state,
+        })
+      )
+    );
+  }
+
+  return eligibleOperationIds;
 }
 
 function buildPromptDiagnosticsDebugJson(params: {
@@ -424,6 +501,17 @@ export async function* runChatGenerationV3(
     yield* flushEvents();
 
     const profileOperations = context.profileSnapshot?.operations ?? [];
+    const eligibleOperationIds = await resolveEligibleOperationsByActivation({
+      ownerId: context.ownerId,
+      chatId: context.chatId,
+      branchId: context.branchId,
+      source: request.source,
+      trigger: context.trigger,
+      sessionKey: context.sessionKey,
+      profile: resolved.profile,
+      operations: profileOperations,
+      currentContextTokens: sumContextTokensByMessages(runState.effectivePromptDraft),
+    });
     const executionMode = context.profileSnapshot?.executionMode ?? "sequential";
     const runArtifactStore = new RunArtifactStore();
     const mainPhaseSettings = {
@@ -440,6 +528,7 @@ export async function* runChatGenerationV3(
         hook: "before_main_llm",
         trigger: context.trigger,
         operations: profileOperations,
+        eligibleOperationIds,
         executionMode,
         baseMessages: runState.effectivePromptDraft,
         baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
@@ -597,6 +686,7 @@ export async function* runChatGenerationV3(
             hook: "after_main_llm",
             trigger: context.trigger,
             operations: profileOperations,
+            eligibleOperationIds,
             executionMode,
             baseMessages: afterBaseMessages,
             baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),

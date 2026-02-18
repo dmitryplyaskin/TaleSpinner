@@ -39,6 +39,7 @@ function makeRequest(overrides?: Partial<Parameters<typeof resolveRunContext>[0]
     branchId: "branch-1",
     entityProfileId: "entity-1",
     trigger: "generate" as const,
+    source: "user_message" as const,
     settings: {
       __chatGenerationDebug: true,
       temperature: 0.7,

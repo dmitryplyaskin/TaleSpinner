@@ -296,6 +296,7 @@ export async function executeOperationsPhase(params: {
   hook: OperationHook;
   trigger: OperationTrigger;
   operations: OperationInProfile[];
+  eligibleOperationIds?: ReadonlySet<string>;
   executionMode: "concurrent" | "sequential";
   baseMessages: PromptDraftMessage[];
   baseArtifacts: Record<string, { value: string; history: string[] }>;
@@ -326,6 +327,7 @@ export async function executeOperationsPhase(params: {
   const filtered = params.operations.filter((op) => {
     if (!op.config.enabled) return false;
     if (!op.config.hooks.includes(params.hook)) return false;
+    if (params.eligibleOperationIds && !params.eligibleOperationIds.has(op.opId)) return false;
     const triggers = op.config.triggers ?? ["generate", "regenerate"];
     return triggers.includes(params.trigger);
   });

@@ -144,11 +144,17 @@ export type OperationOtherKindParams<TParams extends Record<string, unknown> = R
 
 export type OperationParams = OperationTemplateParams | OperationOtherKindParams;
 
+export type OperationActivationConfig = {
+  everyNTurns?: number;
+  everyNContextTokens?: number;
+};
+
 export type OperationConfig<TParams extends OperationParams = OperationParams> = {
   enabled: boolean;
   required: boolean;
   hooks: OperationHook[];
   triggers?: OperationTrigger[];
+  activation?: OperationActivationConfig;
   order: number;
   dependsOn?: string[]; // list of opId
   params: TParams;

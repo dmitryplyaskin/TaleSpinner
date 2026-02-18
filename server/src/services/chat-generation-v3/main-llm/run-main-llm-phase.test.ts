@@ -21,6 +21,7 @@ function makeRequest(abortController: AbortController): RunRequest {
     branchId: "branch-1",
     entityProfileId: "profile-1",
     trigger: "regenerate",
+    source: "regenerate",
     settings: {},
     abortController,
     persistenceTarget: {

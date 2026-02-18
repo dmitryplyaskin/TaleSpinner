@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 import { safeJsonParse, safeJsonStringify } from "../../../chat-core/json";
@@ -11,13 +11,33 @@ import type {
   ArtifactUsage,
   OperationProfile,
 } from "@shared/types/operation-profiles";
+import type { OperationActivationState } from "../operations/operation-activation-intervals";
 
 
 const MAX_HISTORY_ITEMS = 20;
+const INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX = "__sys_op_activation__:";
 
 function normalizeHistory(input: unknown, nextValue: string): string[] {
   const parsed = Array.isArray(input) ? input.filter((v): v is string => typeof v === "string") : [];
   return [...parsed, nextValue].slice(-MAX_HISTORY_ITEMS);
+}
+
+function normalizeActivationState(input: unknown): OperationActivationState {
+  if (!input || typeof input !== "object") {
+    return { turnsCounter: 0, tokensCounter: 0, lastContextTokens: 0 };
+  }
+  const state = input as Record<string, unknown>;
+  const toInt = (value: unknown): number =>
+    typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  return {
+    turnsCounter: toInt(state.turnsCounter),
+    tokensCounter: toInt(state.tokensCounter),
+    lastContextTokens: toInt(state.lastContextTokens),
+  };
+}
+
+export function buildOperationActivationStateTag(opId: string): string {
+  return `${INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX}${encodeURIComponent(opId)}`;
 }
 
 export class ProfileSessionArtifactStore {
@@ -38,6 +58,7 @@ export class ProfileSessionArtifactStore {
 
     const out: Record<string, ArtifactValue> = {};
     for (const row of rows) {
+      if (row.tag.startsWith(INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX)) continue;
       const usage = (row.usage ?? "internal") as ArtifactUsage;
       const semantics = (row.semantics ?? "intermediate") as ArtifactSemantics;
       const value = safeJsonParse<string>(row.valueJson, "");
@@ -49,6 +70,36 @@ export class ProfileSessionArtifactStore {
         value,
         history: Array.isArray(history) ? history.filter((v) => typeof v === "string") : [],
       };
+    }
+    return out;
+  }
+
+  static async loadOperationActivationStates(params: {
+    ownerId: string;
+    sessionKey: string;
+    opIds: string[];
+  }): Promise<Record<string, OperationActivationState>> {
+    const opIds = Array.from(new Set(params.opIds.filter((opId) => opId.trim().length > 0)));
+    if (opIds.length === 0) return {};
+    const db = await initDb();
+    const tagByOpId = new Map(opIds.map((opId) => [opId, buildOperationActivationStateTag(opId)]));
+    const rows = await db
+      .select()
+      .from(operationProfileSessionArtifacts)
+      .where(
+        and(
+          eq(operationProfileSessionArtifacts.ownerId, params.ownerId),
+          eq(operationProfileSessionArtifacts.sessionKey, params.sessionKey),
+          inArray(operationProfileSessionArtifacts.tag, Array.from(tagByOpId.values()))
+        )
+      );
+
+    const opIdByTag = new Map(Array.from(tagByOpId.entries()).map(([opId, tag]) => [tag, opId]));
+    const out: Record<string, OperationActivationState> = {};
+    for (const row of rows) {
+      const opId = opIdByTag.get(row.tag);
+      if (!opId) continue;
+      out[opId] = normalizeActivationState(safeJsonParse<unknown>(row.valueJson, null));
     }
     return out;
   }
@@ -117,5 +168,57 @@ export class ProfileSessionArtifactStore {
       value: params.value,
       history,
     };
+  }
+
+  static async upsertOperationActivationState(params: {
+    ownerId: string;
+    sessionKey: string;
+    chatId: string;
+    branchId: string;
+    profile: OperationProfile | null;
+    opId: string;
+    state: OperationActivationState;
+  }): Promise<void> {
+    const db = await initDb();
+    const tag = buildOperationActivationStateTag(params.opId);
+    const existingRows = await db
+      .select()
+      .from(operationProfileSessionArtifacts)
+      .where(
+        and(
+          eq(operationProfileSessionArtifacts.sessionKey, params.sessionKey),
+          eq(operationProfileSessionArtifacts.tag, tag)
+        )
+      )
+      .limit(1);
+
+    const now = new Date();
+    if (existingRows[0]) {
+      await db
+        .update(operationProfileSessionArtifacts)
+        .set({
+          valueJson: safeJsonStringify(params.state, "{}"),
+          updatedAt: now,
+        })
+        .where(eq(operationProfileSessionArtifacts.id, existingRows[0].id));
+      return;
+    }
+
+    await db.insert(operationProfileSessionArtifacts).values({
+      id: uuidv4(),
+      ownerId: params.ownerId,
+      sessionKey: params.sessionKey,
+      chatId: params.chatId,
+      branchId: params.branchId,
+      profileId: params.profile?.profileId ?? null,
+      profileVersion: params.profile?.version ?? null,
+      operationProfileSessionId: params.profile?.operationProfileSessionId ?? null,
+      tag,
+      usage: "internal",
+      semantics: "state",
+      valueJson: safeJsonStringify(params.state, "{}"),
+      historyJson: "[]",
+      updatedAt: now,
+    });
   }
 }

@@ -1019,6 +1019,7 @@ router.post(
           branchId,
           entityProfileId: chat.entityProfileId,
           trigger: "generate",
+          source: body.role === "user" ? "user_message" : "system_message",
           settings: body.settings,
           abortController: runAbortController,
           persistenceTarget: {
@@ -1154,6 +1155,7 @@ router.post(
           branchId,
           entityProfileId: chat.entityProfileId,
           trigger: "generate",
+          source: "continue",
           settings: body.settings,
           abortController: runAbortController,
           persistenceTarget: {
@@ -1296,6 +1298,7 @@ router.post(
           branchId: entry.branchId,
           entityProfileId: chat.entityProfileId,
           trigger: "regenerate",
+          source: "regenerate",
           settings: body.settings,
           abortController: runAbortController,
           persistenceTarget: {

@@ -101,6 +101,8 @@
 				triggers: 'Triggers',
 				order: 'Order',
 				dependsOn: 'Depends on',
+				activationEveryNTurns: 'Every N turns',
+				activationEveryNContextTokens: 'Every N context tokens',
 				effectType: 'Effect type',
 				artifactTag: 'Artifact tag',
 				persistence: 'Persistence',
@@ -121,6 +123,10 @@
 				triggers: '`generate` runs on a new turn; `regenerate` runs on a new assistant variant.',
 				order: 'Commit order is deterministic: dependencies first, then lower order, then opId.',
 				dependsOn: 'Operation waits for all dependencies with done status. Failed or skipped dependency blocks start.',
+				activationEveryNTurns:
+					'0 disables this mechanism. If N is set, the operation becomes eligible on every Nth user send event (regenerate/continue/system are ignored).',
+				activationEveryNContextTokens:
+					'0 disables this mechanism. Counts accumulated context tokens for user/assistant messages only (system excluded), estimated as chars/4.',
 				effectType: 'Choose how rendered result is applied during commit at runtime.',
 				artifactTag: 'Use a tag without `art` prefix. Each tag in profile should have a single writer.',
 				persistence: '`persisted` survives turns; `run_only` exists only during current run.',
@@ -133,6 +139,10 @@
 				depthFromEnd:
 					'0 inserts at the end; N inserts N messages from the end. Large values clamp right after the main system instruction.',
 				target: '`before_main_llm` allows only target=user; `after_main_llm` allows user or assistant.',
+			},
+			execution: {
+				activationRule:
+					'Conditions are combined with OR: reaching either threshold is enough. When one triggers, both counters are reset for this operation.',
 			},
 			outputType: {
 				artifacts: 'Artifacts',

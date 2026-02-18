@@ -8,6 +8,7 @@ import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
 import { llmOperationParamsSchema } from "./llm-operation-params";
 
 import type {
+  OperationActivationConfig,
   ArtifactPersistence,
   ArtifactUsage,
   OperationBlockExport,
@@ -23,6 +24,19 @@ const uuidSchema = z.string().uuid();
 
 const operationHookSchema = z.enum(["before_main_llm", "after_main_llm"] satisfies OperationHook[]);
 const operationTriggerSchema = z.enum(["generate", "regenerate"] satisfies OperationTrigger[]);
+const operationActivationSchema = z
+  .object({
+    everyNTurns: z.number().int().min(1).optional(),
+    everyNContextTokens: z.number().int().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (typeof value.everyNTurns === "undefined" && typeof value.everyNContextTokens === "undefined") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "activation must include at least one interval",
+      });
+    }
+  });
 
 const artifactPersistenceSchema = z.enum(["persisted", "run_only"] satisfies ArtifactPersistence[]);
 const artifactUsageSchema = z.enum(["prompt_only", "ui_only", "prompt+ui", "internal"] satisfies ArtifactUsage[]);
@@ -126,6 +140,7 @@ const operationConfigTemplateSchema = z.object({
   required: z.boolean(),
   hooks: z.array(operationHookSchema).min(1),
   triggers: z.array(operationTriggerSchema).min(1).optional(),
+  activation: operationActivationSchema.optional(),
   order: z.number().finite(),
   dependsOn: z.array(uuidSchema).optional(),
   params: templateParamsSchema,
@@ -136,6 +151,7 @@ const operationConfigOtherSchema = z.object({
   required: z.boolean(),
   hooks: z.array(operationHookSchema).min(1),
   triggers: z.array(operationTriggerSchema).min(1).optional(),
+  activation: operationActivationSchema.optional(),
   order: z.number().finite(),
   dependsOn: z.array(uuidSchema).optional(),
   params: otherKindParamsSchema,
@@ -146,6 +162,7 @@ const operationConfigLlmSchema = z.object({
   required: z.boolean(),
   hooks: z.array(operationHookSchema).min(1),
   triggers: z.array(operationTriggerSchema).min(1).optional(),
+  activation: operationActivationSchema.optional(),
   order: z.number().finite(),
   dependsOn: z.array(uuidSchema).optional(),
   params: z.object({
@@ -211,6 +228,25 @@ function normalizeHooks(hooks: OperationHook[]): OperationHook[] {
 function normalizeDependsOn(dependsOn: string[] | undefined): string[] | undefined {
   if (!dependsOn?.length) return undefined;
   return Array.from(new Set(dependsOn));
+}
+
+function normalizeActivation(
+  activation: OperationActivationConfig | undefined
+): OperationActivationConfig | undefined {
+  if (!activation) return undefined;
+  const everyNTurns =
+    typeof activation.everyNTurns === "number" && Number.isFinite(activation.everyNTurns)
+      ? Math.max(1, Math.floor(activation.everyNTurns))
+      : undefined;
+  const everyNContextTokens =
+    typeof activation.everyNContextTokens === "number" &&
+    Number.isFinite(activation.everyNContextTokens)
+      ? Math.max(1, Math.floor(activation.everyNContextTokens))
+      : undefined;
+  if (typeof everyNTurns === "undefined" && typeof everyNContextTokens === "undefined") {
+    return undefined;
+  }
+  return { everyNTurns, everyNContextTokens };
 }
 
 function detectDependencyCycle(ops: OperationInProfile[]): boolean {
@@ -423,6 +459,7 @@ export function validateOperationBlockUpsertInput(raw: unknown): ValidatedOperat
       ...op.config,
       hooks: normalizeHooks(op.config.hooks),
       triggers: normalizeTriggers(op.config.triggers),
+      activation: normalizeActivation(op.config.activation),
       dependsOn: normalizeDependsOn(op.config.dependsOn),
     };
     return { ...op, config: normalizedConfig } as OperationInProfile;

@@ -48,6 +48,8 @@ vi.mock("../chat-core/generation-runtime", () => ({
 vi.mock("./artifacts/profile-session-artifact-store", () => ({
   ProfileSessionArtifactStore: {
     load: vi.fn(async () => ({})),
+    loadOperationActivationStates: vi.fn(async () => ({})),
+    upsertOperationActivationState: vi.fn(async () => undefined),
   },
 }));
 
@@ -60,6 +62,7 @@ function makeRequest() {
     branchId: "branch-1",
     entityProfileId: "entity-1",
     trigger: "generate" as const,
+    source: "user_message" as const,
     settings: {},
     persistenceTarget: {
       mode: "entry_parts" as const,

@@ -216,6 +216,37 @@ beforeEach(() => {
 });
 
 describe("executeOperationsPhase", () => {
+  test("respects eligibleOperationIds filter", async () => {
+    const out = await executeOperationsPhase({
+      runId: "run-eligible-filter",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeTemplateOp({
+          opId: "eligible-op",
+          order: 10,
+          template: "eligible",
+          output: artifactOutput("eligible_tag"),
+        }),
+        makeTemplateOp({
+          opId: "ineligible-op",
+          order: 20,
+          template: "ineligible",
+          output: artifactOutput("ineligible_tag"),
+        }),
+      ],
+      eligibleOperationIds: new Set(["eligible-op"]),
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out).toHaveLength(1);
+    expect(out[0]?.opId).toBe("eligible-op");
+  });
+
   test("executes simple template->artifact happy path", async () => {
     const out = await executeOperationsPhase({
       runId: "run-1",

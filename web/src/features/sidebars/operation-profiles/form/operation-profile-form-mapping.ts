@@ -54,6 +54,10 @@ export type FormOperation = {
 		required: boolean;
 		hooks: Array<'before_main_llm' | 'after_main_llm'>;
 		triggers: Array<'generate' | 'regenerate'>;
+		activation: {
+			everyNTurns: number;
+			everyNContextTokens: number;
+		};
 		order: number;
 		dependsOn: string[];
 		params: FormTemplateParams | FormLlmKindParams | FormOtherKindParams;
@@ -245,6 +249,19 @@ function normalizeRetryOn(value: unknown): LlmOperationRetryOn[] {
 	return unique.length > 0 ? unique : ['timeout', 'provider_error', 'rate_limit'];
 }
 
+function normalizeActivation(value: unknown): { everyNTurns: number; everyNContextTokens: number } {
+	if (!value || typeof value !== 'object') {
+		return { everyNTurns: 0, everyNContextTokens: 0 };
+	}
+	const raw = value as Record<string, unknown>;
+	const normalize = (input: unknown): number =>
+		typeof input === 'number' && Number.isFinite(input) && input >= 1 ? Math.floor(input) : 0;
+	return {
+		everyNTurns: normalize(raw.everyNTurns),
+		everyNContextTokens: normalize(raw.everyNContextTokens),
+	};
+}
+
 function normalizeLlmKindParams(params: unknown): FormLlmKindParams {
 	if (!params || typeof params !== 'object') return makeDefaultLlmKindParams();
 
@@ -313,6 +330,7 @@ export function toOperationProfileForm(profile: OperationProfileDto): OperationP
 			config: {
 				hooks: (op.config.hooks?.length ? op.config.hooks : ['before_main_llm']) as any,
 				triggers: (op.config.triggers?.length ? op.config.triggers : ['generate', 'regenerate']) as any,
+				activation: normalizeActivation((op.config as any).activation),
 				dependsOn: op.config.dependsOn ?? [],
 				enabled: Boolean(op.config.enabled),
 				required: Boolean(op.config.required),
@@ -349,6 +367,21 @@ export function fromOperationProfileForm(
 		executionMode: values.executionMode,
 		operationProfileSessionId: values.operationProfileSessionId,
 		operations: values.operations.map((op): OperationInProfile => {
+			const everyNTurns =
+				typeof op.config.activation?.everyNTurns === 'number' && Number.isFinite(op.config.activation.everyNTurns)
+					? Math.max(0, Math.floor(op.config.activation.everyNTurns))
+					: 0;
+			const everyNContextTokens =
+				typeof op.config.activation?.everyNContextTokens === 'number' && Number.isFinite(op.config.activation.everyNContextTokens)
+					? Math.max(0, Math.floor(op.config.activation.everyNContextTokens))
+					: 0;
+			const activation =
+				everyNTurns > 0 || everyNContextTokens > 0
+					? {
+							everyNTurns: everyNTurns > 0 ? everyNTurns : undefined,
+							everyNContextTokens: everyNContextTokens > 0 ? everyNContextTokens : undefined,
+						}
+					: undefined;
 			if (op.kind === 'template') {
 				const params = op.config.params as FormTemplateParams;
 				return {
@@ -361,6 +394,7 @@ export function fromOperationProfileForm(
 						required: Boolean(op.config.required),
 						hooks: op.config.hooks,
 						triggers: op.config.triggers,
+						activation,
 						order: Number(op.config.order),
 						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
 						params: {
@@ -410,6 +444,7 @@ export function fromOperationProfileForm(
 						required: Boolean(op.config.required),
 						hooks: op.config.hooks,
 						triggers: op.config.triggers,
+						activation,
 						order: Number(op.config.order),
 						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
 						params: {
@@ -470,6 +505,7 @@ export function fromOperationProfileForm(
 					required: Boolean(op.config.required),
 					hooks: op.config.hooks,
 					triggers: op.config.triggers,
+					activation,
 					order: Number(op.config.order),
 					dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
 					params: {
@@ -493,6 +529,10 @@ export function makeDefaultOperation(): FormOperation {
 			required: false,
 			hooks: ['before_main_llm'],
 			triggers: ['generate', 'regenerate'],
+			activation: {
+				everyNTurns: 0,
+				everyNContextTokens: 0,
+			},
 			order: 10,
 			dependsOn: [],
 			params: {

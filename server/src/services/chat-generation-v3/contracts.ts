@@ -54,6 +54,7 @@ export type RunRequest = {
   branchId: string;
   entityProfileId: string;
   trigger: OperationTrigger;
+  source: "user_message" | "continue" | "regenerate" | "system_message";
   settings: Record<string, unknown>;
   persistenceTarget: RunPersistenceTarget;
   userTurnTarget?: UserTurnTarget;
