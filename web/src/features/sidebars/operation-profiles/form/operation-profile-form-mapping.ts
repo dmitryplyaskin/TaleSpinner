@@ -249,13 +249,28 @@ function normalizeRetryOn(value: unknown): LlmOperationRetryOn[] {
 	return unique.length > 0 ? unique : ['timeout', 'provider_error', 'rate_limit'];
 }
 
+function toNonNegativeInteger(value: unknown): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return Math.max(0, Math.floor(value));
+	}
+	if (typeof value === 'string') {
+		const normalized = value.trim().replace(',', '.');
+		if (normalized.length === 0) return 0;
+		const parsed = Number(normalized);
+		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
+	}
+	return 0;
+}
+
 function normalizeActivation(value: unknown): { everyNTurns: number; everyNContextTokens: number } {
 	if (!value || typeof value !== 'object') {
 		return { everyNTurns: 0, everyNContextTokens: 0 };
 	}
 	const raw = value as Record<string, unknown>;
-	const normalize = (input: unknown): number =>
-		typeof input === 'number' && Number.isFinite(input) && input >= 1 ? Math.floor(input) : 0;
+	const normalize = (input: unknown): number => {
+		const parsed = toNonNegativeInteger(input);
+		return parsed >= 1 ? parsed : 0;
+	};
 	return {
 		everyNTurns: normalize(raw.everyNTurns),
 		everyNContextTokens: normalize(raw.everyNContextTokens),
@@ -367,14 +382,8 @@ export function fromOperationProfileForm(
 		executionMode: values.executionMode,
 		operationProfileSessionId: values.operationProfileSessionId,
 		operations: values.operations.map((op): OperationInProfile => {
-			const everyNTurns =
-				typeof op.config.activation?.everyNTurns === 'number' && Number.isFinite(op.config.activation.everyNTurns)
-					? Math.max(0, Math.floor(op.config.activation.everyNTurns))
-					: 0;
-			const everyNContextTokens =
-				typeof op.config.activation?.everyNContextTokens === 'number' && Number.isFinite(op.config.activation.everyNContextTokens)
-					? Math.max(0, Math.floor(op.config.activation.everyNContextTokens))
-					: 0;
+			const everyNTurns = toNonNegativeInteger(op.config.activation?.everyNTurns);
+			const everyNContextTokens = toNonNegativeInteger(op.config.activation?.everyNContextTokens);
 			const activation =
 				everyNTurns > 0 || everyNContextTokens > 0
 					? {

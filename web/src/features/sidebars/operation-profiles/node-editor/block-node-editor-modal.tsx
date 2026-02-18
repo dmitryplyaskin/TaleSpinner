@@ -103,30 +103,30 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
 	return Boolean(target.closest?.('[contenteditable="true"]'));
 }
 
+function toFormValuesFromBlock(block: OperationBlockDto): OperationProfileFormValues {
+	return toOperationProfileForm({
+		profileId: block.blockId,
+		ownerId: block.ownerId,
+		name: block.name,
+		description: block.description,
+		enabled: block.enabled,
+		executionMode: 'sequential',
+		operationProfileSessionId: '00000000-0000-0000-0000-000000000000',
+		blockRefs: [],
+		operations: block.operations,
+		meta: block.meta,
+		version: block.version,
+		createdAt: block.createdAt,
+		updatedAt: block.updatedAt,
+	} satisfies OperationProfileDto);
+}
+
 export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose, block }) => {
 	const { t } = useTranslation();
 	const doUpdate = useUnit(updateOperationBlockFx);
 	const isCompactLayout = useMediaQuery('(max-width: 1024px)');
 
-	const initial = useMemo(
-		() =>
-			toOperationProfileForm({
-				profileId: block.blockId,
-				ownerId: block.ownerId,
-				name: block.name,
-				description: block.description,
-				enabled: block.enabled,
-				executionMode: 'sequential',
-				operationProfileSessionId: '00000000-0000-0000-0000-000000000000',
-				blockRefs: [],
-				operations: block.operations,
-				meta: block.meta,
-				version: block.version,
-				createdAt: block.createdAt,
-				updatedAt: block.updatedAt,
-			} satisfies OperationProfileDto),
-		[block],
-	);
+	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
 	const { control, formState, setValue, reset: resetForm } = methods;
 
@@ -317,7 +317,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	const selectedIndex = selectedOpId ? (opIndexById.get(selectedOpId) ?? null) : null;
 	const isDirty = formState.isDirty || isLayoutDirty;
 
-	const onSave = methods.handleSubmit((values) => {
+	const onSave = methods.handleSubmit(async (values) => {
 		setJsonError(null);
 		try {
 			const payload = fromOperationProfileForm(values, { validateJson: true });
@@ -339,7 +339,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 				nodes: nodesMap,
 				groups: Object.keys(groupsToSave).length ? groupsToSave : undefined,
 			};
-			doUpdate({
+			const updatedBlock = await doUpdate({
 				blockId: block.blockId,
 				patch: {
 					name: payload.name,
@@ -349,6 +349,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 					meta: writeNodeEditorMeta(block.meta, nodeEditorMeta),
 				},
 			});
+			resetForm(toFormValuesFromBlock(updatedBlock));
 			setIsLayoutDirty(false);
 		} catch (e) {
 			setJsonError(e instanceof Error ? e.message : String(e));

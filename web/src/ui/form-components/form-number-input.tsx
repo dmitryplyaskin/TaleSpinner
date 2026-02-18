@@ -20,6 +20,17 @@ export const FormNumberInput: React.FC<FormNumberInputProps> = ({
 	containerProps,
 	infoTip,
 }) => {
+	const normalizeNumber = (input: unknown): number => {
+		if (typeof input === 'number' && Number.isFinite(input)) return input;
+		if (typeof input === 'string') {
+			const normalized = input.trim().replace(',', '.');
+			if (normalized.length === 0) return 0;
+			const parsed = Number(normalized);
+			if (Number.isFinite(parsed)) return parsed;
+		}
+		return 0;
+	};
+
 	const { control } = useFormContext();
 	const {
 		field: { value, onChange, ...field },
@@ -43,8 +54,8 @@ export const FormNumberInput: React.FC<FormNumberInputProps> = ({
 			<NumberInput
 				{...numberInputProps}
 				{...field}
-				value={typeof value === 'number' ? value : Number(value ?? 0)}
-				onChange={(v) => onChange(typeof v === 'number' ? v : Number(v ?? 0))}
+				value={normalizeNumber(value)}
+				onChange={(v) => onChange(normalizeNumber(v))}
 			/>
 		</Input.Wrapper>
 	);
