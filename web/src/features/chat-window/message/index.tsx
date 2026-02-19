@@ -16,8 +16,9 @@ import {
 	openDeleteEntryConfirm,
 	openDeletePartConfirm,
 	openDeleteVariantConfirm,
-	openUndoCanonicalizationPickerRequested,
+	openEntryPartsEditorRequested,
 	openPromptInspectorRequested,
+	openUndoCanonicalizationPickerRequested,
 	regenerateRequested,
 	selectVariantRequested,
 	setEntryPromptVisibilityRequested,
@@ -340,6 +341,11 @@ const MessageInner: React.FC<MessageProps> = ({
 		openUndoCanonicalizationPickerRequested({ entryId: data.entry.entryId });
 	};
 
+	const handleOpenPartsEditor = () => {
+		if (isOptimistic || isStreaming || isBulkDeleteMode) return;
+		openEntryPartsEditorRequested({ entryId: data.entry.entryId });
+	};
+
 	const handleAssistantAvatarClick = () => {
 		if (!assistantAvatarSrc || !onAvatarPreviewRequested) return;
 		onAvatarPreviewRequested({ src: assistantAvatarSrc, name: assistantName, kind: 'assistant' });
@@ -429,6 +435,7 @@ const MessageInner: React.FC<MessageProps> = ({
 											onTogglePromptVisibility={handleTogglePromptVisibility}
 											onOpenPromptInspector={handleOpenPromptInspector}
 											onOpenUndoCanonicalization={handleOpenUndoCanonicalization}
+											onOpenPartsEditor={handleOpenPartsEditor}
 											onOpenEdit={handleOpenEdit}
 											onCancelEdit={handleCancelEdit}
 											onConfirmEdit={handleConfirmEdit}

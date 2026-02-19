@@ -4,6 +4,7 @@ import { toaster } from '@ui/toaster';
 
 import { abortGeneration } from '../../api/chat-core';
 import {
+	batchUpdateEntryParts,
 	deleteEntryVariant,
 	getEntryPromptDiagnostics,
 	listChatEntries,
@@ -26,6 +27,7 @@ import { userPersonsModel } from '../user-persons';
 
 import type { SseEnvelope } from '../../api/chat-core';
 import type {
+	BatchUpdateEntryPartsRequest,
 	ChatEntryWithVariantDto,
 	EntriesCursor,
 	ListChatEntriesResponse,
@@ -39,6 +41,12 @@ function nowIso(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readHttpStatus(error: unknown): number | null {
+	if (!isRecord(error)) return null;
+	const status = error.status;
+	return typeof status === 'number' && Number.isFinite(status) ? status : null;
 }
 
 const ENTRIES_PAGE_SIZE = 50;
@@ -298,11 +306,20 @@ export type UndoCanonicalizationPickerState = {
 	selectedPartId: string | null;
 };
 
+export type EntryPartsEditorState = {
+	open: boolean;
+	entryId: string | null;
+};
+
 export const openPromptInspectorRequested = createEvent<{ entryId: string; variantId?: string | null }>();
 export const closePromptInspectorRequested = createEvent();
+export const openEntryPartsEditorRequested = createEvent<{ entryId: string }>();
+export const closeEntryPartsEditorRequested = createEvent();
+export const saveEntryPartsEditorRequested = createEvent<BatchUpdateEntryPartsRequest>();
 const setPromptInspectorRequest = createEvent<{ entryId: string; variantId: string | null }>();
 const resetPromptInspectorData = createEvent();
 const setUndoCanonicalizationPickerState = createEvent<UndoCanonicalizationPickerState>();
+const setEntryPartsEditorState = createEvent<EntryPartsEditorState>();
 
 export const loadPromptInspectorFx = createEffect(async (params: { entryId: string; variantId: string | null }) => {
 	return getEntryPromptDiagnostics({
@@ -314,6 +331,9 @@ export const loadPromptInspectorFx = createEffect(async (params: { entryId: stri
 export const undoCanonicalizationFx = createEffect(async (params: { partId: string }) => {
 	return undoCanonicalization(params.partId);
 });
+export const batchUpdateEntryPartsFx = createEffect(async (params: BatchUpdateEntryPartsRequest) => {
+	return batchUpdateEntryParts(params);
+});
 
 export const openUndoCanonicalizationPickerRequested = createEvent<{ entryId: string }>();
 export const closeUndoCanonicalizationPickerRequested = createEvent();
@@ -321,6 +341,7 @@ export const selectUndoCanonicalizationStepRequested = createEvent<{ partId: str
 export const confirmUndoCanonicalizationRequested = createEvent();
 export const undoCanonicalizationRequested = createEvent<{ partId: string }>();
 const refreshVariantsAfterUndo = createEvent<{ entryId: string }>();
+const refreshVariantsAfterPartBatchUpdate = createEvent<{ entryId: string }>();
 
 export const $promptInspectorState = createStore<PromptInspectorState>({
 	open: false,
@@ -385,6 +406,50 @@ sample({
 sample({
 	clock: closePromptInspectorRequested,
 	target: resetPromptInspectorData,
+});
+
+const EMPTY_ENTRY_PARTS_EDITOR_STATE: EntryPartsEditorState = {
+	open: false,
+	entryId: null,
+};
+
+export const $entryPartsEditorState = createStore<EntryPartsEditorState>(EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(setEntryPartsEditorState, (_state, payload) => payload)
+	.on(closeEntryPartsEditorRequested, () => EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(batchUpdateEntryPartsFx.done, () => EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(setOpenedChat, () => EMPTY_ENTRY_PARTS_EDITOR_STATE);
+
+sample({
+	clock: openEntryPartsEditorRequested,
+	fn: ({ entryId }) => ({ open: true, entryId }),
+	target: setEntryPartsEditorState,
+});
+
+sample({
+	clock: saveEntryPartsEditorRequested,
+	target: batchUpdateEntryPartsFx,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.doneData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }) => Boolean(chat?.id && branchId),
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.doneData,
+	fn: ({ entryId }) => ({ entryId }),
+	target: refreshVariantsAfterPartBatchUpdate,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.failData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }, error) => Boolean(chat?.id && branchId) && readHttpStatus(error) === 409,
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
 });
 
 function readPartPayloadText(payload: Part['payload']): string {
@@ -1418,6 +1483,11 @@ sample({
 });
 
 sample({
+	clock: refreshVariantsAfterPartBatchUpdate,
+	target: loadVariantsRequested,
+});
+
+sample({
 	clock: loadVariantsRequested,
 	source: $variantsLoadingByEntryId,
 	filter: (loadingById, { entryId }) => !loadingById[entryId],
@@ -1691,6 +1761,25 @@ setEntryPromptVisibilityFx.done.watch(({ params }) => {
 setEntryPromptVisibilityFx.failData.watch((error) => {
 	toaster.error({
 		title: i18n.t('chat.toasts.togglePromptVisibilityError'),
+		description: error instanceof Error ? error.message : String(error),
+	});
+});
+
+batchUpdateEntryPartsFx.doneData.watch(() => {
+	toaster.success({ title: i18n.t('chat.toasts.partsBatchSaved') });
+});
+
+batchUpdateEntryPartsFx.failData.watch((error) => {
+	const status = readHttpStatus(error);
+	if (status === 409) {
+		toaster.error({
+			title: i18n.t('chat.toasts.partsBatchConflictTitle'),
+			description: i18n.t('chat.toasts.partsBatchConflictDescription'),
+		});
+		return;
+	}
+	toaster.error({
+		title: i18n.t('chat.toasts.partsBatchSaveError'),
 		description: error instanceof Error ? error.message : String(error),
 	});
 });

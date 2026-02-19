@@ -16,7 +16,7 @@ import type {
 
 type StoredPayload = {
   format: PartPayloadFormat;
-  value: string | object;
+  value: string | object | number | boolean | null;
   schemaId?: string;
   label?: string;
 };
@@ -324,5 +324,59 @@ export async function updatePartReplacesPartId(params: {
     .update(variantParts)
     .set({ replacesPartId: params.replacesPartId })
     .where(eq(variantParts.partId, params.partId));
+}
+
+export type PartMutableBatchPatch = {
+  partId: string;
+  channel: PartChannel;
+  order: number;
+  payload: string | object | number | boolean | null;
+  payloadFormat: PartPayloadFormat;
+  schemaId?: string;
+  label?: string;
+  visibility: PartVisibility;
+  replacesPartId: string | null;
+  softDeleted: boolean;
+  softDeletedAt?: number | null;
+  softDeletedBy?: "user" | "agent" | null;
+};
+
+export async function applyPartMutableBatchPatches(params: {
+  variantId: string;
+  patches: PartMutableBatchPatch[];
+}): Promise<void> {
+  const db = await initDb();
+
+  await db.transaction((tx) => {
+    for (const patch of params.patches) {
+      tx
+        .update(variantParts)
+        .set({
+          channel: patch.channel,
+          order: patch.order,
+          payloadJson: safeJsonStringify({
+            format: patch.payloadFormat,
+            value: patch.payload,
+            schemaId: patch.schemaId,
+            label: patch.label,
+          } satisfies StoredPayload),
+          visibilityJson: safeJsonStringify(patch.visibility),
+          replacesPartId: patch.replacesPartId,
+          softDeleted: patch.softDeleted,
+          softDeletedAt:
+            patch.softDeleted && typeof patch.softDeletedAt === "number"
+              ? new Date(patch.softDeletedAt)
+              : null,
+          softDeletedBy: patch.softDeleted ? patch.softDeletedBy ?? "user" : null,
+        })
+        .where(
+          and(
+            eq(variantParts.partId, patch.partId),
+            eq(variantParts.variantId, params.variantId)
+          )
+        )
+        .run();
+    }
+  });
 }
 

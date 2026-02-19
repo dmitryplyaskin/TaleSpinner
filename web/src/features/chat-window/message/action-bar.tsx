@@ -16,6 +16,7 @@ type ActionBarProps = {
 	onTogglePromptVisibility: () => void;
 	onOpenPromptInspector: () => void;
 	onOpenUndoCanonicalization: () => void;
+	onOpenPartsEditor: () => void;
 	onOpenEdit: () => void;
 	onCancelEdit: () => void;
 	onConfirmEdit: () => void;
@@ -34,6 +35,7 @@ export const ActionBar = ({
 	onTogglePromptVisibility,
 	onOpenPromptInspector,
 	onOpenUndoCanonicalization,
+	onOpenPartsEditor,
 	onOpenEdit,
 	onCancelEdit,
 	onConfirmEdit,
@@ -48,7 +50,7 @@ export const ActionBar = ({
 	}, [isEditing]);
 
 	const hiddenActionsCount =
-		(canDeleteVariant ? 1 : 0) + 2 + (showPromptInspectorAction ? 1 : 0) + (showUndoCanonicalizationAction ? 1 : 0);
+		(canDeleteVariant ? 1 : 0) + 3 + (showPromptInspectorAction ? 1 : 0) + (showUndoCanonicalizationAction ? 1 : 0);
 	const expandedWidth = hiddenActionsCount > 0 ? hiddenActionsCount * 26 - 4 : 0;
 
 	return (
@@ -145,6 +147,18 @@ export const ActionBar = ({
 										}}
 									/>
 								)}
+								<IconButtonWithTooltip
+									size="xs"
+									variant="ghost"
+									colorPalette="teal"
+									icon={<LuFileSearch />}
+									tooltip={t('chat.actions.openPartsEditor')}
+									aria-label={t('chat.actions.openPartsEditor')}
+									onClick={() => {
+										setActionsOpen(false);
+										onOpenPartsEditor();
+									}}
+								/>
 							</Flex>
 						</Box>
 						<IconButtonWithTooltip

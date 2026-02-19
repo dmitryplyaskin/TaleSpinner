@@ -3,6 +3,8 @@ import { describe, expect, test } from "vitest";
 import { HttpError } from "@core/middleware/error-handler";
 
 import {
+  assertBatchUpdateVariantIsActive,
+  buildBatchUpdatePartPlan,
   buildLatestWorldInfoActivationsFromGeneration,
   buildPromptDiagnosticsFromDebug,
   buildPromptDiagnosticsFromSnapshot,
@@ -780,5 +782,314 @@ describe("canonicalization undo helpers", () => {
         undonePartIds: ["canon-1", "canon-2"],
       })
     ).toBe("part-1");
+  });
+});
+
+describe("batch update entry parts helpers", () => {
+  function makePart(params: {
+    partId: string;
+    channel?: Part["channel"];
+    order?: number;
+    payload?: Part["payload"];
+    payloadFormat?: Part["payloadFormat"];
+    visibility?: Part["visibility"];
+    replacesPartId?: string;
+    softDeleted?: boolean;
+  }): Part {
+    return {
+      partId: params.partId,
+      channel: params.channel ?? "aux",
+      order: params.order ?? 0,
+      payload: params.payload ?? "",
+      payloadFormat: params.payloadFormat ?? "markdown",
+      visibility: params.visibility ?? { ui: "always", prompt: true },
+      ui: { rendererId: "markdown" },
+      prompt: { serializerId: "asText" },
+      lifespan: "infinite",
+      createdTurn: 1,
+      source: "user",
+      replacesPartId: params.replacesPartId,
+      softDeleted: params.softDeleted,
+    };
+  }
+
+  test("assertBatchUpdateVariantIsActive throws 409 on stale variant", () => {
+    const entry: Entry = {
+      entryId: "entry-1",
+      chatId: "chat-1",
+      branchId: "branch-1",
+      role: "assistant",
+      createdAt: 1,
+      activeVariantId: "variant-active",
+    };
+
+    expect(() =>
+      assertBatchUpdateVariantIsActive({
+        entry,
+        requestedVariantId: "variant-stale",
+      })
+    ).toThrowError(HttpError);
+  });
+
+  test("buildBatchUpdatePartPlan returns valid plan", () => {
+    const parts: Part[] = [
+      makePart({
+        partId: "part-main",
+        channel: "main",
+        order: 0,
+        payload: "main text",
+        payloadFormat: "markdown",
+      }),
+      makePart({
+        partId: "part-alt",
+        channel: "aux",
+        order: 10,
+        payload: "alt text",
+        payloadFormat: "text",
+      }),
+      makePart({
+        partId: "part-json",
+        channel: "aux",
+        order: 20,
+        payload: { a: 1 },
+        payloadFormat: "json",
+      }),
+    ];
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: parts,
+      nowMs: 100,
+      body: {
+        variantId: "variant-1",
+        mainPartId: "part-alt",
+        orderedPartIds: ["part-main", "part-alt", "part-json"],
+        parts: [
+          {
+            partId: "part-main",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "main edited",
+          },
+          {
+            partId: "part-alt",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "alt edited",
+          },
+          {
+            partId: "part-json",
+            deleted: false,
+            visibility: { ui: "never", prompt: false },
+            payload: { ok: true },
+          },
+        ],
+      },
+    });
+
+    expect(plan.mainPartId).toBe("part-alt");
+    expect(plan.deletedPartIds).toEqual([]);
+    expect(plan.updatedPartIds).toEqual(["part-main", "part-alt", "part-json"]);
+    expect(plan.patches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          partId: "part-alt",
+          channel: "main",
+          order: 0,
+          replacesPartId: null,
+          payload: "alt edited",
+        }),
+        expect.objectContaining({
+          partId: "part-main",
+          channel: "aux",
+          order: 10,
+          payload: "main edited",
+        }),
+        expect.objectContaining({
+          partId: "part-json",
+          channel: "aux",
+          order: 20,
+          visibility: { ui: "never", prompt: false },
+          payload: { ok: true },
+        }),
+      ])
+    );
+  });
+
+  test("buildBatchUpdatePartPlan rejects non-text main", () => {
+    const parts: Part[] = [
+      makePart({
+        partId: "part-main",
+        channel: "main",
+        order: 0,
+        payload: "main text",
+        payloadFormat: "markdown",
+      }),
+      makePart({
+        partId: "part-json",
+        channel: "aux",
+        order: 10,
+        payload: { a: 1 },
+        payloadFormat: "json",
+      }),
+    ];
+
+    expect(() =>
+      buildBatchUpdatePartPlan({
+        variantParts: parts,
+        body: {
+          variantId: "variant-1",
+          mainPartId: "part-json",
+          orderedPartIds: ["part-main", "part-json"],
+          parts: [
+            {
+              partId: "part-main",
+              deleted: false,
+              visibility: { ui: "always", prompt: true },
+              payload: "main text",
+            },
+            {
+              partId: "part-json",
+              deleted: false,
+              visibility: { ui: "always", prompt: false },
+              payload: { a: 2 },
+            },
+          ],
+        },
+      })
+    ).toThrowError(HttpError);
+  });
+
+  test("buildBatchUpdatePartPlan rejects delete-all", () => {
+    const parts: Part[] = [
+      makePart({
+        partId: "part-main",
+        channel: "main",
+        order: 0,
+        payload: "main text",
+        payloadFormat: "markdown",
+      }),
+    ];
+
+    expect(() =>
+      buildBatchUpdatePartPlan({
+        variantParts: parts,
+        body: {
+          variantId: "variant-1",
+          mainPartId: "part-main",
+          orderedPartIds: ["part-main"],
+          parts: [
+            {
+              partId: "part-main",
+              deleted: true,
+              visibility: { ui: "always", prompt: true },
+              payload: "main text",
+            },
+          ],
+        },
+      })
+    ).toThrowError(HttpError);
+  });
+
+  test("buildBatchUpdatePartPlan rejects orderedPartIds mismatch", () => {
+    const parts: Part[] = [
+      makePart({
+        partId: "part-main",
+        channel: "main",
+        order: 0,
+        payload: "main text",
+        payloadFormat: "markdown",
+      }),
+      makePart({
+        partId: "part-aux",
+        channel: "aux",
+        order: 10,
+        payload: "aux text",
+        payloadFormat: "text",
+      }),
+    ];
+
+    expect(() =>
+      buildBatchUpdatePartPlan({
+        variantParts: parts,
+        body: {
+          variantId: "variant-1",
+          mainPartId: "part-main",
+          orderedPartIds: ["part-main"],
+          parts: [
+            {
+              partId: "part-main",
+              deleted: false,
+              visibility: { ui: "always", prompt: true },
+              payload: "main text",
+            },
+            {
+              partId: "part-aux",
+              deleted: false,
+              visibility: { ui: "always", prompt: true },
+              payload: "aux text",
+            },
+          ],
+        },
+      })
+    ).toThrowError(HttpError);
+  });
+
+  test("buildBatchUpdatePartPlan detaches replacement descendants when selected main changes", () => {
+    const parts: Part[] = [
+      makePart({
+        partId: "part-main",
+        channel: "main",
+        order: 0,
+        payload: "main text",
+        payloadFormat: "markdown",
+      }),
+      makePart({
+        partId: "part-descendant",
+        channel: "aux",
+        order: 10,
+        payload: "derived",
+        payloadFormat: "text",
+        replacesPartId: "part-main",
+      }),
+      makePart({
+        partId: "part-other",
+        channel: "aux",
+        order: 20,
+        payload: "other",
+        payloadFormat: "text",
+      }),
+    ];
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: parts,
+      body: {
+        variantId: "variant-1",
+        mainPartId: "part-main",
+        orderedPartIds: ["part-main", "part-descendant", "part-other"],
+        parts: [
+          {
+            partId: "part-main",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "main text",
+          },
+          {
+            partId: "part-descendant",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "derived",
+          },
+          {
+            partId: "part-other",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "other",
+          },
+        ],
+      },
+    });
+
+    const descendant = plan.patches.find((item) => item.partId === "part-descendant");
+    expect(descendant?.replacesPartId).toBeNull();
   });
 });

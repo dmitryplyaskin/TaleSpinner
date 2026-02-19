@@ -4,6 +4,7 @@ import type { SseEnvelope } from './chat-core';
 import type { Variant, Entry } from '@shared/types/chat-entry-parts';
 
 type ApiEnvelope<T> = { data: T; error?: unknown };
+export type ApiHttpError = Error & { status?: number };
 
 const CHAT_GENERATION_DEBUG_STORAGE_KEY = 'chat_generation_debug';
 const CHAT_GENERATION_DEBUG_SETTINGS_KEY = '__chatGenerationDebug';
@@ -23,7 +24,9 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 	if (!res.ok) {
 		const message = body?.error?.message ?? `HTTP error ${res.status}`;
-		throw new Error(message);
+		const error = new Error(message) as ApiHttpError;
+		error.status = res.status;
+		throw error;
 	}
 
 	return body.data as T;
@@ -348,6 +351,44 @@ export async function undoCanonicalization(partId: string): Promise<{
 		{
 			method: 'POST',
 			body: JSON.stringify({ by: 'user' }),
+		},
+	);
+}
+
+export type BatchUpdateEntryPartsRequest = {
+	entryId: string;
+	variantId: string;
+	mainPartId: string;
+	orderedPartIds: string[];
+	parts: Array<{
+		partId: string;
+		deleted: boolean;
+		visibility: { ui: 'always' | 'never'; prompt: boolean };
+		payload: string | object | number | boolean | null;
+	}>;
+};
+
+export type BatchUpdateEntryPartsResponse = {
+	entryId: string;
+	variantId: string;
+	mainPartId: string;
+	updatedPartIds: string[];
+	deletedPartIds: string[];
+};
+
+export async function batchUpdateEntryParts(
+	params: BatchUpdateEntryPartsRequest,
+): Promise<BatchUpdateEntryPartsResponse> {
+	return apiJson<BatchUpdateEntryPartsResponse>(
+		`/entries/${encodeURIComponent(params.entryId)}/parts/batch-update`,
+		{
+			method: 'POST',
+			body: JSON.stringify({
+				variantId: params.variantId,
+				mainPartId: params.mainPartId,
+				orderedPartIds: params.orderedPartIds,
+				parts: params.parts,
+			}),
 		},
 	);
 }

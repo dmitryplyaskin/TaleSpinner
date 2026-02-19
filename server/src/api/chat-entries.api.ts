@@ -32,6 +32,7 @@ import {
   updateEntryMeta,
 } from "../services/chat-entry-parts/entries-repository";
 import {
+  applyPartMutableBatchPatches,
   applyManualEditToPart,
   createPart,
   getPartWithVariantContextById,
@@ -50,7 +51,14 @@ import { runChatGenerationV3 } from "../services/chat-generation-v3/run-chat-gen
 
 import type { InstructionRenderContext } from "../services/chat-core/prompt-template-renderer";
 import type { RunEvent } from "../services/chat-generation-v3/contracts";
-import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
+import type {
+  Entry,
+  Part,
+  PartChannel,
+  PartPayloadFormat,
+  PartVisibility,
+  Variant,
+} from "@shared/types/chat-entry-parts";
 
 const router = express.Router();
 
@@ -1500,6 +1508,320 @@ function isEditablePart(part: Part): boolean {
   );
 }
 
+type BatchUpdateEntryPartPayload = string | object | number | boolean | null;
+
+export type BatchUpdateEntryPartPatch = {
+  partId: string;
+  deleted: boolean;
+  visibility: {
+    ui: "always" | "never";
+    prompt: boolean;
+  };
+  payload: BatchUpdateEntryPartPayload;
+};
+
+export type BatchUpdateEntryPartsBody = {
+  variantId: string;
+  mainPartId: string;
+  orderedPartIds: string[];
+  parts: BatchUpdateEntryPartPatch[];
+};
+
+type PlannedBatchPartState = {
+  partId: string;
+  channel: PartChannel;
+  order: number;
+  payload: BatchUpdateEntryPartPayload;
+  payloadFormat: PartPayloadFormat;
+  schemaId?: string;
+  label?: string;
+  visibility: PartVisibility;
+  replacesPartId: string | null;
+  deleted: boolean;
+};
+
+type BatchUpdatePartPlan = {
+  mainPartId: string;
+  updatedPartIds: string[];
+  deletedPartIds: string[];
+  patches: Array<{
+    partId: string;
+    channel: PartChannel;
+    order: number;
+    payload: BatchUpdateEntryPartPayload;
+    payloadFormat: PartPayloadFormat;
+    schemaId?: string;
+    label?: string;
+    visibility: PartVisibility;
+    replacesPartId: string | null;
+    softDeleted: boolean;
+    softDeletedAt: number | null;
+    softDeletedBy: "user" | "agent" | null;
+  }>;
+};
+
+const batchUpdateEntryPartSchema = z.object({
+  partId: z.string().min(1),
+  deleted: z.boolean(),
+  visibility: z.object({
+    ui: z.enum(["always", "never"]),
+    prompt: z.boolean(),
+  }),
+  payload: z.unknown(),
+});
+
+const batchUpdateEntryPartsBodySchema = z.object({
+  variantId: z.string().min(1),
+  mainPartId: z.string().min(1),
+  orderedPartIds: z.array(z.string().min(1)).min(1),
+  parts: z.array(batchUpdateEntryPartSchema).min(1),
+});
+
+function normalizeReplacesPartId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function assertUniquePartIds(ids: string[], label: string): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) {
+      throw new HttpError(400, `Duplicate ${label} item`, "VALIDATION_ERROR", {
+        partId: id,
+      });
+    }
+    seen.add(id);
+  }
+}
+
+function normalizePayloadByFormat(params: {
+  payloadFormat: PartPayloadFormat;
+  payload: unknown;
+  partId: string;
+}): BatchUpdateEntryPartPayload {
+  if (params.payloadFormat === "text" || params.payloadFormat === "markdown") {
+    if (typeof params.payload !== "string") {
+      throw new HttpError(400, "Text/markdown part payload must be a string", "VALIDATION_ERROR", {
+        partId: params.partId,
+      });
+    }
+    return params.payload;
+  }
+
+  if (params.payloadFormat === "json") {
+    if (
+      params.payload === null ||
+      typeof params.payload === "string" ||
+      typeof params.payload === "number" ||
+      typeof params.payload === "boolean" ||
+      typeof params.payload === "object"
+    ) {
+      return params.payload as BatchUpdateEntryPartPayload;
+    }
+  }
+
+  throw new HttpError(400, "Unsupported payload type for part format", "VALIDATION_ERROR", {
+    partId: params.partId,
+    payloadFormat: params.payloadFormat,
+  });
+}
+
+function isPartDependentOnTarget(params: {
+  partId: string;
+  targetPartId: string;
+  byId: Map<string, PlannedBatchPartState>;
+}): boolean {
+  const visited = new Set<string>();
+  let cursor = params.byId.get(params.partId)?.replacesPartId ?? null;
+  while (cursor) {
+    if (cursor === params.targetPartId) return true;
+    if (visited.has(cursor)) break;
+    visited.add(cursor);
+    cursor = params.byId.get(cursor)?.replacesPartId ?? null;
+  }
+  return false;
+}
+
+function isStringMainPayloadFormat(format: PartPayloadFormat): boolean {
+  return format === "text" || format === "markdown";
+}
+
+export function assertBatchUpdateVariantIsActive(params: {
+  entry: Entry;
+  requestedVariantId: string;
+}): void {
+  if (params.entry.activeVariantId === params.requestedVariantId) return;
+  throw new HttpError(409, "Variant mismatch: active variant has changed", "CONFLICT", {
+    activeVariantId: params.entry.activeVariantId,
+    requestedVariantId: params.requestedVariantId,
+  });
+}
+
+export function buildBatchUpdatePartPlan(params: {
+  variantParts: Part[];
+  body: BatchUpdateEntryPartsBody;
+  nowMs?: number;
+}): BatchUpdatePartPlan {
+  const activeParts = (params.variantParts ?? []).filter((part) => !part.softDeleted);
+  if (activeParts.length === 0) {
+    throw new HttpError(400, "No active parts in variant", "VALIDATION_ERROR");
+  }
+
+  const activeById = new Map(activeParts.map((part) => [part.partId, part] as const));
+
+  const requestedPartIds = params.body.parts.map((item) => item.partId);
+  assertUniquePartIds(requestedPartIds, "parts");
+  for (const partId of requestedPartIds) {
+    if (!activeById.has(partId)) {
+      throw new HttpError(404, "Part не найден", "NOT_FOUND", { partId });
+    }
+  }
+  if (requestedPartIds.length !== activeParts.length) {
+    throw new HttpError(400, "Request must include all active variant parts", "VALIDATION_ERROR");
+  }
+
+  const requestPatchById = new Map(params.body.parts.map((item) => [item.partId, item] as const));
+
+  const plannedById = new Map<string, PlannedBatchPartState>();
+  for (const activePart of activeParts) {
+    const patch = requestPatchById.get(activePart.partId);
+    if (!patch) {
+      throw new HttpError(400, "Missing part in batch update request", "VALIDATION_ERROR", {
+        partId: activePart.partId,
+      });
+    }
+
+    if (!activeById.has(patch.partId)) {
+      throw new HttpError(404, "Part not found in active variant", "NOT_FOUND", {
+        partId: patch.partId,
+      });
+    }
+
+    plannedById.set(activePart.partId, {
+      partId: activePart.partId,
+      channel: activePart.channel,
+      order: activePart.order,
+      payload: normalizePayloadByFormat({
+        payloadFormat: activePart.payloadFormat,
+        payload: patch.payload,
+        partId: activePart.partId,
+      }),
+      payloadFormat: activePart.payloadFormat,
+      schemaId: activePart.schemaId,
+      label: activePart.label,
+      visibility: {
+        ui: patch.visibility.ui,
+        prompt: patch.visibility.prompt,
+      },
+      replacesPartId: normalizeReplacesPartId(activePart.replacesPartId),
+      deleted: patch.deleted,
+    });
+  }
+
+  const nonDeletedPartIds = Array.from(plannedById.values())
+    .filter((part) => !part.deleted)
+    .map((part) => part.partId);
+  if (nonDeletedPartIds.length === 0) {
+    throw new HttpError(400, "At least one part must remain active", "VALIDATION_ERROR");
+  }
+
+  const mainPart = plannedById.get(params.body.mainPartId);
+  if (!mainPart || mainPart.deleted) {
+    throw new HttpError(400, "mainPartId must reference an active part", "VALIDATION_ERROR", {
+      mainPartId: params.body.mainPartId,
+    });
+  }
+  if (!isStringMainPayloadFormat(mainPart.payloadFormat) || typeof mainPart.payload !== "string") {
+    throw new HttpError(400, "Main part must be text/markdown with string payload", "VALIDATION_ERROR", {
+      mainPartId: params.body.mainPartId,
+    });
+  }
+
+  assertUniquePartIds(params.body.orderedPartIds, "orderedPartIds");
+  const orderedSet = new Set(params.body.orderedPartIds);
+  const nonDeletedSet = new Set(nonDeletedPartIds);
+  if (orderedSet.size !== nonDeletedSet.size) {
+    throw new HttpError(
+      400,
+      "orderedPartIds must match the set of non-deleted parts",
+      "VALIDATION_ERROR"
+    );
+  }
+  for (const partId of orderedSet) {
+    if (!nonDeletedSet.has(partId)) {
+      throw new HttpError(
+        400,
+        "orderedPartIds must match the set of non-deleted parts",
+        "VALIDATION_ERROR",
+        { partId }
+      );
+    }
+  }
+
+  mainPart.channel = "main";
+  mainPart.replacesPartId = null;
+
+  for (const plannedPart of plannedById.values()) {
+    if (plannedPart.deleted) continue;
+    if (plannedPart.partId === params.body.mainPartId) continue;
+    if (plannedPart.channel === "main") plannedPart.channel = "aux";
+  }
+
+  for (const plannedPart of plannedById.values()) {
+    if (plannedPart.deleted) continue;
+    if (plannedPart.partId === params.body.mainPartId) continue;
+    if (
+      isPartDependentOnTarget({
+        partId: plannedPart.partId,
+        targetPartId: params.body.mainPartId,
+        byId: plannedById,
+      })
+    ) {
+      plannedPart.replacesPartId = null;
+    }
+  }
+
+  mainPart.order = 0;
+  let nextOrder = 10;
+  for (const partId of params.body.orderedPartIds) {
+    if (partId === params.body.mainPartId) continue;
+    const plannedPart = plannedById.get(partId);
+    if (!plannedPart || plannedPart.deleted) continue;
+    plannedPart.order = nextOrder;
+    nextOrder += 10;
+  }
+
+  const nowMs =
+    typeof params.nowMs === "number" && Number.isFinite(params.nowMs)
+      ? Math.max(0, Math.floor(params.nowMs))
+      : Date.now();
+
+  const patches = Array.from(plannedById.values()).map((plannedPart) => ({
+    partId: plannedPart.partId,
+    channel: plannedPart.channel,
+    order: plannedPart.order,
+    payload: plannedPart.payload,
+    payloadFormat: plannedPart.payloadFormat,
+    schemaId: plannedPart.schemaId,
+    label: plannedPart.label,
+    visibility: plannedPart.visibility,
+    replacesPartId: plannedPart.replacesPartId,
+    softDeleted: plannedPart.deleted,
+    softDeletedAt: plannedPart.deleted ? nowMs : null,
+    softDeletedBy: plannedPart.deleted ? ("user" as const) : null,
+  }));
+
+  const deletedPartIds = patches.filter((item) => item.softDeleted).map((item) => item.partId);
+
+  return {
+    mainPartId: params.body.mainPartId,
+    updatedPartIds: patches.map((item) => item.partId),
+    deletedPartIds,
+    patches,
+  };
+}
+
 router.post(
   "/entries/:id/manual-edit",
   validate({ params: entryIdParamsSchema, body: manualEditBodySchema }),
@@ -1599,6 +1921,49 @@ router.post(
       data: {
         entryId: entry.entryId,
         activeVariantId: activeVariant.variantId,
+      },
+    };
+  })
+);
+
+router.post(
+  "/entries/:id/parts/batch-update",
+  validate({ params: entryIdParamsSchema, body: batchUpdateEntryPartsBodySchema }),
+  asyncHandler(async (req: Request) => {
+    const params = req.params as unknown as { id: string };
+    const body = batchUpdateEntryPartsBodySchema.parse(req.body) as BatchUpdateEntryPartsBody;
+
+    const entry = await getEntryById({ entryId: params.id });
+    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
+
+    assertBatchUpdateVariantIsActive({
+      entry,
+      requestedVariantId: body.variantId,
+    });
+
+    const activeVariant = await getActiveVariantWithParts({ entry });
+    if (!activeVariant) {
+      throw new HttpError(404, "Active variant не найден", "NOT_FOUND");
+    }
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: activeVariant.parts ?? [],
+      body,
+      nowMs: Date.now(),
+    });
+
+    await applyPartMutableBatchPatches({
+      variantId: activeVariant.variantId,
+      patches: plan.patches,
+    });
+
+    return {
+      data: {
+        entryId: entry.entryId,
+        variantId: activeVariant.variantId,
+        mainPartId: plan.mainPartId,
+        updatedPartIds: plan.updatedPartIds,
+        deletedPartIds: plan.deletedPartIds,
       },
     };
   })
