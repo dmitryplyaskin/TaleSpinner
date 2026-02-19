@@ -223,6 +223,8 @@ export type TurnUserCanonicalizationRecord = {
   opId: string;
   userEntryId: string;
   userMainPartId: string;
+  replacedPartId?: string;
+  canonicalPartId?: string;
   beforeText: string;
   afterText: string;
   committedAt: string;
@@ -385,6 +387,12 @@ export type RunEvent =
       runId: string;
       seq: number;
       type: "run.debug.turn_user_canonicalization";
+      data: TurnUserCanonicalizationRecord;
+    }
+  | {
+      runId: string;
+      seq: number;
+      type: "turn.user.canonicalized";
       data: TurnUserCanonicalizationRecord;
     }
   | {

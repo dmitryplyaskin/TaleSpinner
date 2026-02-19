@@ -28,6 +28,7 @@ function computeReplacementMap(parts: Part[]): Map<string, ReplacementDecision> 
   // Rule (v1): prefer higher createdTurn, then lexical partId.
   const byOriginal = new Map<string, Part[]>();
   for (const p of parts) {
+    if (p.softDeleted) continue;
     if (typeof p.replacesPartId === "string" && p.replacesPartId.trim()) {
       const k = p.replacesPartId;
       const list = byOriginal.get(k);

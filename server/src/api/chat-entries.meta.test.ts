@@ -8,13 +8,16 @@ import {
   buildPromptDiagnosticsFromSnapshot,
   buildUserEntryMeta,
   emptyLatestWorldInfoActivationsResponse,
+  isCanonicalizationPart,
   mergeEntryPromptVisibilityMeta,
   pickPreviousUserEntries,
   renderUserInputWithLiquid,
+  resolveActiveUndoCascade,
   resolveContinueUserTurnTarget,
+  resolveRestoredPartId,
 } from "./chat-entries.api";
 
-import type { Entry, Variant } from "@shared/types/chat-entry-parts";
+import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
 
 describe("buildUserEntryMeta", () => {
   test("includes personaSnapshot when selected persona exists", () => {
@@ -192,6 +195,64 @@ describe("buildUserEntryMeta", () => {
     ).toEqual({
       userEntryId: "user-entry-1",
       userMainPartId: "part-new",
+    });
+  });
+
+  test("continue target prefers active replacement part from projection chain", () => {
+    const lastEntry: Entry = {
+      entryId: "user-entry-1",
+      chatId: "chat-1",
+      branchId: "branch-1",
+      role: "user",
+      createdAt: Date.now(),
+      activeVariantId: "variant-1",
+    };
+    const lastVariant: Variant = {
+      variantId: "variant-1",
+      entryId: "user-entry-1",
+      kind: "manual_edit",
+      createdAt: Date.now(),
+      parts: [
+        {
+          partId: "part-orig",
+          channel: "main",
+          order: 0,
+          payload: "hello",
+          payloadFormat: "markdown",
+          visibility: { ui: "always", prompt: true },
+          ui: { rendererId: "markdown" },
+          prompt: { serializerId: "asText" },
+          lifespan: "infinite",
+          createdTurn: 1,
+          source: "user",
+        },
+        {
+          partId: "part-canon",
+          channel: "main",
+          order: 0,
+          payload: "hello normalized",
+          payloadFormat: "markdown",
+          visibility: { ui: "always", prompt: true },
+          ui: { rendererId: "markdown" },
+          prompt: { serializerId: "asText" },
+          lifespan: "infinite",
+          createdTurn: 1,
+          source: "agent",
+          replacesPartId: "part-orig",
+          tags: ["canonicalization"],
+        },
+      ],
+    };
+
+    expect(
+      resolveContinueUserTurnTarget({
+        lastEntry,
+        lastVariant,
+        currentTurn: 10,
+      })
+    ).toEqual({
+      userEntryId: "user-entry-1",
+      userMainPartId: "part-canon",
     });
   });
 
@@ -487,6 +548,8 @@ describe("prompt diagnostics helpers", () => {
                 opId: "canon-op",
                 userEntryId: "user-entry-1",
                 userMainPartId: "part-1",
+                replacedPartId: "part-1",
+                canonicalPartId: "part-2",
                 beforeText: "raw",
                 afterText: "normalized",
                 committedAt: "2026-02-12T12:00:01.000Z",
@@ -505,6 +568,8 @@ describe("prompt diagnostics helpers", () => {
         opId: "canon-op",
         userEntryId: "user-entry-1",
         userMainPartId: "part-1",
+        replacedPartId: "part-1",
+        canonicalPartId: "part-2",
         beforeText: "raw",
         afterText: "normalized",
         committedAt: "2026-02-12T12:00:01.000Z",
@@ -600,5 +665,120 @@ describe("prompt diagnostics helpers", () => {
       warnings: [],
       entries: [],
     });
+  });
+});
+
+describe("canonicalization undo helpers", () => {
+  function makeMainPart(params: {
+    partId: string;
+    payload: string;
+    source: "user" | "agent";
+    replacesPartId?: string;
+    softDeleted?: boolean;
+    tags?: string[];
+  }): Part {
+    return {
+      partId: params.partId,
+      channel: "main",
+      order: 0,
+      payload: params.payload,
+      payloadFormat: "markdown",
+      visibility: { ui: "always", prompt: true },
+      ui: { rendererId: "markdown" },
+      prompt: { serializerId: "asText" },
+      lifespan: "infinite",
+      createdTurn: 1,
+      source: params.source,
+      replacesPartId: params.replacesPartId,
+      softDeleted: params.softDeleted,
+      tags: params.tags,
+    };
+  }
+
+  test("isCanonicalizationPart detects canonical replacement main part", () => {
+    expect(
+      isCanonicalizationPart(
+        makeMainPart({
+          partId: "canon-1",
+          payload: "normalized",
+          source: "agent",
+          replacesPartId: "part-1",
+          tags: ["canonicalization"],
+        })
+      )
+    ).toBe(true);
+
+    expect(
+      isCanonicalizationPart(
+        makeMainPart({
+          partId: "user-1",
+          payload: "raw",
+          source: "user",
+        })
+      )
+    ).toBe(false);
+  });
+
+  test("resolveActiveUndoCascade returns selected step and all active descendants", () => {
+    const parts: Part[] = [
+      makeMainPart({ partId: "part-1", payload: "raw", source: "user" }),
+      makeMainPart({
+        partId: "canon-1",
+        payload: "v1",
+        source: "agent",
+        replacesPartId: "part-1",
+        tags: ["canonicalization"],
+      }),
+      makeMainPart({
+        partId: "canon-2",
+        payload: "v2",
+        source: "agent",
+        replacesPartId: "canon-1",
+        tags: ["canonicalization"],
+      }),
+      makeMainPart({
+        partId: "canon-3-soft",
+        payload: "v3",
+        source: "agent",
+        replacesPartId: "canon-2",
+        tags: ["canonicalization"],
+        softDeleted: true,
+      }),
+    ];
+
+    expect(
+      resolveActiveUndoCascade({
+        startPartId: "canon-1",
+        parts,
+      })
+    ).toEqual(["canon-1", "canon-2"]);
+  });
+
+  test("resolveRestoredPartId skips undone chain and returns nearest active parent", () => {
+    const parts: Part[] = [
+      makeMainPart({ partId: "part-1", payload: "raw", source: "user" }),
+      makeMainPart({
+        partId: "canon-1",
+        payload: "v1",
+        source: "agent",
+        replacesPartId: "part-1",
+        tags: ["canonicalization"],
+      }),
+      makeMainPart({
+        partId: "canon-2",
+        payload: "v2",
+        source: "agent",
+        replacesPartId: "canon-1",
+        tags: ["canonicalization"],
+      }),
+    ];
+
+    expect(
+      resolveRestoredPartId({
+        startReplacesPartId: "canon-1",
+        parts,
+        undonePartIds: ["canon-1", "canon-2"],
+      })
+    ).toBe("part-1");
   });
 });

@@ -22,6 +22,7 @@ type ReplacementDecision = { replacedByPartId: string };
 function computeReplacementMap(parts: Part[]): Map<string, ReplacementDecision> {
 	const byOriginal = new Map<string, Part[]>();
 	for (const p of parts) {
+		if (p.softDeleted) continue;
 		if (typeof p.replacesPartId === 'string' && p.replacesPartId.trim()) {
 			const list = byOriginal.get(p.replacesPartId);
 			if (list) list.push(p);

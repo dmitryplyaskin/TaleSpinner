@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";
-import { variantParts } from "../../db/schema";
+import { entryVariants, variantParts } from "../../db/schema";
 
 import type {
   Part,
@@ -210,6 +210,58 @@ export async function getPartPayloadTextById(params: {
   if (!existing) return null;
   if (typeof existing.value === "string") return existing.value;
   return safeJsonStringify(existing.value, "");
+}
+
+export async function getPartById(params: {
+  partId: string;
+}): Promise<Part | null> {
+  const db = await initDb();
+  const rows = await db
+    .select()
+    .from(variantParts)
+    .where(eq(variantParts.partId, params.partId))
+    .limit(1);
+  const row = rows[0];
+  return row ? partRowToDomain(row) : null;
+}
+
+export async function getPartWithVariantContextById(params: {
+  partId: string;
+}): Promise<
+  | {
+      part: Part;
+      ownerId: string;
+      variantId: string;
+      entryId: string;
+    }
+  | null
+> {
+  const db = await initDb();
+  const partRows = await db
+    .select()
+    .from(variantParts)
+    .where(eq(variantParts.partId, params.partId))
+    .limit(1);
+  const partRow = partRows[0];
+  if (!partRow) return null;
+
+  const variantRows = await db
+    .select({
+      variantId: entryVariants.variantId,
+      entryId: entryVariants.entryId,
+    })
+    .from(entryVariants)
+    .where(eq(entryVariants.variantId, partRow.variantId))
+    .limit(1);
+  const variant = variantRows[0];
+  if (!variant) return null;
+
+  return {
+    part: partRowToDomain(partRow),
+    ownerId: partRow.ownerId,
+    variantId: partRow.variantId,
+    entryId: variant.entryId,
+  };
 }
 
 export async function applyManualEditToPart(params: {

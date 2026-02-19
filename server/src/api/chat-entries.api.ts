@@ -34,6 +34,7 @@ import {
 import {
   applyManualEditToPart,
   createPart,
+  getPartWithVariantContextById,
   softDeletePart,
 } from "../services/chat-entry-parts/parts-repository";
 import { getUiProjection } from "../services/chat-entry-parts/projection";
@@ -120,6 +121,8 @@ type PromptDiagnosticsResponse = {
     opId: string;
     userEntryId: string;
     userMainPartId: string;
+    replacedPartId?: string;
+    canonicalPartId?: string;
     beforeText: string;
     afterText: string;
     committedAt: string;
@@ -190,6 +193,14 @@ function normalizeTurnCanonicalizationHistory(
     if (typeof item.opId !== "string") continue;
     if (typeof item.userEntryId !== "string") continue;
     if (typeof item.userMainPartId !== "string") continue;
+    const replacedPartId =
+      typeof item.replacedPartId === "string" && item.replacedPartId.length > 0
+        ? item.replacedPartId
+        : undefined;
+    const canonicalPartId =
+      typeof item.canonicalPartId === "string" && item.canonicalPartId.length > 0
+        ? item.canonicalPartId
+        : undefined;
     if (typeof item.beforeText !== "string") continue;
     if (typeof item.afterText !== "string") continue;
     if (typeof item.committedAt !== "string") continue;
@@ -198,6 +209,8 @@ function normalizeTurnCanonicalizationHistory(
       opId: item.opId,
       userEntryId: item.userEntryId,
       userMainPartId: item.userMainPartId,
+      replacedPartId,
+      canonicalPartId,
       beforeText: item.beforeText,
       afterText: item.afterText,
       committedAt: item.committedAt,
@@ -640,6 +653,7 @@ async function proxyRunEventsToSse(params: {
 export function resolveContinueUserTurnTarget(params: {
   lastEntry: Entry | null;
   lastVariant: Variant | null;
+  currentTurn?: number;
 }): { userEntryId: string; userMainPartId: string } {
   if (!params.lastEntry || params.lastEntry.role !== "user") {
     throw new HttpError(
@@ -658,7 +672,12 @@ export function resolveContinueUserTurnTarget(params: {
     );
   }
 
-  const editableMainParts = (variant.parts ?? [])
+  const currentTurn =
+    typeof params.currentTurn === "number" && Number.isFinite(params.currentTurn)
+      ? Math.max(0, Math.floor(params.currentTurn))
+      : 0;
+  const visible = getUiProjection(params.lastEntry, variant, currentTurn, { debugEnabled: false });
+  const editableMainParts = visible
     .filter(isEditableMainPart)
     .sort(sortPartsStable);
   const userMainPart =
@@ -702,6 +721,7 @@ async function resolveRegenerateUserTurnTarget(params: {
   chatId: string;
   branchId: string;
   assistantEntry: Entry;
+  currentTurn: number;
 }): Promise<{ mode: "entry_parts"; userEntryId: string; userMainPartId: string } | undefined> {
   const PAGE_LIMIT = 200;
   let before = params.assistantEntry.createdAt + 1;
@@ -725,6 +745,7 @@ async function resolveRegenerateUserTurnTarget(params: {
         const target = resolveContinueUserTurnTarget({
           lastEntry: candidate,
           lastVariant: candidateVariant,
+          currentTurn: params.currentTurn,
         });
         return {
           mode: "entry_parts",
@@ -1093,7 +1114,12 @@ router.post(
       });
       const lastEntry = lastEntries.length > 0 ? lastEntries[lastEntries.length - 1] : null;
       const lastVariant = lastEntry ? await getActiveVariantWithParts({ entry: lastEntry }) : null;
-      const userTurnTarget = resolveContinueUserTurnTarget({ lastEntry, lastVariant });
+      const currentTurn = await getBranchCurrentTurn({ branchId });
+      const userTurnTarget = resolveContinueUserTurnTarget({
+        lastEntry,
+        lastVariant,
+        currentTurn,
+      });
 
       const newTurn = await incrementBranchTurn({ branchId });
       const assistant = await createEntryWithVariant({
@@ -1228,10 +1254,12 @@ router.post(
     });
 
     try {
+      const currentTurn = await getBranchCurrentTurn({ branchId: entry.branchId });
       const userTurnTarget = await resolveRegenerateUserTurnTarget({
         chatId: entry.chatId,
         branchId: entry.branchId,
         assistantEntry: entry,
+        currentTurn,
       });
 
       const newTurn = await incrementBranchTurn({ branchId: entry.branchId });
@@ -1671,10 +1699,126 @@ router.post(
   })
 );
 
+export function isCanonicalizationPart(part: Part): boolean {
+  if (part.channel !== "main") return false;
+  if (part.source !== "agent") return false;
+  if (typeof part.replacesPartId !== "string" || part.replacesPartId.trim().length === 0) {
+    return false;
+  }
+  return Array.isArray(part.tags) && part.tags.includes("canonicalization");
+}
+
+export function resolveActiveUndoCascade(params: {
+  startPartId: string;
+  parts: Part[];
+}): string[] {
+  const activeByOriginal = new Map<string, Part[]>();
+  for (const part of params.parts) {
+    if (part.softDeleted) continue;
+    const originalId = typeof part.replacesPartId === "string" ? part.replacesPartId.trim() : "";
+    if (!originalId) continue;
+    const list = activeByOriginal.get(originalId);
+    if (list) list.push(part);
+    else activeByOriginal.set(originalId, [part]);
+  }
+
+  const queue = [params.startPartId];
+  const visited = new Set<string>();
+  const out: string[] = [];
+  while (queue.length > 0) {
+    const partId = queue.shift();
+    if (!partId || visited.has(partId)) continue;
+    visited.add(partId);
+    out.push(partId);
+    for (const child of activeByOriginal.get(partId) ?? []) {
+      queue.push(child.partId);
+    }
+  }
+
+  return out;
+}
+
+export function resolveRestoredPartId(params: {
+  startReplacesPartId: string | undefined;
+  parts: Part[];
+  undonePartIds: string[];
+}): string | null {
+  const byId = new Map(params.parts.map((part) => [part.partId, part] as const));
+  const undoneSet = new Set(params.undonePartIds);
+
+  let cursor =
+    typeof params.startReplacesPartId === "string" && params.startReplacesPartId.trim().length > 0
+      ? params.startReplacesPartId
+      : null;
+  while (cursor) {
+    const part = byId.get(cursor);
+    if (!part) return cursor;
+    if (!part.softDeleted && !undoneSet.has(cursor)) return cursor;
+    cursor =
+      typeof part.replacesPartId === "string" && part.replacesPartId.trim().length > 0
+        ? part.replacesPartId
+        : null;
+  }
+  return null;
+}
+
 const partIdParamsSchema = z.object({ id: z.string().min(1) });
 const softDeletePartBodySchema = z.object({
   by: z.enum(["user", "agent"]).optional().default("user"),
 });
+const canonicalizationUndoBodySchema = z.object({
+  by: z.enum(["user", "agent"]).optional().default("user"),
+});
+
+router.post(
+  "/parts/:id/canonicalization-undo",
+  validate({ params: partIdParamsSchema, body: canonicalizationUndoBodySchema }),
+  asyncHandler(async (req: Request) => {
+    const params = req.params as unknown as { id: string };
+    const body = canonicalizationUndoBodySchema.parse(req.body);
+
+    const context = await getPartWithVariantContextById({ partId: params.id });
+    if (!context) throw new HttpError(404, "Part не найден", "NOT_FOUND");
+    if (context.part.softDeleted) {
+      throw new HttpError(400, "Part уже удалён", "VALIDATION_ERROR");
+    }
+    if (!isCanonicalizationPart(context.part)) {
+      throw new HttpError(400, "Part не является canonicalization replacement", "VALIDATION_ERROR");
+    }
+
+    const variants = await listEntryVariants({ entryId: context.entryId });
+    const variant = variants.find((item) => item.variantId === context.variantId) ?? null;
+    if (!variant) {
+      throw new HttpError(404, "Variant не найден", "NOT_FOUND");
+    }
+
+    const undonePartIds = resolveActiveUndoCascade({
+      startPartId: context.part.partId,
+      parts: variant.parts ?? [],
+    });
+    if (!undonePartIds.includes(context.part.partId)) {
+      throw new HttpError(400, "Не удалось построить цепочку отката", "VALIDATION_ERROR");
+    }
+
+    for (const partId of undonePartIds) {
+      await softDeletePart({ partId, by: body.by });
+    }
+
+    const restoredPartId = resolveRestoredPartId({
+      startReplacesPartId: context.part.replacesPartId,
+      parts: variant.parts ?? [],
+      undonePartIds,
+    });
+
+    return {
+      data: {
+        undonePartIds,
+        restoredPartId,
+        entryId: context.entryId,
+      },
+    };
+  })
+);
 
 router.post(
   "/parts/:id/soft-delete",

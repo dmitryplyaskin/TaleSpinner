@@ -240,7 +240,12 @@ describe("commit effects phase", () => {
   test("invokes user turn persistence handler and reports applied event", async () => {
     const persistSpy = vi
       .spyOn(turnEffects, "persistUserTurnText")
-      .mockResolvedValue({ previousText: "original user" });
+      .mockResolvedValue({
+        previousText: "original user",
+        replacedPartId: "user-main-part-1",
+        canonicalPartId: "canon-main-part-1",
+        userEntryId: "user-entry-1",
+      });
     const state = makeRunState();
     state.operationResultsByHook.after_main_llm = [
       makeDoneResult({
@@ -284,6 +289,8 @@ describe("commit effects phase", () => {
         opId: "user",
         userEntryId: "user-entry-1",
         userMainPartId: "user-main-part-1",
+        replacedPartId: "user-main-part-1",
+        canonicalPartId: "canon-main-part-1",
         beforeText: "original user",
         afterText: "normalized user",
       }),
@@ -306,7 +313,12 @@ describe("commit effects phase", () => {
   test("applies user canonicalization to current prompt draft in before_main_llm", async () => {
     const persistSpy = vi
       .spyOn(turnEffects, "persistUserTurnText")
-      .mockResolvedValue({ previousText: "u" });
+      .mockResolvedValue({
+        previousText: "u",
+        replacedPartId: "user-main-part-before",
+        canonicalPartId: "canon-main-part-before",
+        userEntryId: "user-entry-before",
+      });
     const onUserTurnCanonicalized = vi.fn();
     const state = makeRunState();
     state.operationResultsByHook.before_main_llm = [
@@ -354,6 +366,8 @@ describe("commit effects phase", () => {
         opId: "user-before",
         userEntryId: "user-entry-before",
         userMainPartId: "user-main-part-before",
+        replacedPartId: "user-main-part-before",
+        canonicalPartId: "canon-main-part-before",
         beforeText: "u",
         afterText: "updated now",
       }),
@@ -365,6 +379,73 @@ describe("commit effects phase", () => {
         afterText: "updated now",
       })
     );
+  });
+
+  test("updates user turn target between multiple canonicalization effects", async () => {
+    const persistSpy = vi.spyOn(turnEffects, "persistUserTurnText");
+    persistSpy
+      .mockResolvedValueOnce({
+        previousText: "raw-1",
+        replacedPartId: "user-main-part-1",
+        canonicalPartId: "canon-main-part-1",
+        userEntryId: "user-entry-1",
+      })
+      .mockResolvedValueOnce({
+        previousText: "raw-2",
+        replacedPartId: "canon-main-part-1",
+        canonicalPartId: "canon-main-part-2",
+        userEntryId: "user-entry-1",
+      });
+
+    const state = makeRunState();
+    state.operationResultsByHook.before_main_llm = [
+      makeDoneResult({
+        opId: "canon-a",
+        order: 10,
+        hook: "before_main_llm",
+        effects: [{ type: "turn.user.replace_text", opId: "canon-a", text: "A" }],
+      }),
+      makeDoneResult({
+        opId: "canon-b",
+        order: 20,
+        hook: "before_main_llm",
+        effects: [{ type: "turn.user.replace_text", opId: "canon-b", text: "B" }],
+      }),
+    ];
+
+    const result = await commitEffectsPhase({
+      hook: "before_main_llm",
+      ownerId: "global",
+      chatId: "chat",
+      branchId: "branch",
+      profile: null,
+      sessionKey: null,
+      runState: state,
+      runArtifactStore: new RunArtifactStore(),
+      userTurnTarget: {
+        mode: "entry_parts",
+        userEntryId: "user-entry-1",
+        userMainPartId: "user-main-part-1",
+      },
+    });
+
+    expect(result.requiredError).toBe(false);
+    expect(persistSpy).toHaveBeenNthCalledWith(1, {
+      target: {
+        mode: "entry_parts",
+        userEntryId: "user-entry-1",
+        userMainPartId: "user-main-part-1",
+      },
+      text: "A",
+    });
+    expect(persistSpy).toHaveBeenNthCalledWith(2, {
+      target: {
+        mode: "entry_parts",
+        userEntryId: "user-entry-1",
+        userMainPartId: "canon-main-part-1",
+      },
+      text: "B",
+    });
   });
 
   test("marks required error when user turn persistence handler fails", async () => {

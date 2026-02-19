@@ -16,6 +16,7 @@ import {
 	openDeleteEntryConfirm,
 	openDeletePartConfirm,
 	openDeleteVariantConfirm,
+	openUndoCanonicalizationPickerRequested,
 	openPromptInspectorRequested,
 	regenerateRequested,
 	selectVariantRequested,
@@ -87,6 +88,15 @@ function isEditableMainPart(part: Part): boolean {
 	return part.channel === 'main' && isEditablePart(part);
 }
 
+function isCanonicalizationReplacementPart(part: Part): boolean {
+	if (part.softDeleted) return false;
+	if (part.channel !== 'main') return false;
+	if (part.source !== 'agent') return false;
+	const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+	if (!replacesPartId) return false;
+	return Array.isArray(part.tags) && part.tags.includes('canonicalization');
+}
+
 const MessageInner: React.FC<MessageProps> = ({
 	data,
 	isLast,
@@ -141,6 +151,11 @@ const MessageInner: React.FC<MessageProps> = ({
 		Boolean((data.entry.meta as any)?.imported) &&
 		((data.entry.meta as any)?.kind === 'first_mes' || (data.entry.meta as any)?.source === 'entity_profile_import');
 	const canSwipeVariants = isAssistant && isLast && !isBulkDeleteMode;
+	const canOpenUndoCanonicalization = useMemo(() => {
+		if (!isUser) return false;
+		const parts = data.variant?.parts ?? [];
+		return parts.some(isCanonicalizationReplacementPart);
+	}, [data.variant?.parts, isUser]);
 
 	const editableMainPart = useMemo(() => {
 		const parts = data.variant?.parts ?? [];
@@ -320,6 +335,11 @@ const MessageInner: React.FC<MessageProps> = ({
 		});
 	};
 
+	const handleOpenUndoCanonicalization = () => {
+		if (!canOpenUndoCanonicalization || isStreaming || isEditing || isBulkDeleteMode) return;
+		openUndoCanonicalizationPickerRequested({ entryId: data.entry.entryId });
+	};
+
 	const handleAssistantAvatarClick = () => {
 		if (!assistantAvatarSrc || !onAvatarPreviewRequested) return;
 		onAvatarPreviewRequested({ src: assistantAvatarSrc, name: assistantName, kind: 'assistant' });
@@ -404,8 +424,11 @@ const MessageInner: React.FC<MessageProps> = ({
 											isPromptExcluded={isPromptExcluded}
 											showPromptInspectorAction={isAssistant}
 											canOpenPromptInspector={canOpenPromptInspector}
+											showUndoCanonicalizationAction={isUser}
+											canOpenUndoCanonicalization={canOpenUndoCanonicalization}
 											onTogglePromptVisibility={handleTogglePromptVisibility}
 											onOpenPromptInspector={handleOpenPromptInspector}
+											onOpenUndoCanonicalization={handleOpenUndoCanonicalization}
 											onOpenEdit={handleOpenEdit}
 											onCancelEdit={handleCancelEdit}
 											onConfirmEdit={handleConfirmEdit}

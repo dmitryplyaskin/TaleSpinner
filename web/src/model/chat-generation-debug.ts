@@ -269,7 +269,12 @@ function getFilterIdForEventType(type: string): ChatGenerationLogFilterId {
 	if (type === 'llm.stream.meta') return 'streamMeta';
 	if (type === 'llm.stream.done') return 'streamDone';
 	if (type === 'llm.stream.error') return 'streamErrors';
-	if (type === 'run.debug.state_snapshot' || type === 'run.debug.main_llm_input' || type === 'run.debug.turn_user_canonicalization') {
+	if (
+		type === 'run.debug.state_snapshot' ||
+		type === 'run.debug.main_llm_input' ||
+		type === 'run.debug.turn_user_canonicalization' ||
+		type === 'turn.user.canonicalized'
+	) {
 		return 'debugSnapshots';
 	}
 	if (type === 'operation.debug.template') return 'templateDebug';

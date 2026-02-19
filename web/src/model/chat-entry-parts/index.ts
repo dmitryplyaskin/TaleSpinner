@@ -13,6 +13,7 @@ import {
 	softDeleteEntry,
 	softDeleteEntriesBulk,
 	softDeletePart,
+	undoCanonicalization,
 	setEntryPromptVisibility,
 	streamChatEntry,
 	streamContinueEntry,
@@ -282,10 +283,26 @@ export type PromptInspectorState = {
 	data: PromptDiagnosticsResponse | null;
 };
 
+export type UndoCanonicalizationStep = {
+	partId: string;
+	replacesPartId: string;
+	beforeText: string;
+	afterText: string;
+	createdTurn: number;
+};
+
+export type UndoCanonicalizationPickerState = {
+	open: boolean;
+	entryId: string | null;
+	steps: UndoCanonicalizationStep[];
+	selectedPartId: string | null;
+};
+
 export const openPromptInspectorRequested = createEvent<{ entryId: string; variantId?: string | null }>();
 export const closePromptInspectorRequested = createEvent();
 const setPromptInspectorRequest = createEvent<{ entryId: string; variantId: string | null }>();
 const resetPromptInspectorData = createEvent();
+const setUndoCanonicalizationPickerState = createEvent<UndoCanonicalizationPickerState>();
 
 export const loadPromptInspectorFx = createEffect(async (params: { entryId: string; variantId: string | null }) => {
 	return getEntryPromptDiagnostics({
@@ -293,6 +310,17 @@ export const loadPromptInspectorFx = createEffect(async (params: { entryId: stri
 		variantId: params.variantId ?? undefined,
 	});
 });
+
+export const undoCanonicalizationFx = createEffect(async (params: { partId: string }) => {
+	return undoCanonicalization(params.partId);
+});
+
+export const openUndoCanonicalizationPickerRequested = createEvent<{ entryId: string }>();
+export const closeUndoCanonicalizationPickerRequested = createEvent();
+export const selectUndoCanonicalizationStepRequested = createEvent<{ partId: string }>();
+export const confirmUndoCanonicalizationRequested = createEvent();
+export const undoCanonicalizationRequested = createEvent<{ partId: string }>();
+const refreshVariantsAfterUndo = createEvent<{ entryId: string }>();
 
 export const $promptInspectorState = createStore<PromptInspectorState>({
 	open: false,
@@ -357,6 +385,171 @@ sample({
 sample({
 	clock: closePromptInspectorRequested,
 	target: resetPromptInspectorData,
+});
+
+function readPartPayloadText(payload: Part['payload']): string {
+	if (typeof payload === 'string') return payload;
+	try {
+		return JSON.stringify(payload);
+	} catch {
+		return String(payload);
+	}
+}
+
+function isCanonicalizationReplacementPart(part: Part): boolean {
+	if (part.softDeleted) return false;
+	if (part.channel !== 'main') return false;
+	if (part.source !== 'agent') return false;
+	const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+	if (!replacesPartId) return false;
+	return Array.isArray(part.tags) && part.tags.includes('canonicalization');
+}
+
+function buildActiveReplacementMap(parts: Part[]): Map<string, string> {
+	const byOriginal = new Map<string, Part[]>();
+	for (const part of parts) {
+		if (part.softDeleted) continue;
+		const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+		if (!replacesPartId) continue;
+		const existing = byOriginal.get(replacesPartId);
+		if (existing) existing.push(part);
+		else byOriginal.set(replacesPartId, [part]);
+	}
+
+	const map = new Map<string, string>();
+	for (const [originalId, candidates] of byOriginal.entries()) {
+		candidates.sort((left, right) => {
+			if (left.createdTurn !== right.createdTurn) return right.createdTurn - left.createdTurn;
+			if (left.partId < right.partId) return -1;
+			if (left.partId > right.partId) return 1;
+			return 0;
+		});
+		const winner = candidates[0];
+		if (winner) map.set(originalId, winner.partId);
+	}
+	return map;
+}
+
+function resolveUndoCanonicalizationStepsForEntry(
+	entries: ChatEntryWithVariantDto[],
+	entryId: string,
+): UndoCanonicalizationStep[] {
+	const entry = entries.find((item) => item.entry.entryId === entryId);
+	const parts = entry?.variant?.parts ?? [];
+	if (parts.length === 0) return [];
+
+	const activeMainParts = parts.filter((part) => !part.softDeleted && part.channel === 'main');
+	if (activeMainParts.length === 0) return [];
+
+	const activeReplacementMap = buildActiveReplacementMap(parts);
+	const terminalMainParts = activeMainParts.filter((part) => !activeReplacementMap.has(part.partId));
+	const terminalMain =
+		terminalMainParts
+			.slice()
+			.sort((left, right) => {
+				if (left.order !== right.order) return left.order - right.order;
+				if (left.createdTurn !== right.createdTurn) return left.createdTurn - right.createdTurn;
+				return left.partId.localeCompare(right.partId);
+			})
+			.pop() ?? null;
+	if (!terminalMain) return [];
+
+	const byId = new Map(parts.map((part) => [part.partId, part] as const));
+	const chain: UndoCanonicalizationStep[] = [];
+	let cursor: Part | null = terminalMain;
+	while (cursor) {
+		if (isCanonicalizationReplacementPart(cursor)) {
+			const replacesPartId = (cursor.replacesPartId as string).trim();
+			const previousPart = byId.get(replacesPartId);
+			chain.push({
+				partId: cursor.partId,
+				replacesPartId,
+				beforeText: previousPart ? readPartPayloadText(previousPart.payload) : '',
+				afterText: readPartPayloadText(cursor.payload),
+				createdTurn: cursor.createdTurn,
+			});
+		}
+		const parentId: string = typeof cursor.replacesPartId === 'string' ? cursor.replacesPartId.trim() : '';
+		cursor = parentId ? byId.get(parentId) ?? null : null;
+	}
+
+	return chain.reverse();
+}
+
+const EMPTY_UNDO_CANONICALIZATION_PICKER_STATE: UndoCanonicalizationPickerState = {
+	open: false,
+	entryId: null,
+	steps: [],
+	selectedPartId: null,
+};
+
+export const $undoCanonicalizationPickerState = createStore<UndoCanonicalizationPickerState>(
+	EMPTY_UNDO_CANONICALIZATION_PICKER_STATE,
+)
+	.on(setUndoCanonicalizationPickerState, (_state, payload) => payload)
+	.on(selectUndoCanonicalizationStepRequested, (state, payload) => {
+		if (!state.open) return state;
+		if (!state.steps.some((step) => step.partId === payload.partId)) return state;
+		return {
+			...state,
+			selectedPartId: payload.partId,
+		};
+	})
+	.on(closeUndoCanonicalizationPickerRequested, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE)
+	.on(undoCanonicalizationFx.done, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE)
+	.on(setOpenedChat, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE);
+
+sample({
+	clock: openUndoCanonicalizationPickerRequested,
+	source: $entries,
+	fn: (entries, { entryId }) => {
+		const steps = resolveUndoCanonicalizationStepsForEntry(entries, entryId);
+		return {
+			open: true,
+			entryId,
+			steps,
+			selectedPartId: steps.length > 0 ? steps[steps.length - 1].partId : null,
+		} satisfies UndoCanonicalizationPickerState;
+	},
+	target: setUndoCanonicalizationPickerState,
+});
+
+sample({
+	clock: confirmUndoCanonicalizationRequested,
+	source: { state: $undoCanonicalizationPickerState, pending: undoCanonicalizationFx.pending },
+	filter: ({ state, pending }) => state.open && !pending && typeof state.selectedPartId === 'string',
+	fn: ({ state }) => ({ partId: state.selectedPartId as string }),
+	target: undoCanonicalizationRequested,
+});
+
+sample({
+	clock: undoCanonicalizationRequested,
+	target: undoCanonicalizationFx,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }) => Boolean(chat?.id && branchId),
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	fn: ({ entryId }) => ({ entryId }),
+	target: refreshVariantsAfterUndo,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	source: $promptInspectorState,
+	filter: (state) => Boolean(state.open && state.entryId),
+	fn: (state) => ({
+		entryId: state.entryId as string,
+		variantId: state.variantId ?? null,
+	}),
+	target: loadPromptInspectorFx,
 });
 
 export const $isChatStreaming = createStore(false);
@@ -761,6 +954,71 @@ function appendDeltaToEntryPart(params: {
 	return nextEntries;
 }
 
+function appendCanonicalizationTag(tags: string[] | undefined): string[] {
+	const next = Array.isArray(tags) ? [...tags] : [];
+	if (!next.includes('canonicalization')) next.push('canonicalization');
+	return next;
+}
+
+function applyUserCanonicalizationPatch(params: {
+	entries: ChatEntryWithVariantDto[];
+	entryId: string;
+	replacedPartId: string;
+	canonicalPartId: string;
+	afterText: string;
+}): ChatEntryWithVariantDto[] {
+	const entryIndex = params.entries.findIndex((item) => item.entry.entryId === params.entryId);
+	if (entryIndex < 0) return params.entries;
+	const target = params.entries[entryIndex];
+	if (!target?.variant) return params.entries;
+
+	const parts = target.variant.parts ?? [];
+	let partIndex = parts.findIndex((part) => part.partId === params.canonicalPartId);
+	if (partIndex < 0) partIndex = parts.findIndex((part) => part.partId === params.replacedPartId);
+	if (partIndex < 0) {
+		for (let idx = parts.length - 1; idx >= 0; idx -= 1) {
+			const candidate = parts[idx];
+			if (!candidate || candidate.softDeleted || candidate.channel !== 'main') continue;
+			partIndex = idx;
+			break;
+		}
+	}
+	if (partIndex < 0) return params.entries;
+
+	const previousPart = parts[partIndex];
+	if (!previousPart) return params.entries;
+
+	const nextPart: Part = {
+		...previousPart,
+		partId: params.canonicalPartId,
+		payload: params.afterText,
+		source: 'agent',
+		replacesPartId: params.replacedPartId,
+		tags: appendCanonicalizationTag(previousPart.tags),
+	};
+
+	const changed =
+		nextPart.partId !== previousPart.partId ||
+		nextPart.payload !== previousPart.payload ||
+		nextPart.source !== previousPart.source ||
+		nextPart.replacesPartId !== previousPart.replacesPartId ||
+		(nextPart.tags ?? []).join('|') !== (previousPart.tags ?? []).join('|');
+	if (!changed) return params.entries;
+
+	const nextParts = [...parts];
+	nextParts[partIndex] = nextPart;
+
+	const nextEntries = [...params.entries];
+	nextEntries[entryIndex] = {
+		...target,
+		variant: {
+			...target.variant,
+			parts: nextParts,
+		},
+	};
+	return nextEntries;
+}
+
 function buildStreamingMainPart(seed: Part | undefined, partId: string): Part {
 	if (seed) {
 		return {
@@ -823,6 +1081,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 
 	const userEntryId = typeof meta?.userEntryId === 'string' ? meta.userEntryId : null;
 	const userMainPartId = typeof meta?.userMainPartId === 'string' ? meta.userMainPartId : null;
+	const resolvedUserMainPartId = stream.userMainPartId ?? userMainPartId;
 	const userRenderedContent = typeof meta?.userRenderedContent === 'string' ? meta.userRenderedContent : null;
 	const assistantEntryId = typeof meta?.assistantEntryId === 'string' ? meta.assistantEntryId : null;
 	const assistantVariantId = typeof meta?.assistantVariantId === 'string' ? meta.assistantVariantId : null;
@@ -842,7 +1101,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 								if (p.partId === stream.pendingUserMainPartId) {
 									return {
 										...p,
-										partId: userMainPartId ?? p.partId,
+										partId: resolvedUserMainPartId ?? p.partId,
 										payload: userRenderedContent ?? p.payload,
 									};
 								}
@@ -966,7 +1225,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 		entries: nextEntries,
 		stream: {
 			...stream,
-			userMainPartId: userMainPartId ?? stream.userMainPartId,
+			userMainPartId: resolvedUserMainPartId ?? undefined,
 			assistantEntryId: assistantEntryId ?? stream.assistantEntryId,
 			assistantMainPartId: assistantMainPartId ?? stream.assistantMainPartId,
 			assistantReasoningPartId: assistantReasoningPartId ?? stream.assistantReasoningPartId,
@@ -980,6 +1239,45 @@ sample({
 	clock: handleSseEnvelope,
 	source: { entries: $entries, stream: $activeStream, generationId: $activeGenerationId },
 	fn: ({ entries, stream }, env) => {
+		if (env.type === 'turn.user.canonicalized') {
+			const data = env.data as Record<string, unknown> | null;
+			const userEntryId = data && typeof data.userEntryId === 'string' ? data.userEntryId : null;
+			const replacedPartId = data && typeof data.replacedPartId === 'string' ? data.replacedPartId : null;
+			const canonicalPartId = data && typeof data.canonicalPartId === 'string' ? data.canonicalPartId : null;
+			const afterText = data && typeof data.afterText === 'string' ? data.afterText : null;
+			if (!userEntryId || !replacedPartId || !canonicalPartId || afterText === null) {
+				return { entries, stream };
+			}
+
+			const fallbackEntryId =
+				stream?.mode === 'send' && stream.pendingUserEntryId ? stream.pendingUserEntryId : userEntryId;
+			let nextEntries = applyUserCanonicalizationPatch({
+				entries,
+				entryId: userEntryId,
+				replacedPartId,
+				canonicalPartId,
+				afterText,
+			});
+			if (nextEntries === entries && fallbackEntryId !== userEntryId) {
+				nextEntries = applyUserCanonicalizationPatch({
+					entries,
+					entryId: fallbackEntryId,
+					replacedPartId,
+					canonicalPartId,
+					afterText,
+				});
+			}
+
+			if (!stream) return { entries: nextEntries, stream };
+			return {
+				entries: nextEntries,
+				stream: {
+					...stream,
+					userMainPartId: canonicalPartId,
+				},
+			};
+		}
+
 		if (!stream) return { entries, stream, generationId: null };
 
 		if (env.type === 'llm.stream.meta') {
@@ -1113,6 +1411,11 @@ export const $variantsLoadingByEntryId = createStore<Record<string, boolean>>({}
 	.on(loadVariantsFx, (prev, { entryId }) => ({ ...prev, [entryId]: true }))
 	.on(loadVariantsFx.doneData, (prev, { entryId }) => ({ ...prev, [entryId]: false }))
 	.on(loadVariantsFx.fail, (prev, { params }) => ({ ...prev, [params.entryId]: false }));
+
+sample({
+	clock: refreshVariantsAfterUndo,
+	target: loadVariantsRequested,
+});
 
 sample({
 	clock: loadVariantsRequested,
@@ -1388,6 +1691,17 @@ setEntryPromptVisibilityFx.done.watch(({ params }) => {
 setEntryPromptVisibilityFx.failData.watch((error) => {
 	toaster.error({
 		title: i18n.t('chat.toasts.togglePromptVisibilityError'),
+		description: error instanceof Error ? error.message : String(error),
+	});
+});
+
+undoCanonicalizationFx.doneData.watch(() => {
+	toaster.success({ title: i18n.t('chat.toasts.canonicalizationUndone') });
+});
+
+undoCanonicalizationFx.failData.watch((error) => {
+	toaster.error({
+		title: i18n.t('chat.toasts.undoCanonicalizationError'),
 		description: error instanceof Error ? error.message : String(error),
 	});
 });

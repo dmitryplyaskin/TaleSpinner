@@ -1,7 +1,7 @@
 import { Box, Flex, Paper } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCheck, LuEllipsis, LuEye, LuEyeOff, LuFileSearch, LuPen, LuTrash, LuX } from 'react-icons/lu';
+import { LuCheck, LuEllipsis, LuEye, LuEyeOff, LuFileSearch, LuPen, LuTrash, LuUndo2, LuX } from 'react-icons/lu';
 
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
@@ -11,8 +11,11 @@ type ActionBarProps = {
 	isPromptExcluded: boolean;
 	showPromptInspectorAction: boolean;
 	canOpenPromptInspector: boolean;
+	showUndoCanonicalizationAction: boolean;
+	canOpenUndoCanonicalization: boolean;
 	onTogglePromptVisibility: () => void;
 	onOpenPromptInspector: () => void;
+	onOpenUndoCanonicalization: () => void;
 	onOpenEdit: () => void;
 	onCancelEdit: () => void;
 	onConfirmEdit: () => void;
@@ -26,8 +29,11 @@ export const ActionBar = ({
 	isPromptExcluded,
 	showPromptInspectorAction,
 	canOpenPromptInspector,
+	showUndoCanonicalizationAction,
+	canOpenUndoCanonicalization,
 	onTogglePromptVisibility,
 	onOpenPromptInspector,
+	onOpenUndoCanonicalization,
 	onOpenEdit,
 	onCancelEdit,
 	onConfirmEdit,
@@ -41,7 +47,8 @@ export const ActionBar = ({
 		if (isEditing) setActionsOpen(false);
 	}, [isEditing]);
 
-	const hiddenActionsCount = (canDeleteVariant ? 1 : 0) + 2 + (showPromptInspectorAction ? 1 : 0);
+	const hiddenActionsCount =
+		(canDeleteVariant ? 1 : 0) + 2 + (showPromptInspectorAction ? 1 : 0) + (showUndoCanonicalizationAction ? 1 : 0);
 	const expandedWidth = hiddenActionsCount > 0 ? hiddenActionsCount * 26 - 4 : 0;
 
 	return (
@@ -100,6 +107,25 @@ export const ActionBar = ({
 										onTogglePromptVisibility();
 									}}
 								/>
+								{showUndoCanonicalizationAction && (
+									<IconButtonWithTooltip
+										size="xs"
+										variant="ghost"
+										colorPalette={canOpenUndoCanonicalization ? 'orange' : 'gray'}
+										icon={<LuUndo2 />}
+										tooltip={
+											canOpenUndoCanonicalization
+												? t('chat.actions.undoCanonicalization')
+												: t('chat.actions.undoCanonicalizationUnavailable')
+										}
+										aria-label={t('chat.actions.undoCanonicalization')}
+										onClick={() => {
+											if (!canOpenUndoCanonicalization) return;
+											setActionsOpen(false);
+											onOpenUndoCanonicalization();
+										}}
+									/>
+								)}
 								{showPromptInspectorAction && (
 									<IconButtonWithTooltip
 										size="xs"

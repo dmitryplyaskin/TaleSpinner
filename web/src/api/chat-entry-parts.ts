@@ -108,6 +108,8 @@ export type PromptDiagnosticsResponse = {
 		opId: string;
 		userEntryId: string;
 		userMainPartId: string;
+		replacedPartId?: string;
+		canonicalPartId?: string;
 		beforeText: string;
 		afterText: string;
 		committedAt: string;
@@ -334,6 +336,20 @@ export async function softDeletePart(partId: string): Promise<{ id: string }> {
 		method: 'POST',
 		body: JSON.stringify({ by: 'user' }),
 	});
+}
+
+export async function undoCanonicalization(partId: string): Promise<{
+	undonePartIds: string[];
+	restoredPartId: string | null;
+	entryId: string;
+}> {
+	return apiJson<{ undonePartIds: string[]; restoredPartId: string | null; entryId: string }>(
+		`/parts/${encodeURIComponent(partId)}/canonicalization-undo`,
+		{
+			method: 'POST',
+			body: JSON.stringify({ by: 'user' }),
+		},
+	);
 }
 
 export async function setEntryPromptVisibility(params: {

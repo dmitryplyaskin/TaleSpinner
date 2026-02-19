@@ -103,6 +103,23 @@ describe("chat-entry-parts projection", () => {
     expect(visible.map((p) => p.partId)).toEqual(["r2"]);
   });
 
+  it("ignores soft-deleted replacers when choosing active projection", () => {
+    const entry = mkEntry({ entryId: "e1", role: "assistant" });
+    const orig = mkPart({ partId: "orig", channel: "main", order: 0, payload: "A", createdTurn: 0 });
+    const repl = mkPart({
+      partId: "repl",
+      channel: "main",
+      order: 0,
+      payload: "B",
+      replacesPartId: "orig",
+      createdTurn: 2,
+      softDeleted: true,
+    });
+    const variant = mkVariant({ variantId: "v1", entryId: "e1", parts: [orig, repl] });
+    const visible = getUiProjection(entry, variant, 10, { debugEnabled: false });
+    expect(visible.map((p) => p.partId)).toEqual(["orig"]);
+  });
+
   it("includes only prompt-visible parts in prompt projection", () => {
     const entry = mkEntry({ entryId: "e1", role: "user" });
     const variant = mkVariant({

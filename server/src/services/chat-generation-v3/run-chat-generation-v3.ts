@@ -563,9 +563,12 @@ export async function* runChatGenerationV3(
         runState,
         runArtifactStore,
         userTurnTarget: request.userTurnTarget,
-        onUserTurnCanonicalized: debugEnabled
-          ? (data) => emit("run.debug.turn_user_canonicalization", data)
-          : undefined,
+        onUserTurnCanonicalized: (data) => {
+          emit("turn.user.canonicalized", data);
+          if (debugEnabled) {
+            emit("run.debug.turn_user_canonicalization", data);
+          }
+        },
         onCommitEvent: (evt) => emit(evt.type, evt.data),
       })
     );
@@ -724,14 +727,27 @@ export async function* runChatGenerationV3(
             runState,
             runArtifactStore,
             userTurnTarget: request.userTurnTarget,
-            onUserTurnCanonicalized: debugEnabled
-              ? (data) => emit("run.debug.turn_user_canonicalization", data)
-              : undefined,
+            onUserTurnCanonicalized: (data) => {
+              emit("turn.user.canonicalized", data);
+              if (debugEnabled) {
+                emit("run.debug.turn_user_canonicalization", data);
+              }
+            },
             onCommitEvent: (evt) => emit(evt.type, evt.data),
           })
         );
         runState.commitReportsByHook.after_main_llm = commitAfter.report;
         emitStateSnapshot("post_commit_after");
+        await updateGenerationDebugJson({
+          id: context.generationId,
+          debug: buildPromptDiagnosticsDebugJson({
+            llmMessages: runState.llmMessages,
+            systemPrompt: basePrompt.prompt.systemPrompt,
+            templateHistoryMessages: basePrompt.templateContext.messages,
+            worldInfoDiagnostics: basePrompt.worldInfoDiagnostics,
+            turnUserCanonicalization: runState.turnUserCanonicalizationHistory,
+          }),
+        });
         markPhase(
           "commit_after_effects",
           commitAfter.requiredError ? "failed" : "done",
