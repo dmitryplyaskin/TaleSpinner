@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Group, Select, Stack, Text } from '@mantine/core';
+import { Badge, Button, Group, Select, Stack, Text } from '@mantine/core';
 import React, { memo } from 'react';
 import { useController, useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -82,91 +82,93 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 	const safeOpId = typeof opId === 'string' ? opId : '';
 
 	return (
-		<Card withBorder className="op-operationCard">
-			<Stack gap="md">
-				<div className="op-editorHeader op-operationHeader">
-					<Group gap="xs" wrap="wrap">
-						<Text fw={700}>{title ?? t('operationProfiles.operationEditor.title')}</Text>
-						{status && (
-							<>
-								<Badge variant="light">#{status.index}</Badge>
-								<Badge variant="outline">{status.kind}</Badge>
-								{status.isDirty && <Badge color="yellow">{t('operationProfiles.operationEditor.unsaved')}</Badge>}
-							</>
-						)}
-					</Group>
-
-					<Group gap="xs" wrap="nowrap" className="op-operationActions">
-						{onSave && (
-							<Button size="sm" onClick={onSave} disabled={!canSave}>
-								{t('common.save')}
-							</Button>
-						)}
-						{onDiscard && (
-							<Button size="sm" variant="default" onClick={onDiscard} disabled={!canDiscard}>
-								{t('operationProfiles.actions.discard')}
-							</Button>
-						)}
-						{onRemove && (
-							<IconButtonWithTooltip
-								aria-label={t('operationProfiles.actions.deleteOperation')}
-								tooltip={t('operationProfiles.actions.deleteOperation')}
-								icon={<LuTrash2 />}
-								colorPalette="red"
-								size="input-sm"
-								variant="ghost"
-								tooltipSettings={ACTION_TOOLTIP_SETTINGS}
-								onClick={onRemove}
-							/>
-						)}
-					</Group>
-				</div>
-
-				<Group justify="space-between" wrap="wrap" align="flex-end" className="op-operationIdentityRow">
-					<FormInput name={`operations.${index}.name`} label={t('operationProfiles.fields.operationName')} inputProps={{ style: { flex: 1 } }} />
-					<Select
-						{...kindField}
-						label={t('operationProfiles.fields.kind')}
-						data={kindOptions}
-						value={normalizedKind}
-						onChange={(next) => {
-							const nextKind: OperationKind = isOperationKind(next) ? next : 'template';
-							onKindChange(nextKind);
-
-							const safeOutput = makeSafeOutput(output);
-
-							if (nextKind === 'template') {
-								const nextParams: FormTemplateParams = {
-									template: '',
-									strictVariables: false,
-									output: safeOutput as FormTemplateParams['output'],
-								};
-								setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
-								return;
-							}
-
-							if (nextKind === 'llm') {
-								const nextParams: FormLlmKindParams = makeDefaultLlmKindParams(safeOutput as FormLlmKindParams['output']);
-								setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
-								return;
-							}
-
-							const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(safeOutput as FormOtherKindParams['output']);
-							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
-						}}
-						comboboxProps={{ withinPortal: false }}
-						description={t('operationProfiles.fields.kindDescription')}
-						style={{ width: 210 }}
-					/>
+		<Stack gap="md">
+			<Stack gap="xs" className="op-operationHeader">
+				<Group gap="xs" wrap="wrap">
+					<Text fw={700}>{title ?? t('operationProfiles.operationEditor.title')}</Text>
+					{status && (
+						<>
+							<Badge variant="light">#{status.index}</Badge>
+							<Badge variant="outline">{status.kind}</Badge>
+							{status.isDirty && <Badge color="yellow">{t('operationProfiles.operationEditor.unsaved')}</Badge>}
+						</>
+					)}
 				</Group>
 
-				<Text size="xs" c="dimmed" className="op-opIdText">
-					{t('operationProfiles.fields.opId', { value: safeOpId || '—' })}
-				</Text>
-
-				<OperationSectionsAccordion index={index} kind={normalizedKind} />
+				<Group gap="xs" wrap="wrap" className="op-operationActions">
+					{onSave && (
+						<Button size="sm" onClick={onSave} disabled={!canSave}>
+							{t('common.save')}
+						</Button>
+					)}
+					{onDiscard && (
+						<Button size="sm" variant="default" onClick={onDiscard} disabled={!canDiscard}>
+							{t('operationProfiles.actions.discard')}
+						</Button>
+					)}
+					{onRemove && (
+						<IconButtonWithTooltip
+							aria-label={t('operationProfiles.actions.deleteOperation')}
+							tooltip={t('operationProfiles.actions.deleteOperation')}
+							icon={<LuTrash2 />}
+							colorPalette="red"
+							size="input-sm"
+							variant="ghost"
+							tooltipSettings={ACTION_TOOLTIP_SETTINGS}
+							onClick={onRemove}
+						/>
+					)}
+				</Group>
 			</Stack>
-		</Card>
+
+			<Group wrap="wrap" gap="sm" align="flex-end" className="op-operationIdentityRow">
+				<FormInput
+					name={`operations.${index}.name`}
+					label={t('operationProfiles.fields.operationName')}
+					fieldProps={{ style: { flex: 1, minWidth: 260 } }}
+				/>
+				<Select
+					{...kindField}
+					label={t('operationProfiles.fields.kind')}
+					data={kindOptions}
+					value={normalizedKind}
+					onChange={(next) => {
+						const nextKind: OperationKind = isOperationKind(next) ? next : 'template';
+						onKindChange(nextKind);
+
+						const safeOutput = makeSafeOutput(output);
+
+						if (nextKind === 'template') {
+							const nextParams: FormTemplateParams = {
+								template: '',
+								strictVariables: false,
+								output: safeOutput as FormTemplateParams['output'],
+							};
+							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
+							return;
+						}
+
+						if (nextKind === 'llm') {
+							const nextParams: FormLlmKindParams = makeDefaultLlmKindParams(safeOutput as FormLlmKindParams['output']);
+							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
+							return;
+						}
+
+						const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(safeOutput as FormOtherKindParams['output']);
+						setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
+					}}
+					comboboxProps={{ withinPortal: false }}
+					description={t('operationProfiles.fields.kindDescription')}
+					style={{ width: 230, flexShrink: 0 }}
+				/>
+			</Group>
+
+			<Text size="xs" c="dimmed" className="op-opIdText">
+				{t('operationProfiles.fields.opId', { value: safeOpId || '—' })}
+			</Text>
+
+			<OperationSectionsAccordion index={index} kind={normalizedKind} />
+		</Stack>
 	);
 });
 

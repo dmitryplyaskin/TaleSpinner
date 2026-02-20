@@ -3,11 +3,13 @@ import { useUnit } from 'effector-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuArrowDown, LuArrowUp, LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
+import { LuArrowDown, LuArrowUp, LuPencil, LuPlus, LuRotateCcw, LuTrash2 } from 'react-icons/lu';
 import { v4 as uuidv4 } from 'uuid';
 
 import { updateOperationProfileFx } from '@model/operation-profiles';
 import { FormInput, FormSelect, FormSwitch } from '@ui/form-components';
+import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
+import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 
 import type { OperationBlockDto, OperationProfileDto } from '../../../api/chat-core';
 import type { OperationProfileUpsertInput } from '@shared/types/operation-profiles';
@@ -17,7 +19,6 @@ export type OperationProfileBlocksToolbarState = {
 	canDiscard: boolean;
 	onSave: () => void;
 	onDiscard: () => void;
-	onResetSessionId: () => void;
 };
 
 type Props = {
@@ -28,6 +29,7 @@ type Props = {
 };
 
 type FormValues = OperationProfileUpsertInput;
+const ACTION_TOOLTIP_SETTINGS = TOOLTIP_PORTAL_SETTINGS;
 
 function toFormValues(profile: OperationProfileDto): FormValues {
 	return {
@@ -93,9 +95,8 @@ export const OperationProfileBlocksEditor: React.FC<Props> = ({ profile, blocks,
 			canDiscard: formState.isDirty,
 			onSave,
 			onDiscard,
-			onResetSessionId,
 		});
-	}, [formState.isDirty, onDiscard, onResetSessionId, onSave, onToolbarStateChange]);
+	}, [formState.isDirty, onDiscard, onSave, onToolbarStateChange]);
 
 	useEffect(() => {
 		return () => {
@@ -125,11 +126,22 @@ export const OperationProfileBlocksEditor: React.FC<Props> = ({ profile, blocks,
 								}}
 							/>
 						</Group>
-						<FormInput
-							name="operationProfileSessionId"
-							label={t('operationProfiles.profileSettings.sessionId')}
-							infoTip={t('operationProfiles.profileSettings.sessionIdInfo')}
-						/>
+						<div className="op-sessionIdRow">
+							<FormInput
+								name="operationProfileSessionId"
+								label={t('operationProfiles.profileSettings.sessionId')}
+								infoTip={t('operationProfiles.profileSettings.sessionIdInfo')}
+							/>
+							<IconButtonWithTooltip
+								aria-label={t('operationProfiles.actions.resetSessionId')}
+								tooltip={t('operationProfiles.actions.resetSessionId')}
+								icon={<LuRotateCcw />}
+								size="input-sm"
+								variant="ghost"
+								tooltipSettings={ACTION_TOOLTIP_SETTINGS}
+								onClick={onResetSessionId}
+							/>
+						</div>
 					</Stack>
 				</Card>
 

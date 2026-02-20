@@ -6,12 +6,7 @@
 	--op-space-md: 16px;
 	--op-space-lg: 20px;
 	--op-space-xl: 24px;
-	background: linear-gradient(180deg, var(--op-bg-gradient-start) 0%, var(--op-bg-gradient-end) 100%);
-	border-radius: var(--op-radius-lg);
-	padding: var(--op-space-md);
-	max-width: 1320px;
 	width: 100%;
-	margin: 0 auto;
 }
 
 .op-ui .op-command {
@@ -152,11 +147,6 @@
 	color: var(--op-muted);
 }
 
-.op-ui .op-operationCard {
-	background: var(--op-surface);
-	border-color: var(--op-border);
-}
-
 .op-ui .op-operationHeader {
 	align-items: flex-start;
 }
@@ -180,6 +170,18 @@
 }
 
 .op-ui .op-operationIdentityRow .mantine-InputWrapper-root {
+	flex: 1;
+	min-width: 260px;
+}
+
+.op-ui .op-sessionIdRow {
+	display: flex;
+	align-items: flex-end;
+	flex-wrap: wrap;
+	gap: var(--op-space-xs);
+}
+
+.op-ui .op-sessionIdRow .mantine-InputWrapper-root {
 	flex: 1;
 	min-width: 260px;
 }
@@ -244,15 +246,15 @@
 }
 
 @media (max-width: 767px) {
-	.op-ui {
-		padding: var(--op-space-sm);
-	}
-
 	.op-ui .op-command,
 	.op-ui .op-listPane,
 	.op-ui .op-inspectorPane,
 	.op-ui .op-editorCard {
 		padding: var(--op-space-sm);
+	}
+
+	.op-ui .op-sessionIdRow {
+		align-items: stretch;
 	}
 
 	.op-ui .op-commandRowPrimary {

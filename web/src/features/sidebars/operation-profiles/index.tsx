@@ -2,7 +2,7 @@ import { Button, Group, Select, Stack, Tabs, Text } from '@mantine/core';
 import { useUnit } from 'effector-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuGitFork, LuRotateCcw, LuSave, LuUndo2 } from 'react-icons/lu';
+import { LuGitFork, LuSave, LuUndo2 } from 'react-icons/lu';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -137,27 +137,45 @@ export const OperationProfilesSidebar: React.FC = () => {
 							{selectedProfile && profileToolbarState && (
 								<div className="op-commandRow op-commandRowSecondary">
 									<Group gap="xs" wrap="nowrap" className="op-editorToolbarActions">
-										<Button size="sm" leftSection={<LuSave />} disabled={!profileToolbarState.canSave} onClick={profileToolbarState.onSave}>
-											{t('common.save')}
-										</Button>
-										<Button
-											size="sm"
-											variant="default"
-											leftSection={<LuUndo2 />}
-											disabled={!profileToolbarState.canDiscard}
-											onClick={profileToolbarState.onDiscard}
-										>
-											{t('operationProfiles.actions.discard')}
-										</Button>
-										<IconButtonWithTooltip
-											aria-label={t('operationProfiles.actions.resetSessionId')}
-											tooltip={t('operationProfiles.actions.resetSessionId')}
-											icon={<LuRotateCcw />}
-											size="input-sm"
-											variant="ghost"
-											tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
-											onClick={profileToolbarState.onResetSessionId}
-										/>
+										{preferSplitLayout ? (
+											<>
+												<Button size="sm" leftSection={<LuSave />} disabled={!profileToolbarState.canSave} onClick={profileToolbarState.onSave}>
+													{t('common.save')}
+												</Button>
+												<Button
+													size="sm"
+													variant="default"
+													leftSection={<LuUndo2 />}
+													disabled={!profileToolbarState.canDiscard}
+													onClick={profileToolbarState.onDiscard}
+												>
+													{t('operationProfiles.actions.discard')}
+												</Button>
+											</>
+										) : (
+											<>
+												<IconButtonWithTooltip
+													aria-label={t('common.save')}
+													tooltip={t('common.save')}
+													icon={<LuSave />}
+													size="input-sm"
+													variant="ghost"
+													tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
+													disabled={!profileToolbarState.canSave}
+													onClick={profileToolbarState.onSave}
+												/>
+												<IconButtonWithTooltip
+													aria-label={t('operationProfiles.actions.discard')}
+													tooltip={t('operationProfiles.actions.discard')}
+													icon={<LuUndo2 />}
+													size="input-sm"
+													variant="ghost"
+													tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
+													disabled={!profileToolbarState.canDiscard}
+													onClick={profileToolbarState.onDiscard}
+												/>
+											</>
+										)}
 									</Group>
 								</div>
 							)}
@@ -215,31 +233,71 @@ export const OperationProfilesSidebar: React.FC = () => {
 							</div>
 
 							<div className="op-commandRow op-commandRowSecondary">
-								<Button
-									leftSection={<LuGitFork />}
-									variant="light"
-									className="op-nodeButton"
-									disabled={!selectedBlock}
-									onClick={() => setIsNodeEditorOpen(true)}
-									title={t('operationProfiles.actions.openNodeEditor')}
-								>
-									{t('operationProfiles.actions.openNodeEditor')}
-								</Button>
+								{preferSplitLayout ? (
+									<Button
+										leftSection={<LuGitFork />}
+										variant="light"
+										className="op-nodeButton"
+										disabled={!selectedBlock}
+										onClick={() => setIsNodeEditorOpen(true)}
+										title={t('operationProfiles.actions.openNodeEditor')}
+									>
+										{t('operationProfiles.actions.openNodeEditor')}
+									</Button>
+								) : (
+									<IconButtonWithTooltip
+										aria-label={t('operationProfiles.actions.openNodeEditor')}
+										tooltip={t('operationProfiles.actions.openNodeEditor')}
+										icon={<LuGitFork />}
+										size="input-sm"
+										variant="ghost"
+										tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
+										disabled={!selectedBlock}
+										onClick={() => setIsNodeEditorOpen(true)}
+									/>
+								)}
 
 								{selectedBlock && blockToolbarState && (
 									<Group gap="xs" wrap="nowrap" className="op-editorToolbarActions">
-										<Button size="sm" leftSection={<LuSave />} disabled={!blockToolbarState.canSave} onClick={blockToolbarState.onSave}>
-											{t('common.save')}
-										</Button>
-										<Button
-											size="sm"
-											variant="default"
-											leftSection={<LuUndo2 />}
-											disabled={!blockToolbarState.canDiscard}
-											onClick={blockToolbarState.onDiscard}
-										>
-											{t('operationProfiles.actions.discard')}
-										</Button>
+										{preferSplitLayout ? (
+											<>
+												<Button size="sm" leftSection={<LuSave />} disabled={!blockToolbarState.canSave} onClick={blockToolbarState.onSave}>
+													{t('common.save')}
+												</Button>
+												<Button
+													size="sm"
+													variant="default"
+													leftSection={<LuUndo2 />}
+													disabled={!blockToolbarState.canDiscard}
+													onClick={blockToolbarState.onDiscard}
+												>
+													{t('operationProfiles.actions.discard')}
+												</Button>
+											</>
+										) : (
+											<>
+												<IconButtonWithTooltip
+													aria-label={t('common.save')}
+													tooltip={t('common.save')}
+													icon={<LuSave />}
+													size="input-sm"
+													variant="ghost"
+													tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
+													disabled={!blockToolbarState.canSave}
+													onClick={blockToolbarState.onSave}
+												/>
+												<IconButtonWithTooltip
+													aria-label={t('operationProfiles.actions.discard')}
+													tooltip={t('operationProfiles.actions.discard')}
+													icon={<LuUndo2 />}
+													size="input-sm"
+													variant="ghost"
+													tooltipSettings={TOOLBAR_TOOLTIP_SETTINGS}
+													disabled={!blockToolbarState.canDiscard}
+													onClick={blockToolbarState.onDiscard}
+												/>
+											</>
+										)}
 									</Group>
 								)}
 							</div>
