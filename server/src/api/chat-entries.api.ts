@@ -48,9 +48,15 @@ import {
   updateVariantDerived,
 } from "../services/chat-entry-parts/variants-repository";
 import { runChatGenerationV3 } from "../services/chat-generation-v3/run-chat-generation-v3";
+import { normalizeOperationActivationConfig } from "../services/chat-generation-v3/operations/operation-activation-intervals";
+import { loadOrBootstrapRuntimeState } from "../services/chat-generation-v3/runtime/operation-runtime-state";
+import { resolveCompiledOperationProfile } from "../services/operations/operation-profile-resolver";
+import { getOperationProfileSettings } from "../services/operations/operation-profile-settings-repository";
+import { getOperationProfileById } from "../services/operations/operation-profiles-repository";
 
 import type { InstructionRenderContext } from "../services/chat-core/prompt-template-renderer";
 import type { RunEvent } from "../services/chat-generation-v3/contracts";
+import type { ChatOperationRuntimeStateDto } from "@shared/types/chat-runtime-state";
 import type {
   Entry,
   Part,
@@ -96,6 +102,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function isActivationReached(params: {
+  everyNTurns?: number;
+  everyNContextTokens?: number;
+  turnsCounter: number;
+  tokensCounter: number;
+}): boolean {
+  const turnsReached =
+    typeof params.everyNTurns === "number" && params.turnsCounter >= params.everyNTurns;
+  const tokensReached =
+    typeof params.everyNContextTokens === "number" &&
+    params.tokensCounter >= params.everyNContextTokens;
+  return turnsReached || tokensReached;
 }
 
 type PromptDiagnosticsRole = "system" | "user" | "assistant";
@@ -1420,6 +1440,84 @@ router.get(
 const latestWorldInfoActivationsQuerySchema = z.object({
   branchId: z.string().min(1).optional(),
 });
+const operationRuntimeStateQuerySchema = z.object({
+  branchId: z.string().min(1).optional(),
+});
+
+router.get(
+  "/chats/:id/operation-runtime-state",
+  validate({ params: chatIdParamsSchema, query: operationRuntimeStateQuerySchema }),
+  asyncHandler(async (req: Request) => {
+    const params = req.params as unknown as { id: string };
+    const query = operationRuntimeStateQuerySchema.parse(req.query);
+
+    const chat = await getChatById(params.id);
+    if (!chat) throw new HttpError(404, "Chat не найден", "NOT_FOUND");
+
+    const branchId = query.branchId ?? chat.activeBranchId;
+    if (!branchId) {
+      throw new HttpError(400, "branchId обязателен (нет activeBranchId)", "VALIDATION_ERROR");
+    }
+
+    const empty: ChatOperationRuntimeStateDto = {
+      chatId: chat.id,
+      branchId,
+      profileId: null,
+      operationProfileSessionId: null,
+      updatedAt: null,
+      operations: [],
+    };
+
+    const settings = await getOperationProfileSettings();
+    if (!settings.activeProfileId) return { data: empty };
+
+    const profile = await getOperationProfileById(settings.activeProfileId);
+    if (!profile || !profile.enabled) return { data: empty };
+
+    const compiled = await resolveCompiledOperationProfile(profile);
+    const runtime = await loadOrBootstrapRuntimeState({
+      scope: {
+        ownerId: chat.ownerId,
+        chatId: chat.id,
+        branchId,
+        profileId: profile.profileId,
+        operationProfileSessionId: profile.operationProfileSessionId,
+      },
+      operations: compiled.operations,
+      source: "system_message",
+    });
+
+    const data: ChatOperationRuntimeStateDto = {
+      chatId: chat.id,
+      branchId,
+      profileId: profile.profileId,
+      operationProfileSessionId: profile.operationProfileSessionId,
+      updatedAt: runtime.updatedAt.toISOString(),
+      operations: compiled.operations.map((op) => {
+        const normalized = normalizeOperationActivationConfig(op.config.activation);
+        const state = runtime.payload.activationByOpId[op.opId] ?? {
+          turnsCounter: 0,
+          tokensCounter: 0,
+        };
+        return {
+          opId: op.opId,
+          everyNTurns: normalized?.everyNTurns,
+          everyNContextTokens: normalized?.everyNContextTokens,
+          turnsCounter: state.turnsCounter,
+          tokensCounter: state.tokensCounter,
+          isReachedNow: isActivationReached({
+            everyNTurns: normalized?.everyNTurns,
+            everyNContextTokens: normalized?.everyNContextTokens,
+            turnsCounter: state.turnsCounter,
+            tokensCounter: state.tokensCounter,
+          }),
+        };
+      }),
+    };
+
+    return { data };
+  })
+);
 
 router.get(
   "/chats/:id/world-info/latest-activations",

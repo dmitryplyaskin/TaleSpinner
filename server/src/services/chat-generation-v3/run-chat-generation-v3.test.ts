@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   finalizeRun: vi.fn(),
   updateGenerationPromptData: vi.fn(),
   updateGenerationDebugJson: vi.fn(),
+  loadOrBootstrapRuntimeState: vi.fn(),
+  chatRuntimeStateUpsert: vi.fn(),
 }));
 
 vi.mock("./prepare/resolve-run-context", () => ({
@@ -33,6 +35,16 @@ vi.mock("./main-llm/run-main-llm-phase", () => ({
 
 vi.mock("./persist/finalize-run", () => ({
   finalizeRun: mocks.finalizeRun,
+}));
+
+vi.mock("./runtime/operation-runtime-state", () => ({
+  loadOrBootstrapRuntimeState: mocks.loadOrBootstrapRuntimeState,
+}));
+
+vi.mock("./runtime/chat-runtime-state-repository", () => ({
+  ChatRuntimeStateRepository: {
+    upsert: mocks.chatRuntimeStateUpsert,
+  },
 }));
 
 vi.mock("../chat-core/generations-repository", () => ({
@@ -147,6 +159,22 @@ beforeEach(() => {
     },
     instructionDerivedSettings: {},
   });
+  mocks.loadOrBootstrapRuntimeState.mockResolvedValue({
+    payload: {
+      version: 1,
+      activationByOpId: {},
+      bootstrap: {
+        source: "branch_active_history",
+        userEventsCount: 0,
+        lastRebuiltAt: "2026-02-01T00:00:00.000Z",
+      },
+    },
+    updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+  });
+  mocks.chatRuntimeStateUpsert.mockImplementation(async ({ payload }: any) => ({
+    payload,
+    updatedAt: new Date("2026-02-01T00:00:01.000Z"),
+  }));
 });
 
 describe("runChatGenerationV3", () => {
@@ -570,6 +598,88 @@ describe("runChatGenerationV3", () => {
       temperature: 0.95,
       maxTokens: 321,
       top_p: 0.91,
+    });
+  });
+
+  test("persists updated operation activation counters into chat runtime state", async () => {
+    mocks.resolveRunContext.mockResolvedValueOnce({
+      context: {
+        ownerId: "global",
+        runId: "gen-1",
+        generationId: "gen-1",
+        trigger: "generate",
+        chatId: "chat-1",
+        branchId: "branch-1",
+        entityProfileId: "entity-1",
+        profileSnapshot: {
+          profileId: "profile-1",
+          version: 1,
+          executionMode: "sequential",
+          operationProfileSessionId: "sess-1",
+          operations: [
+            {
+              opId: "op-1",
+              name: "Op 1",
+              kind: "template",
+              config: {
+                enabled: true,
+                required: false,
+                hooks: ["before_main_llm"],
+                triggers: ["generate"],
+                activation: { everyNTurns: 5, everyNContextTokens: 100 },
+                order: 1,
+                params: {
+                  template: "x",
+                  output: {
+                    type: "artifacts",
+                    writeArtifact: {
+                      tag: "a",
+                      persistence: "run_only",
+                      usage: "internal",
+                      semantics: "intermediate",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        runtimeInfo: { providerId: "openrouter", model: "m" },
+        sessionKey: "k",
+        historyLimit: 50,
+        startedAt: Date.now(),
+      },
+      profile: null,
+    });
+    mocks.loadOrBootstrapRuntimeState.mockResolvedValueOnce({
+      payload: {
+        version: 1,
+        activationByOpId: {
+          "op-1": { turnsCounter: 2, tokensCounter: 7 },
+        },
+        bootstrap: {
+          source: "branch_active_history",
+          userEventsCount: 2,
+          lastRebuiltAt: "2026-02-01T00:00:00.000Z",
+        },
+      },
+      updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+    });
+    mocks.executeOperationsPhase.mockResolvedValue([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    for await (const _evt of runChatGenerationV3(makeRequest())) {
+      // consume
+    }
+
+    const upsertPayload = mocks.chatRuntimeStateUpsert.mock.calls[0]?.[0]?.payload;
+    expect(upsertPayload.activationByOpId["op-1"]).toEqual({
+      turnsCounter: 3,
+      tokensCounter: 7,
     });
   });
 });

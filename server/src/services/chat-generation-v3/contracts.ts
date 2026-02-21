@@ -392,6 +392,30 @@ export type RunEvent =
   | {
       runId: string;
       seq: number;
+      type: "run.debug.operation_activation_state_snapshot";
+      data: {
+        chatId: string;
+        branchId: string;
+        profileId: string | null;
+        operationProfileSessionId: string | null;
+        updatedAt: string;
+        source: "user_message" | "continue" | "regenerate" | "system_message";
+        trigger: OperationTrigger;
+        operations: Array<{
+          opId: string;
+          everyNTurns?: number;
+          everyNContextTokens?: number;
+          turnsCounter: number;
+          tokensCounter: number;
+          shouldRunNow: boolean;
+          hasActivation: boolean;
+          supportsCurrentTrigger: boolean;
+        }>;
+      };
+    }
+  | {
+      runId: string;
+      seq: number;
       type: "turn.user.canonicalized";
       data: TurnUserCanonicalizationRecord;
     }

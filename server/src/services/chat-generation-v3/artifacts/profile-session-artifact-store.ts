@@ -24,7 +24,7 @@ function normalizeHistory(input: unknown, nextValue: string): string[] {
 
 function normalizeActivationState(input: unknown): OperationActivationState {
   if (!input || typeof input !== "object") {
-    return { turnsCounter: 0, tokensCounter: 0, lastContextTokens: 0 };
+    return { turnsCounter: 0, tokensCounter: 0 };
   }
   const state = input as Record<string, unknown>;
   const toInt = (value: unknown): number =>
@@ -32,7 +32,6 @@ function normalizeActivationState(input: unknown): OperationActivationState {
   return {
     turnsCounter: toInt(state.turnsCounter),
     tokensCounter: toInt(state.tokensCounter),
-    lastContextTokens: toInt(state.lastContextTokens),
   };
 }
 

@@ -272,6 +272,7 @@ function getFilterIdForEventType(type: string): ChatGenerationLogFilterId {
 	if (
 		type === 'run.debug.state_snapshot' ||
 		type === 'run.debug.main_llm_input' ||
+		type === 'run.debug.operation_activation_state_snapshot' ||
 		type === 'run.debug.turn_user_canonicalization' ||
 		type === 'turn.user.canonicalized'
 	) {

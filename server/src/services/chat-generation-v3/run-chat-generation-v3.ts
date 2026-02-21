@@ -11,11 +11,20 @@ import { RunArtifactStore } from "./artifacts/run-artifact-store";
 import { isChatGenerationDebugEnabled } from "./debug";
 import { runMainLlmPhase } from "./main-llm/run-main-llm-phase";
 import { commitEffectsPhase } from "./operations/commit-effects-phase";
-import { resolveOperationActivationState } from "./operations/operation-activation-intervals";
+import {
+  normalizeOperationActivationConfig,
+  resolveOperationActivationState,
+} from "./operations/operation-activation-intervals";
 import { executeOperationsPhase } from "./operations/execute-operations-phase";
 import { finalizeRun } from "./persist/finalize-run";
 import { resolveRunContext } from "./prepare/resolve-run-context";
 import { buildBasePrompt } from "./prompt/build-base-prompt";
+import {
+  ChatRuntimeStateRepository,
+  type ChatRuntimeStatePayload,
+  type ChatRuntimeStateScope,
+} from "./runtime/chat-runtime-state-repository";
+import { loadOrBootstrapRuntimeState } from "./runtime/operation-runtime-state";
 
 import type {
   ArtifactValue,
@@ -199,68 +208,75 @@ function supportsCurrentTrigger(op: OperationInProfile, trigger: "generate" | "r
 }
 
 async function resolveOperationActivationDecisions(params: {
-  ownerId: string;
-  chatId: string;
-  branchId: string;
   source: RunRequest["source"];
   trigger: "generate" | "regenerate";
-  sessionKey: string | null;
-  profile: Awaited<ReturnType<typeof resolveRunContext>>["profile"];
   operations: OperationInProfile[];
+  previousByOpId: Record<string, { turnsCounter: number; tokensCounter: number }>;
   currentContextTokens: number;
 }): Promise<{
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
+  nextByOpId: Record<string, { turnsCounter: number; tokensCounter: number }>;
+  debugSnapshot: Array<{
+    opId: string;
+    everyNTurns?: number;
+    everyNContextTokens?: number;
+    turnsCounter: number;
+    tokensCounter: number;
+    shouldRunNow: boolean;
+    hasActivation: boolean;
+    supportsCurrentTrigger: boolean;
+  }>;
 }> {
   const activationSkippedByOpId = new Map<string, NonNullable<OperationSkipDetails["activation"]>>();
-  if (params.operations.length === 0) return { activationSkippedByOpId };
-
-  const previousStates = params.sessionKey
-    ? await ProfileSessionArtifactStore.loadOperationActivationStates({
-        ownerId: params.ownerId,
-        sessionKey: params.sessionKey,
-        opIds: params.operations.map((op) => op.opId),
-      })
-    : {};
-  const stateUpdates = new Map<string, ReturnType<typeof resolveOperationActivationState>["nextState"]>();
+  const nextByOpId: Record<string, { turnsCounter: number; tokensCounter: number }> = {
+    ...params.previousByOpId,
+  };
+  const debugSnapshot: Array<{
+    opId: string;
+    everyNTurns?: number;
+    everyNContextTokens?: number;
+    turnsCounter: number;
+    tokensCounter: number;
+    shouldRunNow: boolean;
+    hasActivation: boolean;
+    supportsCurrentTrigger: boolean;
+  }> = [];
+  if (params.operations.length === 0) return { activationSkippedByOpId, nextByOpId, debugSnapshot };
 
   for (const op of params.operations) {
+    const supportsCurrent = supportsCurrentTrigger(op, params.trigger);
     const activationResolution = resolveOperationActivationState({
       activation: op.config.activation,
-      previous: previousStates[op.opId],
+      previous: params.previousByOpId[op.opId],
       source: params.source,
       currentContextTokens: params.currentContextTokens,
-      supportsCurrentTrigger: supportsCurrentTrigger(op, params.trigger),
+      supportsCurrentTrigger: supportsCurrent,
+    });
+    const normalizedActivation = normalizeOperationActivationConfig(op.config.activation);
+    debugSnapshot.push({
+      opId: op.opId,
+      everyNTurns: normalizedActivation?.everyNTurns,
+      everyNContextTokens: normalizedActivation?.everyNContextTokens,
+      turnsCounter: activationResolution.nextState.turnsCounter,
+      tokensCounter: activationResolution.nextState.tokensCounter,
+      shouldRunNow: activationResolution.shouldRunNow,
+      hasActivation: activationResolution.hasActivation,
+      supportsCurrentTrigger: supportsCurrent,
     });
 
     if (!activationResolution.hasActivation) continue;
 
-    stateUpdates.set(op.opId, activationResolution.nextState);
+    nextByOpId[op.opId] = activationResolution.nextState;
     if (
       !activationResolution.shouldRunNow &&
-      supportsCurrentTrigger(op, params.trigger) &&
+      supportsCurrent &&
       activationResolution.skipSnapshot
     ) {
       activationSkippedByOpId.set(op.opId, activationResolution.skipSnapshot);
     }
   }
 
-  if (params.sessionKey && stateUpdates.size > 0) {
-    await Promise.all(
-      Array.from(stateUpdates.entries()).map(([opId, state]) =>
-        ProfileSessionArtifactStore.upsertOperationActivationState({
-          ownerId: params.ownerId,
-          sessionKey: params.sessionKey as string,
-          chatId: params.chatId,
-          branchId: params.branchId,
-          profile: params.profile,
-          opId,
-          state,
-        })
-      )
-    );
-  }
-
-  return { activationSkippedByOpId };
+  return { activationSkippedByOpId, nextByOpId, debugSnapshot };
 }
 
 function buildPromptDiagnosticsDebugJson(params: {
@@ -505,17 +521,53 @@ export async function* runChatGenerationV3(
     yield* flushEvents();
 
     const profileOperations = context.profileSnapshot?.operations ?? [];
+    let runtimeScope: ChatRuntimeStateScope | null = null;
+    let runtimePayload: ChatRuntimeStatePayload | null = null;
+    if (context.profileSnapshot) {
+      runtimeScope = {
+        ownerId: context.ownerId,
+        chatId: context.chatId,
+        branchId: context.branchId,
+        profileId: context.profileSnapshot.profileId,
+        operationProfileSessionId: context.profileSnapshot.operationProfileSessionId,
+      };
+      const resolvedRuntime = await loadOrBootstrapRuntimeState({
+        scope: runtimeScope,
+        operations: profileOperations,
+        source: request.source,
+      });
+      runtimePayload = resolvedRuntime.payload;
+    }
+
     const activationDecisions = await resolveOperationActivationDecisions({
-      ownerId: context.ownerId,
-      chatId: context.chatId,
-      branchId: context.branchId,
       source: request.source,
       trigger: context.trigger,
-      sessionKey: context.sessionKey,
-      profile: resolved.profile,
       operations: profileOperations,
+      previousByOpId: runtimePayload?.activationByOpId ?? {},
       currentContextTokens: sumContextTokensByMessages(runState.effectivePromptDraft),
     });
+    if (runtimeScope && runtimePayload) {
+      const nextRuntime = await ChatRuntimeStateRepository.upsert({
+        scope: runtimeScope,
+        payload: {
+          ...runtimePayload,
+          activationByOpId: activationDecisions.nextByOpId,
+        },
+      });
+      runtimePayload = nextRuntime.payload;
+      if (debugEnabled) {
+        emit("run.debug.operation_activation_state_snapshot", {
+          chatId: context.chatId,
+          branchId: context.branchId,
+          profileId: context.profileSnapshot?.profileId ?? null,
+          operationProfileSessionId: context.profileSnapshot?.operationProfileSessionId ?? null,
+          updatedAt: nextRuntime.updatedAt.toISOString(),
+          source: request.source,
+          trigger: context.trigger,
+          operations: activationDecisions.debugSnapshot,
+        });
+      }
+    }
     const executionMode = context.profileSnapshot?.executionMode ?? "sequential";
     const runArtifactStore = new RunArtifactStore();
     const mainPhaseSettings = {

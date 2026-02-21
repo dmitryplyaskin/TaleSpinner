@@ -46,7 +46,7 @@ describe("operation activation intervals", () => {
     expect(regen.nextState.turnsCounter).toBe(0);
   });
 
-  test("counts token deltas and does not decrement when context shrinks", () => {
+  test("accumulates full context tokens on each user message", () => {
     const first = resolveOperationActivationState({
       activation: { everyNContextTokens: 4000 },
       previous: INITIAL_OPERATION_ACTIVATION_STATE,
@@ -58,20 +58,19 @@ describe("operation activation intervals", () => {
     expect(first.nextState.tokensCounter).toBe(2500);
     expect(first.skipSnapshot?.everyNContextTokens).toBe(4000);
 
-    const shrunk = resolveOperationActivationState({
+    const second = resolveOperationActivationState({
       activation: { everyNContextTokens: 4000 },
       previous: first.nextState,
       source: "user_message",
       currentContextTokens: 2000,
       supportsCurrentTrigger: true,
     });
-    expect(shrunk.shouldRunNow).toBe(false);
-    expect(shrunk.nextState.tokensCounter).toBe(2500);
-    expect(shrunk.skipSnapshot?.tokensCounter).toBe(2500);
+    expect(second.shouldRunNow).toBe(true);
+    expect(second.nextState.tokensCounter).toBe(0);
 
     const reached = resolveOperationActivationState({
       activation: { everyNContextTokens: 4000 },
-      previous: shrunk.nextState,
+      previous: second.nextState,
       source: "user_message",
       currentContextTokens: 4200,
       supportsCurrentTrigger: true,
@@ -86,7 +85,6 @@ describe("operation activation intervals", () => {
       previous: {
         turnsCounter: 8,
         tokensCounter: 950,
-        lastContextTokens: 1000,
       },
       source: "user_message",
       currentContextTokens: 1100,
@@ -95,7 +93,6 @@ describe("operation activation intervals", () => {
     expect(out.shouldRunNow).toBe(true);
     expect(out.nextState.turnsCounter).toBe(0);
     expect(out.nextState.tokensCounter).toBe(0);
-    expect(out.nextState.lastContextTokens).toBe(1100);
   });
 
   test("keeps reached state when trigger is not supported and runs later", () => {
@@ -104,7 +101,6 @@ describe("operation activation intervals", () => {
       previous: {
         turnsCounter: 1,
         tokensCounter: 0,
-        lastContextTokens: 120,
       },
       source: "user_message",
       currentContextTokens: 240,

@@ -1,6 +1,7 @@
 import { BASE_URL } from '../const';
 
 import type { SseEnvelope } from './chat-core';
+import type { ChatOperationRuntimeStateDto } from '@shared/types/chat-runtime-state';
 import type { Variant, Entry } from '@shared/types/chat-entry-parts';
 
 type ApiEnvelope<T> = { data: T; error?: unknown };
@@ -425,6 +426,17 @@ export async function getLatestWorldInfoActivations(params: {
 	if (params.branchId) qs.set('branchId', params.branchId);
 	return apiJson<LatestWorldInfoActivationsResponse>(
 		`/chats/${encodeURIComponent(params.chatId)}/world-info/latest-activations${qs.toString() ? `?${qs.toString()}` : ''}`,
+	);
+}
+
+export async function getOperationRuntimeState(params: {
+	chatId: string;
+	branchId?: string;
+}): Promise<ChatOperationRuntimeStateDto> {
+	const qs = new URLSearchParams();
+	if (params.branchId) qs.set('branchId', params.branchId);
+	return apiJson<ChatOperationRuntimeStateDto>(
+		`/chats/${encodeURIComponent(params.chatId)}/operation-runtime-state${qs.toString() ? `?${qs.toString()}` : ''}`,
 	);
 }
 

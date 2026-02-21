@@ -166,6 +166,15 @@ describe("backend e2e full matrix", () => {
       (
         await requestJson({
           baseUrl,
+          method: "GET",
+          path: `/api/chats/${chatId}/operation-runtime-state?branchId=${branchId}`,
+        })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await requestJson({
+          baseUrl,
           method: "POST",
           path: `/api/entries/${assistantEntryId}/manual-edit`,
           body: { content: "manual edit matrix" },

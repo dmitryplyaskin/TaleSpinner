@@ -1,4 +1,5 @@
 export * from "./schema/chat-core";
+export * from "./schema/chat-runtime-state";
 export * from "./schema/chat-entry-parts";
 export * from "./schema/instructions";
 export * from "./schema/operation-profiles";

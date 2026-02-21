@@ -3,7 +3,6 @@ import type { OperationActivationConfig } from "@shared/types/operation-profiles
 export type OperationActivationState = {
   turnsCounter: number;
   tokensCounter: number;
-  lastContextTokens: number;
 };
 
 export type OperationActivationSkipSnapshot = {
@@ -25,7 +24,6 @@ export type ResolveActivationResult = {
 export const INITIAL_OPERATION_ACTIVATION_STATE: OperationActivationState = {
   turnsCounter: 0,
   tokensCounter: 0,
-  lastContextTokens: 0,
 };
 
 function toNonNegativeInt(value: unknown): number {
@@ -38,11 +36,10 @@ function normalizeState(state: OperationActivationState | undefined): OperationA
   return {
     turnsCounter: toNonNegativeInt(state.turnsCounter),
     tokensCounter: toNonNegativeInt(state.tokensCounter),
-    lastContextTokens: toNonNegativeInt(state.lastContextTokens),
   };
 }
 
-function normalizeActivation(
+export function normalizeOperationActivationConfig(
   activation: OperationActivationConfig | undefined
 ): { everyNTurns?: number; everyNContextTokens?: number } | null {
   if (!activation) return null;
@@ -62,7 +59,7 @@ export function resolveOperationActivationState(params: {
   currentContextTokens: number;
   supportsCurrentTrigger: boolean;
 }): ResolveActivationResult {
-  const normalizedActivation = normalizeActivation(params.activation);
+  const normalizedActivation = normalizeOperationActivationConfig(params.activation);
   const currentContextTokens = toNonNegativeInt(params.currentContextTokens);
   const previous = normalizeState(params.previous);
   if (!normalizedActivation) {
@@ -76,9 +73,7 @@ export function resolveOperationActivationState(params: {
   const next: OperationActivationState = { ...previous };
   if (params.source === "user_message") {
     next.turnsCounter += 1;
-    const delta = Math.max(0, currentContextTokens - previous.lastContextTokens);
-    next.tokensCounter += delta;
-    next.lastContextTokens = currentContextTokens;
+    next.tokensCounter += currentContextTokens;
   }
 
   const turnsReached =
@@ -92,7 +87,6 @@ export function resolveOperationActivationState(params: {
   if (shouldRunNow) {
     next.turnsCounter = 0;
     next.tokensCounter = 0;
-    next.lastContextTokens = currentContextTokens;
   }
 
   const skipSnapshot =
