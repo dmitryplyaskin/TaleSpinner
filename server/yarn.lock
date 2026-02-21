@@ -1625,6 +1625,44 @@ chownr@^1.1.1:
   resolved "https://registry.yarnpkg.com/chownr/-/chownr-1.1.4.tgz#6fc9d7b42d32a583596337666e7d08084da2cc6b"
   integrity sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg==
 
+chromadb-js-bindings-darwin-arm64@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb-js-bindings-darwin-arm64/-/chromadb-js-bindings-darwin-arm64-1.3.1.tgz#2fd7685d5b17030375dc0e0da5a391846ca28894"
+  integrity sha512-MMo+TX8tRrhy/0KGrA30kVTZ+EwrRoXRSQA7EGLuKW6FTEVX7hbF5l0EFWgDTw6YPX/KY2ySYNQH3VFwRyxYFA==
+
+chromadb-js-bindings-darwin-x64@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb-js-bindings-darwin-x64/-/chromadb-js-bindings-darwin-x64-1.3.1.tgz#9e0854e60ec7b8334788ec80bfdf9e3d7dad1881"
+  integrity sha512-zboZ29wtP7vrevfYhNXFToSM9sTaXP+KALYF4B6wJNp4jymBRSAzhAsHBrVmAJQxgPEJatoODAWqsVxaGLYkog==
+
+chromadb-js-bindings-linux-arm64-gnu@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb-js-bindings-linux-arm64-gnu/-/chromadb-js-bindings-linux-arm64-gnu-1.3.1.tgz#504bcff388f9e413a6dac58854b8eb3bdb28f0e5"
+  integrity sha512-JPzoIy5vb4Gzu7kZnCkcMtsv+HPx/LWBFu72IDbnkUp8UleNyXup7fVX/tUvwHq+OPtj7ZB4YWwiP3SzKIWEgA==
+
+chromadb-js-bindings-linux-x64-gnu@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb-js-bindings-linux-x64-gnu/-/chromadb-js-bindings-linux-x64-gnu-1.3.1.tgz#bd2b4717187a4a15722234018ebe5564dec8c513"
+  integrity sha512-nQvVhmHs2XXbzA+Xka8A4UMiyMlk86AFmiy1Pt+kzQkuJT5vOMKOcgJW/Nh2m0CtEjkzvj4Mxr2/31BiLil7Hg==
+
+chromadb-js-bindings-win32-x64-msvc@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb-js-bindings-win32-x64-msvc/-/chromadb-js-bindings-win32-x64-msvc-1.3.1.tgz#0412678ca90b6ee4ef2f27f2e34bca6c54ae7ec8"
+  integrity sha512-3B3WwT1aM9vxFZBqlDgnA+R025b8pOudGM4hEZTmxV2rHND3Hn7C87mQO5WsUMarOUmX4Sd1NlhC2ANKCIWfLw==
+
+chromadb@^3.3.1:
+  version "3.3.1"
+  resolved "https://registry.yarnpkg.com/chromadb/-/chromadb-3.3.1.tgz#1af2653c7467fc56f9892d7a2ebbf557859e408d"
+  integrity sha512-EXBpPMlRbLXzcPupCRKzjzd2enml5ak3xOJKjX2DnfOhC+fZ2kk5tqQq90fG1GuvtM553P8b/Q+iM2aTP8KfZQ==
+  dependencies:
+    semver "^7.7.1"
+  optionalDependencies:
+    chromadb-js-bindings-darwin-arm64 "^1.3.1"
+    chromadb-js-bindings-darwin-x64 "^1.3.1"
+    chromadb-js-bindings-linux-arm64-gnu "^1.3.1"
+    chromadb-js-bindings-linux-x64-gnu "^1.3.1"
+    chromadb-js-bindings-win32-x64-msvc "^1.3.1"
+
 color-convert@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/color-convert/-/color-convert-2.0.1.tgz#72d3a68d598c9bdb3af2ad1e84f21d896abd4de3"

@@ -235,6 +235,19 @@ export async function getWorldInfoBooksByIds(params: {
   return params.ids.map((id) => byId.get(id)).filter((item): item is WorldInfoBookDto => Boolean(item));
 }
 
+export async function listWorldInfoBooksForIndexing(params?: {
+  ownerId?: string;
+}): Promise<WorldInfoBookDto[]> {
+  const db = await initDb();
+  const ownerId = params?.ownerId ?? "global";
+  const rows = await db
+    .select()
+    .from(worldInfoBooks)
+    .where(and(eq(worldInfoBooks.ownerId, ownerId), isNull(worldInfoBooks.deletedAt)))
+    .orderBy(desc(worldInfoBooks.updatedAt), desc(worldInfoBooks.id));
+  return rows.map(rowToBookDto);
+}
+
 export async function createWorldInfoBook(params: {
   ownerId?: string;
   name: string;

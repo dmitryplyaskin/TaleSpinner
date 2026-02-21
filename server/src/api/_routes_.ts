@@ -9,6 +9,7 @@ import llmPresetsRoutes from "./llm-presets.api";
 import llmRoutes from "./llm.api";
 import operationBlocksCoreRoutes from "./operation-blocks.core.api";
 import operationProfilesCoreRoutes from "./operation-profiles.core.api";
+import ragChromaRoutes from "./rag-chroma.api";
 import ragRoutes from "./rag.api";
 import samplersRoutes from "./samplers.api";
 import uiThemeCoreRoutes from "./ui-theme.core.api";
@@ -27,6 +28,7 @@ export const routes = [
   samplersRoutes,
   llmRoutes,
   ragRoutes,
+  ragChromaRoutes,
   llmPresetsRoutes,
   fileRoutes,
   instructionsCoreRoutes,

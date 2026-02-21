@@ -18,6 +18,7 @@ import modelsRoutes from "./routes/models-routes";
 import settingsRoutes from "./routes/settings-routes";
 import sidebarsRoutes from "./routes/sidebars-routes";
 import { bootstrapLlm } from "./services/llm/llm-bootstrap";
+import { bootstrapChroma } from "./services/rag/chroma-rag.service";
 import { bootstrapRag } from "./services/rag.service";
 
 export type BootstrapAppOptions = {
@@ -31,6 +32,7 @@ export async function bootstrapApp(options: BootstrapAppOptions = {}): Promise<v
   await ensureOperationBlocksCutover();
   await bootstrapLlm();
   await bootstrapRag();
+  await bootstrapChroma();
 }
 
 export function createApp(): Express {
