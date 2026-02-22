@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createGeneration: vi.fn(),
   resolveGatewayModel: vi.fn(),
+  resolveMessageNormalizationFeature: vi.fn(),
   getRuntime: vi.fn(),
   getProviderConfig: vi.fn(),
   getOperationProfileSettings: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("../../chat-core/generations-repository", () => ({
 
 vi.mock("../../llm/llm-gateway-adapter", () => ({
   resolveGatewayModel: mocks.resolveGatewayModel,
+  resolveMessageNormalizationFeature: mocks.resolveMessageNormalizationFeature,
 }));
 
 vi.mock("../../llm/llm-repository", () => ({
@@ -69,6 +71,11 @@ beforeEach(() => {
     config: { defaultModel: "provider-default" },
   });
   mocks.resolveGatewayModel.mockReturnValue("resolved-model");
+  mocks.resolveMessageNormalizationFeature.mockReturnValue({
+    enabled: true,
+    mergeSystem: true,
+    mergeConsecutiveAssistant: false,
+  });
   mocks.getOperationProfileSettings.mockResolvedValue({
     activeProfileId: null,
     updatedAt: new Date("2026-02-10T00:00:00.000Z"),
@@ -90,6 +97,10 @@ describe("resolveRunContext", () => {
     expect(mocks.resolveGatewayModel).toHaveBeenCalledWith({
       providerId: "openrouter",
       runtimeModel: "runtime-model",
+      providerConfig: { defaultModel: "provider-default" },
+    });
+    expect(mocks.resolveMessageNormalizationFeature).toHaveBeenCalledWith({
+      providerId: "openrouter",
       providerConfig: { defaultModel: "provider-default" },
     });
     expect(mocks.createGeneration).toHaveBeenCalledWith({
@@ -118,6 +129,11 @@ describe("resolveRunContext", () => {
       runtimeInfo: {
         providerId: "openrouter",
         model: "resolved-model",
+        messageNormalization: {
+          enabled: true,
+          mergeSystem: true,
+          mergeConsecutiveAssistant: false,
+        },
       },
       startedAt: 1_700_000_000_000,
     });

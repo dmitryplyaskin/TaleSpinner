@@ -74,6 +74,12 @@ export type ProfileSnapshot = {
 export type RuntimeInfoSnapshot = {
   providerId: string;
   model: string;
+  messageNormalization?: {
+    enabled: boolean;
+    mergeSystem?: boolean;
+    mergeConsecutiveAssistant?: boolean;
+    separator?: string;
+  };
 };
 
 export type RunContext = {
@@ -368,6 +374,7 @@ export type RunEvent =
         basePromptDraft: PromptDraftMessage[];
         effectivePromptDraft: PromptDraftMessage[];
         llmMessages: GenerateMessage[];
+        normalizedLlmMessages: GenerateMessage[];
       };
     }
   | {

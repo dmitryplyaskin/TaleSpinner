@@ -111,11 +111,58 @@ describe("llm-gateway-adapter", () => {
       messages: [{ role: "user", content: "hi" }],
       sampling: { temperature: 1 },
       extra: { extraField: "x" },
+      features: {
+        messageNormalization: {
+          enabled: true,
+          mergeSystem: true,
+          mergeConsecutiveAssistant: false,
+        },
+      },
       abortSignal: abortController.signal,
     });
   });
 
-  test("buildGatewayStreamRequest injects anthropic cache feature from provider config", () => {
+  test("buildGatewayStreamRequest enables message normalization by default when config has no explicit flag", () => {
+    const req = buildGatewayStreamRequest({
+      providerId: "openai_compatible",
+      token: "tok",
+      providerConfig: {
+        baseUrl: "http://localhost:1234/v1",
+      },
+      runtimeModel: null,
+      messages: [{ role: "user", content: "hi" }],
+      settings: {},
+    });
+
+    expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: true,
+        mergeSystem: true,
+        mergeConsecutiveAssistant: false,
+      },
+    });
+  });
+
+  test("buildGatewayStreamRequest allows disabling message normalization explicitly", () => {
+    const req = buildGatewayStreamRequest({
+      providerId: "openrouter",
+      token: "tok",
+      providerConfig: {
+        messageNormalization: { enabled: false },
+      },
+      runtimeModel: null,
+      messages: [{ role: "user", content: "hi" }],
+      settings: {},
+    });
+
+    expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: false,
+      },
+    });
+  });
+
+  test("buildGatewayStreamRequest injects both message normalization and anthropic cache features", () => {
     const req = buildGatewayStreamRequest({
       providerId: "openrouter",
       token: "tok",
@@ -129,6 +176,11 @@ describe("llm-gateway-adapter", () => {
     });
 
     expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: true,
+        mergeSystem: true,
+        mergeConsecutiveAssistant: false,
+      },
       anthropicCache: { enabled: true, depth: 2, ttl: "1h" },
     });
   });

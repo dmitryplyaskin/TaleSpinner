@@ -1,5 +1,8 @@
 import { createGeneration } from "../../chat-core/generations-repository";
-import { resolveGatewayModel } from "../../llm/llm-gateway-adapter";
+import {
+  resolveGatewayModel,
+  resolveMessageNormalizationFeature,
+} from "../../llm/llm-gateway-adapter";
 import { getProviderConfig, getRuntime } from "../../llm/llm-repository";
 import { resolveCompiledOperationProfile } from "../../operations/operation-profile-resolver";
 import { getOperationProfileSettings } from "../../operations/operation-profile-settings-repository";
@@ -102,6 +105,10 @@ export async function resolveRunContext(params: {
     runtimeInfo: {
       providerId: runtime.activeProviderId,
       model,
+      messageNormalization: resolveMessageNormalizationFeature({
+        providerId: runtime.activeProviderId,
+        providerConfig: providerConfig.config,
+      }),
     },
     sessionKey,
     historyLimit: params.request.historyLimit ?? 50,

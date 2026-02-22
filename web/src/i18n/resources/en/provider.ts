@@ -20,6 +20,11 @@
 					randomize: 'Use random token when more than one token exists',
 					fallbackOnError: 'Fallback to next token on pre-stream errors',
 				},
+				messageNormalization: {
+					title: 'Message normalization',
+					enabled: 'Merge all system instructions into one message',
+					helpText: 'Enabled by default for compatibility with providers that accept only one system message.',
+				},
 				anthropicCache: {
 					title: 'Anthropic prompt cache',
 					enabled: 'Enable Anthropic/OpenRouter prompt cache',

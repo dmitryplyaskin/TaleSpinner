@@ -18,6 +18,12 @@ export const anthropicCacheSchema = z
   })
   .strict();
 
+export const messageNormalizationSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
 export type LlmProviderUiField =
   | {
       key: "baseUrl";
@@ -90,6 +96,7 @@ export const openRouterConfigSchema = z
     defaultModel: z.string().min(1).optional(),
     tokenPolicy: tokenPolicySchema.optional(),
     anthropicCache: anthropicCacheSchema.optional(),
+    messageNormalization: messageNormalizationSchema.optional(),
   })
   .passthrough();
 
@@ -101,6 +108,7 @@ export const openAiCompatibleConfigSchema = z
     defaultModel: z.string().min(1).optional(),
     tokenPolicy: tokenPolicySchema.optional(),
     anthropicCache: anthropicCacheSchema.optional(),
+    messageNormalization: messageNormalizationSchema.optional(),
   })
   .passthrough();
 

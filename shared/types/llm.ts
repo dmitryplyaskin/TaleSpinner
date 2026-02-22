@@ -15,6 +15,10 @@ export type LlmAnthropicCacheConfig = {
   ttl?: LlmAnthropicCacheTtl;
 };
 
+export type LlmMessageNormalizationConfig = {
+  enabled?: boolean;
+};
+
 export type LlmProviderUiField =
   | {
       key: "baseUrl";
@@ -61,6 +65,7 @@ export type LlmProviderConfig = {
   defaultModel?: string;
   tokenPolicy?: LlmTokenPolicy;
   anthropicCache?: LlmAnthropicCacheConfig;
+  messageNormalization?: LlmMessageNormalizationConfig;
   [key: string]: unknown;
 };
 

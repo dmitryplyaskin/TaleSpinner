@@ -601,6 +601,82 @@ describe("runChatGenerationV3", () => {
     });
   });
 
+  test("emits normalizedLlmMessages in run.debug.main_llm_input", async () => {
+    const request = makeRequest();
+    request.settings = {
+      __chatGenerationDebug: true,
+    };
+    mocks.buildBasePrompt.mockResolvedValueOnce({
+      prompt: {
+        systemPrompt: "sys-1",
+        historyReturnedCount: 1,
+        promptHash: "h",
+        promptSnapshot: {
+          v: 1,
+          messages: [],
+          truncated: false,
+          meta: { historyLimit: 50, historyReturnedCount: 1 },
+        },
+        llmMessages: [
+          { role: "system", content: "sys-1" },
+          { role: "system", content: "sys-2" },
+          { role: "user", content: "hello" },
+        ],
+        draftMessages: [
+          { role: "system", content: "sys-1" },
+          { role: "system", content: "sys-2" },
+          { role: "user", content: "hello" },
+        ],
+      },
+      templateContext: {
+        char: {},
+        user: {},
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date().toISOString(),
+      },
+      worldInfoDiagnostics: {
+        worldInfoBefore: "",
+        worldInfoAfter: "",
+        depthEntries: [],
+        outletEntries: {},
+        anTop: [],
+        anBottom: [],
+        emTop: [],
+        emBottom: [],
+        warnings: [],
+        activatedCount: 0,
+        activatedEntries: [],
+      },
+      instructionDerivedSettings: {},
+    });
+    mocks.executeOperationsPhase.mockResolvedValue([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events: any[] = [];
+    for await (const evt of runChatGenerationV3(request)) {
+      events.push(evt);
+    }
+
+    const debugEvent = events.find((evt) => evt.type === "run.debug.main_llm_input");
+    expect(debugEvent).toBeTruthy();
+    expect(debugEvent.data.llmMessages).toEqual([
+      { role: "system", content: "sys-1" },
+      { role: "system", content: "sys-2" },
+      { role: "user", content: "hello" },
+    ]);
+    expect(debugEvent.data.normalizedLlmMessages).toEqual([
+      { role: "system", content: "sys-1\n\nsys-2" },
+      { role: "user", content: "hello" },
+    ]);
+  });
+
   test("persists updated operation activation counters into chat runtime state", async () => {
     mocks.resolveRunContext.mockResolvedValueOnce({
       context: {

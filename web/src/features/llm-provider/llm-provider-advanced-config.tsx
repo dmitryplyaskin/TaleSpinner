@@ -20,6 +20,7 @@ export const LlmProviderAdvancedConfig: React.FC<Props> = ({ activeProviderId, c
 
 	const tokenPolicy = configDraft.tokenPolicy ?? {};
 	const anthropicCache = configDraft.anthropicCache ?? {};
+	const messageNormalization = configDraft.messageNormalization ?? {};
 
 	const updateTokenPolicy = (patch: Partial<NonNullable<LlmProviderConfig['tokenPolicy']>>) => {
 		onChange({
@@ -36,6 +37,16 @@ export const LlmProviderAdvancedConfig: React.FC<Props> = ({ activeProviderId, c
 			...configDraft,
 			anthropicCache: {
 				...anthropicCache,
+				...patch,
+			},
+		});
+	};
+
+	const updateMessageNormalization = (patch: Partial<NonNullable<LlmProviderConfig['messageNormalization']>>) => {
+		onChange({
+			...configDraft,
+			messageNormalization: {
+				...messageNormalization,
 				...patch,
 			},
 		});
@@ -75,6 +86,20 @@ export const LlmProviderAdvancedConfig: React.FC<Props> = ({ activeProviderId, c
 					onChange={(event) => updateTokenPolicy({ fallbackOnError: event.currentTarget.checked })}
 					label={t('provider.config.tokenPolicy.fallbackOnError')}
 				/>
+			</Stack>
+
+			<Stack gap={6}>
+				<Text size="sm" fw={600}>
+					{t('provider.config.messageNormalization.title')}
+				</Text>
+				<Switch
+					checked={messageNormalization.enabled !== false}
+					onChange={(event) => updateMessageNormalization({ enabled: event.currentTarget.checked })}
+					label={t('provider.config.messageNormalization.enabled')}
+				/>
+				<Text size="xs" c="dimmed">
+					{t('provider.config.messageNormalization.helpText')}
+				</Text>
 			</Stack>
 
 			<Stack gap={6}>

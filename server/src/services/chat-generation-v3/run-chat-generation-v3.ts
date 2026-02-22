@@ -81,6 +81,13 @@ type PromptDiagnosticsDebugJson = {
   };
 };
 
+type MessageNormalizationDebugFeature = {
+  enabled: boolean;
+  mergeSystem?: boolean;
+  mergeConsecutiveAssistant?: boolean;
+  separator?: string;
+};
+
 function draftToLlmMessages(draft: PromptDraftMessage[]): GenerateMessage[] {
   return draft
     .map((m) => ({ role: m.role as GenerateMessage["role"], content: m.content.trim() }))
@@ -177,6 +184,71 @@ function clonePromptDraftMessages(messages: PromptDraftMessage[]): PromptDraftMe
 
 function cloneLlmMessages(messages: GenerateMessage[]): GenerateMessage[] {
   return messages.map((m) => ({ role: m.role, content: m.content }));
+}
+
+function mergeContentsForDebug(items: string[], sep: string): string {
+  return items.map((s) => String(s ?? "").trim()).filter(Boolean).join(sep);
+}
+
+function mergeSystemMessagesForDebug(messages: GenerateMessage[], sep: string): GenerateMessage[] {
+  const systemParts: string[] = [];
+  const rest: GenerateMessage[] = [];
+
+  for (const message of messages) {
+    if (message.role === "system") {
+      systemParts.push(message.content);
+      continue;
+    }
+    rest.push({ role: message.role, content: message.content });
+  }
+
+  const merged = mergeContentsForDebug(systemParts, sep);
+  if (!merged) return rest;
+  return [{ role: "system", content: merged }, ...rest];
+}
+
+function mergeConsecutiveAssistantForDebug(
+  messages: GenerateMessage[],
+  sep: string
+): GenerateMessage[] {
+  const out: GenerateMessage[] = [];
+
+  for (const message of messages) {
+    const prev = out[out.length - 1];
+    if (prev && prev.role === "assistant" && message.role === "assistant") {
+      out[out.length - 1] = {
+        role: "assistant",
+        content: mergeContentsForDebug([prev.content, message.content], sep),
+      };
+      continue;
+    }
+    out.push({ role: message.role, content: message.content });
+  }
+
+  return out;
+}
+
+function normalizeLlmMessagesForDebug(
+  messages: GenerateMessage[],
+  feature: MessageNormalizationDebugFeature | undefined
+): GenerateMessage[] {
+  const enabled = feature?.enabled !== false;
+  if (!enabled) {
+    return cloneLlmMessages(messages);
+  }
+
+  const mergeSystem = feature?.mergeSystem ?? true;
+  const mergeConsecutiveAssistant = feature?.mergeConsecutiveAssistant ?? false;
+  const separator = feature?.separator ?? "\n\n";
+
+  let normalized = cloneLlmMessages(messages);
+  if (mergeSystem) {
+    normalized = mergeSystemMessagesForDebug(normalized, separator);
+  }
+  if (mergeConsecutiveAssistant) {
+    normalized = mergeConsecutiveAssistantForDebug(normalized, separator);
+  }
+  return normalized;
 }
 
 function approxTokensByChars(chars: number): number {
@@ -684,11 +756,16 @@ export async function* runChatGenerationV3(
     });
 
     if (debugEnabled && runState.promptHash) {
+      const normalizedLlmMessages = normalizeLlmMessagesForDebug(
+        runState.llmMessages,
+        context.runtimeInfo.messageNormalization
+      );
       emit("run.debug.main_llm_input", {
         promptHash: runState.promptHash,
         basePromptDraft: clonePromptDraftMessages(runState.basePromptDraft),
         effectivePromptDraft: clonePromptDraftMessages(runState.effectivePromptDraft),
         llmMessages: cloneLlmMessages(runState.llmMessages),
+        normalizedLlmMessages,
       });
     }
 

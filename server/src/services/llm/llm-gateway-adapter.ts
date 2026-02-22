@@ -12,6 +12,13 @@ import type { GenerateMessage } from "@shared/types/generate";
 const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.0-flash-lite-preview-02-05:free";
 const DEFAULT_OPENAI_COMPATIBLE_MODEL = "gpt-4o-mini";
 
+export type MessageNormalizationGatewayFeature = {
+  enabled: boolean;
+  mergeSystem?: boolean;
+  mergeConsecutiveAssistant?: boolean;
+  separator?: string;
+};
+
 function normalizeNonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -50,9 +57,35 @@ function resolveGatewayFeatures(params: {
   providerConfig: unknown;
 }): LlmGatewayRequest["features"] | undefined {
   const parsed = parseProviderConfig(params.providerId, params.providerConfig);
-  if (!parsed.anthropicCache) return undefined;
+  const messageNormalization = resolveMessageNormalizationFeature({
+    providerId: params.providerId,
+    providerConfig: params.providerConfig,
+  });
+
+  const features: NonNullable<LlmGatewayRequest["features"]> = {
+    messageNormalization,
+  };
+
+  if (parsed.anthropicCache) {
+    features.anthropicCache = parsed.anthropicCache;
+  }
+
+  return features;
+}
+
+export function resolveMessageNormalizationFeature(params: {
+  providerId: LlmProviderId;
+  providerConfig: unknown;
+}): MessageNormalizationGatewayFeature {
+  const parsed = parseProviderConfig(params.providerId, params.providerConfig);
+  const enabled = parsed.messageNormalization?.enabled !== false;
+  if (!enabled) {
+    return { enabled: false };
+  }
   return {
-    anthropicCache: parsed.anthropicCache,
+    enabled: true,
+    mergeSystem: true,
+    mergeConsecutiveAssistant: false,
   };
 }
 

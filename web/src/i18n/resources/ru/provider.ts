@@ -20,6 +20,11 @@
 					randomize: 'Использовать случайный токен, если токенов больше одного',
 					fallbackOnError: 'Fallback на следующий токен при pre-stream ошибках',
 				},
+				messageNormalization: {
+					title: 'Нормализация сообщений',
+					enabled: 'Склеивать все system-инструкции в одно сообщение',
+					helpText: 'Включено по умолчанию для совместимости с провайдерами, которые принимают только одно system-сообщение.',
+				},
 				anthropicCache: {
 					title: 'Anthropic prompt cache',
 					enabled: 'Включить кэш Anthropic/OpenRouter',
