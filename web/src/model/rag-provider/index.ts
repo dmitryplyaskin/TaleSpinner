@@ -1,5 +1,4 @@
 import { createEffect, createEvent, createStore, sample } from 'effector';
-import { debounce } from 'patronum/debounce';
 import { v4 as uuidv4 } from 'uuid';
 
 import * as ragApi from '../../api/rag';
@@ -16,54 +15,6 @@ import type {
 } from '@shared/types/rag';
 
 const toProviderTokenKey = (providerId: RagProviderId, tokenId: string | null): string => `${providerId}:${tokenId ?? 'none'}`;
-
-const toPresetPayload = (
-	runtime: RagRuntime,
-	configs: Record<RagProviderId, RagProviderConfig>,
-): RagPreset['payload'] => ({
-	activeProviderId: runtime.activeProviderId,
-	activeTokenId: runtime.activeTokenId ?? null,
-	activeModel: runtime.activeModel ?? null,
-	providerConfigsById: {
-		openrouter: configs.openrouter ?? {},
-		ollama: configs.ollama ?? {},
-	},
-});
-
-const normalizePayload = (payload: RagPreset['payload']): RagPreset['payload'] => ({
-	activeProviderId: payload.activeProviderId,
-	activeTokenId: payload.activeTokenId ?? null,
-	activeModel: payload.activeModel ?? null,
-	providerConfigsById: {
-		openrouter: payload.providerConfigsById.openrouter ?? {},
-		ollama: payload.providerConfigsById.ollama ?? {},
-	},
-});
-
-const isPresetPayloadEqual = (left: RagPreset['payload'], right: RagPreset['payload']): boolean =>
-	JSON.stringify(normalizePayload(left)) === JSON.stringify(normalizePayload(right));
-
-function buildAutosyncPreset(params: {
-	runtime: RagRuntime | null;
-	configs: Record<RagProviderId, RagProviderConfig>;
-	presets: RagPreset[];
-	presetSettings: RagPresetSettings | null;
-}): RagPreset | null {
-	if (!params.runtime || !params.presetSettings?.selectedId) return null;
-
-	const selected = params.presets.find((item) => item.id === params.presetSettings?.selectedId) ?? null;
-	if (!selected) return null;
-
-	const payload = toPresetPayload(params.runtime, params.configs);
-	if (isPresetPayloadEqual(selected.payload, payload)) {
-		return null;
-	}
-
-	return {
-		...selected,
-		payload,
-	};
-}
 
 export const ragMounted = createEvent();
 export const ragProviderSelected = createEvent<RagProviderId>();
@@ -119,9 +70,6 @@ export const applyPresetFx = createEffect(async (id: string): Promise<{ preset: 
 
 export const loadPresetSettingsFx = createEffect(async (): Promise<RagPresetSettings> => ragApi.getRagPresetSettings());
 export const patchPresetSettingsFx = createEffect(async (input: RagPresetSettings): Promise<RagPresetSettings> => ragApi.patchRagPresetSettings(input));
-
-const ragStatePatched = createEvent();
-const ragStatePatchedDebounced = debounce({ source: ragStatePatched, timeout: 600 });
 
 export const $providers = createStore<RagProviderDefinition[]>([]);
 export const $runtime = createStore<RagRuntime | null>(null);
@@ -211,20 +159,6 @@ sample({
 
 sample({ clock: [createPresetFx.doneData, updatePresetFx.doneData, deletePresetFx.done], target: [loadPresetsFx, loadPresetSettingsFx] });
 sample({ clock: applyPresetFx.done, target: [loadRuntimeFx, loadPresetsFx, loadPresetSettingsFx] });
-
-sample({ clock: [patchRuntimeFx.doneData, patchConfigFx.doneData], fn: () => undefined, target: ragStatePatched });
-sample({
-	clock: ragStatePatchedDebounced,
-	source: {
-		runtime: $runtime,
-		configs: $configs,
-		presets: $presets,
-		presetSettings: $presetSettings,
-	},
-	filter: (state) => Boolean(buildAutosyncPreset(state)),
-	fn: (state) => buildAutosyncPreset(state) as RagPreset,
-	target: updatePresetFx,
-});
 
 sample({
 	clock: createPresetFx.doneData,

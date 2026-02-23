@@ -1,4 +1,4 @@
-import { ActionIcon, Flex, NumberInput, Paper, SimpleGrid, Slider, Tooltip } from '@mantine/core';
+import { ActionIcon, Flex, NumberInput, Paper, Select, SimpleGrid, Slider, Switch, Tooltip } from '@mantine/core';
 import React from 'react';
 import { useController, type Control } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,10 @@ function buildFieldName(prefix: string | undefined, key: string): string {
 
 function toNumber(value: unknown, fallback: number): number {
 	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function toBoolean(value: unknown, fallback: boolean): boolean {
+	return typeof value === 'boolean' ? value : fallback;
 }
 
 export const SamplerSettingsGrid: React.FC<Props> = ({ control, fields, fieldPrefix, columns = 3 }) => {
@@ -48,8 +52,12 @@ const SamplerSettingsGridItem: React.FC<ItemProps> = ({ control, field, name }) 
 		name,
 		control,
 	});
-	const fallback = typeof field.defaultValue === 'number' ? field.defaultValue : 0;
-	const value = toNumber(formField.field.value, fallback);
+	const numericFallback = typeof field.defaultValue === 'number' ? field.defaultValue : 0;
+	const boolFallback = typeof field.defaultValue === 'boolean' ? field.defaultValue : false;
+	const textFallback = typeof field.defaultValue === 'string' ? field.defaultValue : '';
+	const numericValue = toNumber(formField.field.value, numericFallback);
+	const boolValue = toBoolean(formField.field.value, boolFallback);
+	const textValue = typeof formField.field.value === 'string' ? formField.field.value : textFallback;
 
 	return (
 		<Paper withBorder radius="md" p="md" style={{ gridColumn: `span ${field.width}` }}>
@@ -64,28 +72,68 @@ const SamplerSettingsGridItem: React.FC<ItemProps> = ({ control, field, name }) 
 				</Flex>
 			</Flex>
 
-			<Slider
-				min={field.min}
-				max={field.max}
-				step={field.step}
-				value={value}
-				onChange={(nextValue) => {
-					formField.field.onChange(nextValue);
-				}}
-			/>
-			<NumberInput
-				mt="xs"
-				min={field.min}
-				max={field.max}
-				step={field.step}
-				value={value}
-				onChange={(nextValue) => {
-					formField.field.onChange(typeof nextValue === 'number' ? nextValue : fallback);
-				}}
-				onBlur={() => {
-					formField.field.onBlur();
-				}}
-			/>
+			{field.type === 'switch' ? (
+				<Switch
+					checked={boolValue}
+					onChange={(event) => {
+						formField.field.onChange(event.currentTarget.checked);
+					}}
+				/>
+			) : null}
+
+			{field.type === 'select' ? (
+				<Select
+					data={field.options?.map((option) => ({ value: option.value, label: option.label })) ?? []}
+					value={textValue}
+					onChange={(nextValue) => {
+						formField.field.onChange(nextValue ?? textFallback);
+					}}
+					allowDeselect={false}
+					comboboxProps={{ withinPortal: false }}
+				/>
+			) : null}
+
+			{field.type === 'number' ? (
+				<NumberInput
+					min={field.min}
+					max={field.max}
+					step={field.step}
+					value={numericValue}
+					onChange={(nextValue) => {
+						formField.field.onChange(typeof nextValue === 'number' ? nextValue : numericFallback);
+					}}
+					onBlur={() => {
+						formField.field.onBlur();
+					}}
+				/>
+			) : null}
+
+			{field.type === 'range' ? (
+				<>
+					<Slider
+						min={field.min}
+						max={field.max}
+						step={field.step}
+						value={numericValue}
+						onChange={(nextValue) => {
+							formField.field.onChange(nextValue);
+						}}
+					/>
+					<NumberInput
+						mt="xs"
+						min={field.min}
+						max={field.max}
+						step={field.step}
+						value={numericValue}
+						onChange={(nextValue) => {
+							formField.field.onChange(typeof nextValue === 'number' ? nextValue : numericFallback);
+						}}
+						onBlur={() => {
+							formField.field.onBlur();
+						}}
+					/>
+				</>
+			) : null}
 		</Paper>
 	);
 };

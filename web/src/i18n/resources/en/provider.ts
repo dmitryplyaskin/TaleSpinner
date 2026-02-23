@@ -50,14 +50,16 @@
 				},
 				actions: {
 					createPrompt: 'Enter preset name',
+					renamePrompt: 'Enter new preset name',
 					create: 'Create',
 					save: 'Save',
+					rename: 'Rename',
 					duplicate: 'Duplicate',
-					apply: 'Apply',
 					delete: 'Delete',
 				},
 				confirm: {
 					delete: 'Delete selected preset?',
+					discardChanges: 'You have unsaved changes. Discard them and switch preset?',
 				},
 				toasts: {
 					created: 'Preset created',

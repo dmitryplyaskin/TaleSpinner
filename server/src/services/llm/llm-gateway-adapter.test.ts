@@ -90,6 +90,36 @@ describe("llm-gateway-adapter", () => {
     });
   });
 
+  test("splitSamplingAndExtra maps extended sampler aliases to snake_case extra fields", () => {
+    const out = splitSamplingAndExtra({
+      topK: 50,
+      minP: 0.1,
+      topA: 0.2,
+      repetitionPenalty: 1.05,
+      maxTokens: 0,
+      reasoning: {
+        enabled: true,
+        effort: "high",
+        maxTokens: 128,
+        exclude: false,
+      },
+    });
+
+    expect(out.sampling.max_tokens).toBeUndefined();
+    expect(out.extra).toEqual({
+      top_k: 50,
+      min_p: 0.1,
+      top_a: 0.2,
+      repetition_penalty: 1.05,
+      reasoning: {
+        enabled: true,
+        effort: "high",
+        max_tokens: 128,
+        exclude: false,
+      },
+    });
+  });
+
   test("buildGatewayStreamRequest assembles provider/model/messages/sampling/extra", () => {
     const abortController = new AbortController();
     const req = buildGatewayStreamRequest({

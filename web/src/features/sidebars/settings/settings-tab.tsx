@@ -1,28 +1,15 @@
-import { Flex, Select } from '@mantine/core';
+import { Button, Group, Select, Stack } from '@mantine/core';
 import { type SamplerItemSettingsType, type SamplersItemType } from '@shared/types/samplers';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
+import { LuCopy, LuPencil, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
 import { createEmptySampler, samplersModel } from '@model/samplers';
-import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
 import { getLlmSettingsFields } from '../../../model/llm-settings';
 import { SamplerSettingsGrid } from '../../llm-provider/sampler-settings-grid';
-
-
-
-
-
-export interface LLMSettings {
-	temperature: number;
-	maxTokens: number;
-	topP: number;
-	frequencyPenalty: number;
-	presencePenalty: number;
-}
 
 export const SamplerSettingsTab: React.FC = () => {
 	const { t } = useTranslation();
@@ -37,7 +24,7 @@ export const SamplerSettingsTab: React.FC = () => {
 	const methods = useForm<SamplerItemSettingsType>({
 		defaultValues: selectedItem?.settings,
 	});
-	const { control, getValues, reset, watch } = methods;
+	const { control, getValues, reset, formState } = methods;
 
 	useEffect(() => {
 		reset(selectedItem?.settings);
@@ -50,17 +37,29 @@ export const SamplerSettingsTab: React.FC = () => {
 		samplersModel.updateItemFx(newItem);
 	};
 
-	useEffect(() => {
-		const subscription = watch((data) => {
-			if (!selectedItem) return;
-			const newItem = { ...selectedItem, settings: data as SamplerItemSettingsType } as SamplersItemType;
+	const handleSelectPreset = (selectedId: string | null) => {
+		const currentSelectedId = settings?.selectedId ?? null;
+		if (currentSelectedId === selectedId) return;
+		if (formState.isDirty && !window.confirm(t('llmSettings.confirm.discardChanges'))) {
+			return;
+		}
+		samplersModel.updateSettingsFx({ ...(settings ?? {}), selectedId: selectedId ?? null });
+	};
 
-			samplersModel.changeItemDebounced(newItem);
+	const handleRename = () => {
+		if (!selectedItem) return;
+		const name = window.prompt(t('llmSettings.actions.renamePrompt'), selectedItem.name)?.trim();
+		if (!name) return;
+		samplersModel.updateItemFx({ ...selectedItem, name });
+	};
+
+	const handleDuplicate = () => {
+		if (!selectedItem) return;
+		samplersModel.createItemFx({
+			...createEmptySampler(getValues()),
+			name: `${selectedItem.name} copy`,
 		});
-		return () => {
-			subscription.unsubscribe();
-		};
-	}, [selectedItem, watch]);
+	};
 
 	const options = items
 		.map((item) => ({
@@ -70,50 +69,45 @@ export const SamplerSettingsTab: React.FC = () => {
 		.filter((o) => Boolean(o.value));
 
 	return (
-		<Flex direction="column" gap="md">
-			<Flex gap="md" align="flex-end">
+		<Stack gap="md">
+			<Group gap="md" align="flex-end">
 				<Select
 					data={options}
 					value={settings?.selectedId ?? null}
-					onChange={(selectedId) => samplersModel.updateSettingsFx({ ...settings, selectedId: selectedId ?? null })}
+					onChange={(selectedId) => handleSelectPreset(selectedId ?? null)}
 					placeholder={t('llmSettings.selectSampler')}
 					comboboxProps={{ withinPortal: false }}
 					style={{ flex: 1 }}
 				/>
-				<Flex gap="xs">
-					<IconButtonWithTooltip
-						tooltip={t('llmSettings.actions.save')}
-						icon={<LuSave />}
-						aria-label={t('llmSettings.actions.save')}
-						onClick={handleSave}
-					/>
-					<IconButtonWithTooltip
-						tooltip={t('llmSettings.actions.create')}
-						icon={<LuPlus />}
-						aria-label={t('llmSettings.actions.create')}
-						onClick={() => samplersModel.createItemFx(createEmptySampler(getValues()))}
-					/>
-					<IconButtonWithTooltip
-						tooltip={t('llmSettings.actions.duplicate')}
-						icon={<LuCopy />}
-						aria-label={t('llmSettings.actions.duplicate')}
-						disabled={!settings.selectedId}
-						onClick={() => selectedItem && samplersModel.duplicateItemFx(selectedItem)}
-					/>
-
-					<IconButtonWithTooltip
-						tooltip={t('llmSettings.actions.delete')}
-						icon={<LuTrash2 />}
-						aria-label={t('llmSettings.actions.delete')}
+				<Group gap="xs">
+					<Button leftSection={<LuPlus />} size="xs" variant="light" onClick={() => samplersModel.createItemFx(createEmptySampler(getValues()))}>
+						{t('llmSettings.actions.create')}
+					</Button>
+					<Button leftSection={<LuPencil />} size="xs" variant="default" onClick={handleRename} disabled={!selectedItem}>
+						{t('llmSettings.actions.rename')}
+					</Button>
+					<Button leftSection={<LuCopy />} size="xs" variant="default" onClick={handleDuplicate} disabled={!selectedItem}>
+						{t('llmSettings.actions.duplicate')}
+					</Button>
+					<Button leftSection={<LuSave />} size="xs" variant="filled" onClick={handleSave} disabled={!selectedItem || !formState.isDirty}>
+						{t('llmSettings.actions.save')}
+					</Button>
+					<Button
+						leftSection={<LuTrash2 />}
+						size="xs"
+						color="red"
+						variant="light"
 						disabled={!settings.selectedId}
 						onClick={() => samplersModel.deleteItemFx(settings.selectedId as string)}
-					/>
-				</Flex>
-			</Flex>
+					>
+						{t('llmSettings.actions.delete')}
+					</Button>
+				</Group>
+			</Group>
 
 			<FormProvider {...methods}>
-				<SamplerSettingsGrid control={control} fields={llmSettingsFields} />
+				<SamplerSettingsGrid control={control} fields={llmSettingsFields} columns={1} />
 			</FormProvider>
-		</Flex>
+		</Stack>
 	);
 };

@@ -4,21 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { toaster } from '@ui/toaster';
 
 import type { LlmPresetDto, LlmPresetSettingsDto } from '../../api/llm';
-import type { LlmPresetPayload, LlmScope } from '@shared/types/llm';
+import type { LlmPresetPayload } from '@shared/types/llm';
 
 type Props = {
-	scope: LlmScope;
-	scopeId: string;
 	presets: LlmPresetDto[];
 	presetSettings: LlmPresetSettingsDto | null;
 	buildCurrentPayload: () => LlmPresetPayload;
 	onCreatePreset: (params: { name: string; payload: LlmPresetPayload }) => Promise<LlmPresetDto>;
-	onUpdatePreset: (params: { presetId: string; payload: LlmPresetPayload }) => Promise<LlmPresetDto>;
+	onUpdatePreset: (params: { presetId: string; name?: string; description?: string | null; payload?: LlmPresetPayload }) => Promise<LlmPresetDto>;
 	onDeletePreset: (presetId: string) => Promise<{ id: string }>;
-	onApplyPreset: (params: { presetId: string; scope: LlmScope; scopeId: string }) => Promise<{
-		preset: LlmPresetDto;
-		warnings: string[];
-	}>;
+	onSelectPreset: (presetId: string | null, options?: { skipUnsavedConfirm?: boolean }) => Promise<void> | void;
 	onPatchSettings: (params: { activePresetId?: string | null }) => Promise<LlmPresetSettingsDto>;
 };
 
@@ -33,15 +28,13 @@ function resolveCopyName(base: string, used: Set<string>): string {
 }
 
 export const LlmPresetManager: React.FC<Props> = ({
-	scope,
-	scopeId,
 	presets,
 	presetSettings,
 	buildCurrentPayload,
 	onCreatePreset,
 	onUpdatePreset,
 	onDeletePreset,
-	onApplyPreset,
+	onSelectPreset,
 	onPatchSettings,
 }) => {
 	const { t } = useTranslation();
@@ -60,7 +53,7 @@ export const LlmPresetManager: React.FC<Props> = ({
 				name,
 				payload: buildCurrentPayload(),
 			});
-			await onPatchSettings({ activePresetId: created.presetId });
+			await onSelectPreset(created.presetId, { skipUnsavedConfirm: true });
 			toaster.success({ title: t('provider.presets.toasts.created'), description: created.name });
 		} catch (error) {
 			toaster.error({
@@ -96,7 +89,7 @@ export const LlmPresetManager: React.FC<Props> = ({
 				name,
 				payload: source.payload,
 			});
-			await onPatchSettings({ activePresetId: created.presetId });
+			await onSelectPreset(created.presetId, { skipUnsavedConfirm: true });
 			toaster.success({ title: t('provider.presets.toasts.created'), description: created.name });
 		} catch (error) {
 			toaster.error({
@@ -123,25 +116,16 @@ export const LlmPresetManager: React.FC<Props> = ({
 		}
 	};
 
-	const applyPreset = async () => {
-		if (!activePresetId) return;
+	const renamePreset = async () => {
+		if (!activePreset) return;
+		const name = window.prompt(t('provider.presets.actions.renamePrompt'), activePreset.name)?.trim();
+		if (!name) return;
 		try {
-			const result = await onApplyPreset({
-				presetId: activePresetId,
-				scope,
-				scopeId,
+			await onUpdatePreset({
+				presetId: activePreset.presetId,
+				name,
 			});
-			if (result.warnings.length > 0) {
-				toaster.warning({
-					title: t('provider.presets.toasts.appliedWithWarnings'),
-					description: result.warnings.join('; '),
-				});
-				return;
-			}
-			toaster.success({
-				title: t('provider.presets.toasts.applied'),
-				description: result.preset.name,
-			});
+			toaster.success({ title: t('provider.presets.toasts.saved'), description: name });
 		} catch (error) {
 			toaster.error({
 				title: t('provider.presets.toasts.failed'),
@@ -157,7 +141,7 @@ export const LlmPresetManager: React.FC<Props> = ({
 				label={t('provider.presets.active')}
 				data={options}
 				value={activePresetId}
-				onChange={(value) => void onPatchSettings({ activePresetId: value ?? null })}
+				onChange={(value) => void onSelectPreset(value ?? null)}
 				clearable
 				searchable
 				comboboxProps={{ withinPortal: false }}
@@ -169,11 +153,11 @@ export const LlmPresetManager: React.FC<Props> = ({
 				<Button size="xs" variant="outline" onClick={() => void savePreset()} disabled={!activePreset}>
 					{t('provider.presets.actions.save')}
 				</Button>
+				<Button size="xs" variant="default" onClick={() => void renamePreset()} disabled={!activePreset}>
+					{t('provider.presets.actions.rename')}
+				</Button>
 				<Button size="xs" variant="default" onClick={() => void duplicatePreset()} disabled={!activePreset}>
 					{t('provider.presets.actions.duplicate')}
-				</Button>
-				<Button size="xs" variant="default" onClick={() => void applyPreset()} disabled={!activePresetId}>
-					{t('provider.presets.actions.apply')}
 				</Button>
 				<Button size="xs" color="red" variant="light" onClick={() => void deletePreset()} disabled={!activePreset}>
 					{t('provider.presets.actions.delete')}

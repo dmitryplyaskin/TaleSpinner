@@ -123,6 +123,71 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		},
 	});
 
+	const activePresetId = presetSettings?.activePresetId ?? null;
+	const activePreset = presets.find((item) => item.presetId === activePresetId) ?? null;
+
+	const normalizePayload = (payload: LlmPresetPayload): LlmPresetPayload => ({
+		activeProviderId: payload.activeProviderId,
+		activeModel: payload.activeModel ?? null,
+		activeTokenId: payload.activeTokenId ?? null,
+		providerConfigsById: {
+			openrouter: payload.providerConfigsById.openrouter ?? {},
+			openai_compatible: payload.providerConfigsById.openai_compatible ?? {},
+		},
+	});
+
+	const hasUnsavedPresetChanges = activePreset
+		? JSON.stringify(normalizePayload(activePreset.payload)) !== JSON.stringify(normalizePayload(buildCurrentPayload()))
+		: false;
+	const normalizeConfigForCompare = (config: LlmProviderConfig): LlmProviderConfig => {
+		if (activeProviderId === 'openai_compatible') {
+			return { baseUrl: '', ...config };
+		}
+		return config ?? {};
+	};
+	const hasUnsavedConfigDraft =
+		JSON.stringify(normalizeConfigForCompare(configDraft ?? {})) !==
+		JSON.stringify(normalizeConfigForCompare(providerConfig ?? {}));
+	const hasUnsavedChanges = hasUnsavedPresetChanges || hasUnsavedConfigDraft;
+
+	const handleSelectPreset = async (presetId: string | null, options?: { skipUnsavedConfirm?: boolean }) => {
+		if (presetId === activePresetId) return;
+		if (hasUnsavedChanges && !options?.skipUnsavedConfirm) {
+			if (!window.confirm(t('provider.presets.confirm.discardChanges'))) return;
+		}
+
+		if (!presetId) {
+			await patchLlmPresetSettingsFx({ activePresetId: null });
+			return;
+		}
+
+		try {
+			const result = await applyLlmPresetFx({
+				presetId,
+				scope,
+				scopeId,
+			});
+
+			if (result.warnings.length > 0) {
+				toaster.warning({
+					title: t('provider.presets.toasts.appliedWithWarnings'),
+					description: result.warnings.join('; '),
+				});
+				return;
+			}
+
+			toaster.success({
+				title: t('provider.presets.toasts.applied'),
+				description: result.preset.name,
+			});
+		} catch (error) {
+			toaster.error({
+				title: t('provider.presets.toasts.failed'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
 	return (
 		<Stack gap="lg">
 			{showRuntime && (
@@ -167,15 +232,13 @@ export const LlmProviderPanel: React.FC<Props> = ({
 				<>
 					<Divider />
 					<LlmPresetManager
-						scope={scope}
-						scopeId={scopeId}
 						presets={presets}
 						presetSettings={presetSettings}
 						buildCurrentPayload={buildCurrentPayload}
 						onCreatePreset={(params) => createLlmPresetFx(params)}
 						onUpdatePreset={(params) => updateLlmPresetFx(params)}
 						onDeletePreset={(presetId) => deleteLlmPresetFx(presetId)}
-						onApplyPreset={(params) => applyLlmPresetFx(params)}
+						onSelectPreset={handleSelectPreset}
 						onPatchSettings={(params) => patchLlmPresetSettingsFx(params)}
 					/>
 				</>

@@ -12,6 +12,7 @@ const retryOnSchema = z.enum(["timeout", "provider_error", "rate_limit"] satisfi
 const jsonParseModeSchema = z.enum(
   ["raw", "markdown_code_block", "custom_regex"] satisfies LlmJsonParseMode[]
 );
+const reasoningEffortSchema = z.enum(["low", "medium", "high"]);
 
 function validateRegexFlags(flags: string): boolean {
   return /^[gimsuy]*$/.test(flags);
@@ -22,10 +23,22 @@ const samplersSchema: z.ZodType<LlmOperationSamplers> = z
     temperature: z.number().finite().optional(),
     topP: z.number().finite().optional(),
     topK: z.number().finite().optional(),
+    minP: z.number().finite().optional(),
+    topA: z.number().finite().optional(),
     frequencyPenalty: z.number().finite().optional(),
     presencePenalty: z.number().finite().optional(),
+    repetitionPenalty: z.number().finite().optional(),
     seed: z.number().finite().optional(),
     maxTokens: z.number().finite().optional(),
+    reasoning: z
+      .object({
+        enabled: z.boolean().optional(),
+        effort: reasoningEffortSchema.optional(),
+        maxTokens: z.number().finite().optional(),
+        exclude: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

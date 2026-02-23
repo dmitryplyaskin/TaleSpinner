@@ -97,15 +97,27 @@ export type OperationTemplateParams = {
 
 export type LlmOperationRetryOn = "timeout" | "provider_error" | "rate_limit";
 export type LlmJsonParseMode = "raw" | "markdown_code_block" | "custom_regex";
+export type LlmOperationReasoningEffort = "low" | "medium" | "high";
+
+export type LlmOperationReasoning = {
+  enabled?: boolean;
+  effort?: LlmOperationReasoningEffort;
+  maxTokens?: number;
+  exclude?: boolean;
+};
 
 export type LlmOperationSamplers = {
   temperature?: number;
   topP?: number;
   topK?: number;
+  minP?: number;
+  topA?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
+  repetitionPenalty?: number;
   seed?: number;
   maxTokens?: number;
+  reasoning?: LlmOperationReasoning;
 };
 
 export type LlmOperationRetry = {

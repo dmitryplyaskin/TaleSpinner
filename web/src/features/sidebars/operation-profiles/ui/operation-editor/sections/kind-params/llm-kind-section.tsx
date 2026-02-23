@@ -66,10 +66,29 @@ function toOperationSamplers(settings: unknown): LlmOperationSamplers {
 	if (typeof source.temperature === 'number' && Number.isFinite(source.temperature)) out.temperature = source.temperature;
 	if (typeof source.topP === 'number' && Number.isFinite(source.topP)) out.topP = source.topP;
 	if (typeof source.topK === 'number' && Number.isFinite(source.topK)) out.topK = source.topK;
+	if (typeof source.minP === 'number' && Number.isFinite(source.minP)) out.minP = source.minP;
+	if (typeof source.topA === 'number' && Number.isFinite(source.topA)) out.topA = source.topA;
 	if (typeof source.frequencyPenalty === 'number' && Number.isFinite(source.frequencyPenalty)) out.frequencyPenalty = source.frequencyPenalty;
 	if (typeof source.presencePenalty === 'number' && Number.isFinite(source.presencePenalty)) out.presencePenalty = source.presencePenalty;
+	if (typeof source.repetitionPenalty === 'number' && Number.isFinite(source.repetitionPenalty)) out.repetitionPenalty = source.repetitionPenalty;
 	if (typeof source.seed === 'number' && Number.isFinite(source.seed)) out.seed = source.seed;
 	if (typeof source.maxTokens === 'number' && Number.isFinite(source.maxTokens)) out.maxTokens = source.maxTokens;
+	if (source.reasoning && typeof source.reasoning === 'object') {
+		const reasoningSource = source.reasoning as Record<string, unknown>;
+		const reasoning: NonNullable<LlmOperationSamplers['reasoning']> = {};
+		if (typeof reasoningSource.enabled === 'boolean') reasoning.enabled = reasoningSource.enabled;
+		if (
+			typeof reasoningSource.effort === 'string' &&
+			(reasoningSource.effort === 'low' || reasoningSource.effort === 'medium' || reasoningSource.effort === 'high')
+		) {
+			reasoning.effort = reasoningSource.effort;
+		}
+		if (typeof reasoningSource.maxTokens === 'number' && Number.isFinite(reasoningSource.maxTokens)) {
+			reasoning.maxTokens = reasoningSource.maxTokens;
+		}
+		if (typeof reasoningSource.exclude === 'boolean') reasoning.exclude = reasoningSource.exclude;
+		if (Object.keys(reasoning).length > 0) out.reasoning = reasoning;
+	}
 	return out;
 }
 

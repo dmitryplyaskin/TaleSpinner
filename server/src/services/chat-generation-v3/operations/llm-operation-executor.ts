@@ -63,10 +63,21 @@ function toGatewaySettings(
   if (typeof samplers.temperature === "number") settings.temperature = samplers.temperature;
   if (typeof samplers.topP === "number") settings.topP = samplers.topP;
   if (typeof samplers.topK === "number") settings.topK = samplers.topK;
+  if (typeof samplers.minP === "number") settings.minP = samplers.minP;
+  if (typeof samplers.topA === "number") settings.topA = samplers.topA;
   if (typeof samplers.frequencyPenalty === "number") settings.frequencyPenalty = samplers.frequencyPenalty;
   if (typeof samplers.presencePenalty === "number") settings.presencePenalty = samplers.presencePenalty;
+  if (typeof samplers.repetitionPenalty === "number") settings.repetitionPenalty = samplers.repetitionPenalty;
   if (typeof samplers.seed === "number") settings.seed = samplers.seed;
   if (typeof samplers.maxTokens === "number") settings.maxTokens = samplers.maxTokens;
+  if (samplers.reasoning && typeof samplers.reasoning === "object") {
+    const reasoning: Record<string, unknown> = {};
+    if (typeof samplers.reasoning.enabled === "boolean") reasoning.enabled = samplers.reasoning.enabled;
+    if (typeof samplers.reasoning.effort === "string") reasoning.effort = samplers.reasoning.effort;
+    if (typeof samplers.reasoning.maxTokens === "number") reasoning.maxTokens = samplers.reasoning.maxTokens;
+    if (typeof samplers.reasoning.exclude === "boolean") reasoning.exclude = samplers.reasoning.exclude;
+    if (Object.keys(reasoning).length > 0) settings.reasoning = reasoning;
+  }
   return settings;
 }
 
