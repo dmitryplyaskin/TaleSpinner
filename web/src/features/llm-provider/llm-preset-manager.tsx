@@ -1,4 +1,3 @@
-import { Button, Group, Select, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 import { toaster } from '@ui/toaster';
@@ -6,9 +5,12 @@ import { toaster } from '@ui/toaster';
 import type { LlmPresetDto, LlmPresetSettingsDto } from '../../api/llm';
 import type { LlmPresetPayload } from '@shared/types/llm';
 
+import { PresetControls } from '../sidebars/settings/preset-controls';
+
 type Props = {
 	presets: LlmPresetDto[];
 	presetSettings: LlmPresetSettingsDto | null;
+	hasUnsavedChanges: boolean;
 	buildCurrentPayload: () => LlmPresetPayload;
 	onCreatePreset: (params: { name: string; payload: LlmPresetPayload }) => Promise<LlmPresetDto>;
 	onUpdatePreset: (params: { presetId: string; name?: string; description?: string | null; payload?: LlmPresetPayload }) => Promise<LlmPresetDto>;
@@ -17,19 +19,10 @@ type Props = {
 	onPatchSettings: (params: { activePresetId?: string | null }) => Promise<LlmPresetSettingsDto>;
 };
 
-function resolveCopyName(base: string, used: Set<string>): string {
-	const trimmed = base.trim() || 'Preset';
-	if (!used.has(trimmed)) return trimmed;
-	for (let idx = 2; idx < 10000; idx += 1) {
-		const candidate = `${trimmed} ${idx}`;
-		if (!used.has(candidate)) return candidate;
-	}
-	return `${trimmed} ${Date.now()}`;
-}
-
 export const LlmPresetManager: React.FC<Props> = ({
 	presets,
 	presetSettings,
+	hasUnsavedChanges,
 	buildCurrentPayload,
 	onCreatePreset,
 	onUpdatePreset,
@@ -83,10 +76,8 @@ export const LlmPresetManager: React.FC<Props> = ({
 		try {
 			const source = activePreset;
 			if (!source) return;
-			const used = new Set(presets.map((item) => item.name));
-			const name = resolveCopyName(`${source.name} (copy)`, used);
 			const created = await onCreatePreset({
-				name,
+				name: `${source.name} copy`,
 				payload: source.payload,
 			});
 			await onSelectPreset(created.presetId, { skipUnsavedConfirm: true });
@@ -135,34 +126,28 @@ export const LlmPresetManager: React.FC<Props> = ({
 	};
 
 	return (
-		<Stack gap="xs">
-			<Text fw={600}>{t('provider.presets.title')}</Text>
-			<Select
-				label={t('provider.presets.active')}
-				data={options}
-				value={activePresetId}
-				onChange={(value) => void onSelectPreset(value ?? null)}
-				clearable
-				searchable
-				comboboxProps={{ withinPortal: false }}
-			/>
-			<Group gap="xs">
-				<Button size="xs" variant="light" onClick={() => void createPreset()}>
-					{t('provider.presets.actions.create')}
-				</Button>
-				<Button size="xs" variant="outline" onClick={() => void savePreset()} disabled={!activePreset}>
-					{t('provider.presets.actions.save')}
-				</Button>
-				<Button size="xs" variant="default" onClick={() => void renamePreset()} disabled={!activePreset}>
-					{t('provider.presets.actions.rename')}
-				</Button>
-				<Button size="xs" variant="default" onClick={() => void duplicatePreset()} disabled={!activePreset}>
-					{t('provider.presets.actions.duplicate')}
-				</Button>
-				<Button size="xs" color="red" variant="light" onClick={() => void deletePreset()} disabled={!activePreset}>
-					{t('provider.presets.actions.delete')}
-				</Button>
-			</Group>
-		</Stack>
+		<PresetControls
+			labels={{
+				title: t('provider.presets.title'),
+				active: t('provider.presets.active'),
+				create: t('provider.presets.actions.create'),
+				rename: t('provider.presets.actions.rename'),
+				duplicate: t('provider.presets.actions.duplicate'),
+				save: t('provider.presets.actions.save'),
+				delete: t('provider.presets.actions.delete'),
+			}}
+			options={options}
+			value={activePresetId}
+			onChange={(value) => void onSelectPreset(value ?? null)}
+			onCreate={() => void createPreset()}
+			onRename={() => void renamePreset()}
+			onDuplicate={() => void duplicatePreset()}
+			onSave={() => void savePreset()}
+			onDelete={() => void deletePreset()}
+			disableRename={!activePreset}
+			disableDuplicate={!activePreset}
+			disableSave={!activePreset || !hasUnsavedChanges}
+			disableDelete={!activePreset}
+		/>
 	);
 };

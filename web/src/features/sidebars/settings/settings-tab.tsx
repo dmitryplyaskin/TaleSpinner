@@ -1,15 +1,16 @@
-import { Button, Group, Select, Stack } from '@mantine/core';
+import { Stack } from '@mantine/core';
 import { type SamplerItemSettingsType, type SamplersItemType } from '@shared/types/samplers';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuPencil, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
 import { createEmptySampler, samplersModel } from '@model/samplers';
 
 import { getLlmSettingsFields } from '../../../model/llm-settings';
 import { SamplerSettingsGrid } from '../../llm-provider/sampler-settings-grid';
+
+import { PresetControls } from './preset-controls';
 
 export const SamplerSettingsTab: React.FC = () => {
 	const { t } = useTranslation();
@@ -37,6 +38,20 @@ export const SamplerSettingsTab: React.FC = () => {
 		samplersModel.updateItemFx(newItem);
 	};
 
+	const askValue = (prompt: string, defaultValue: string): string | null => {
+		const value = window.prompt(prompt, defaultValue)?.trim();
+		return value && value.length > 0 ? value : null;
+	};
+
+	const handleCreate = () => {
+		const name = askValue(t('llmSettings.actions.createPrompt'), t('llmSettings.defaults.newPresetName'));
+		if (!name) return;
+		samplersModel.createItemFx({
+			...createEmptySampler(getValues()),
+			name,
+		});
+	};
+
 	const handleSelectPreset = (selectedId: string | null) => {
 		const currentSelectedId = settings?.selectedId ?? null;
 		if (currentSelectedId === selectedId) return;
@@ -61,6 +76,12 @@ export const SamplerSettingsTab: React.FC = () => {
 		});
 	};
 
+	const handleDelete = () => {
+		if (!selectedItem) return;
+		if (!window.confirm(t('llmSettings.confirm.delete'))) return;
+		samplersModel.deleteItemFx({ id: selectedItem.id, skipConfirm: true });
+	};
+
 	const options = items
 		.map((item) => ({
 			label: String((item as unknown as { name?: unknown })?.name ?? ''),
@@ -70,40 +91,29 @@ export const SamplerSettingsTab: React.FC = () => {
 
 	return (
 		<Stack gap="md">
-			<Group gap="md" align="flex-end">
-				<Select
-					data={options}
-					value={settings?.selectedId ?? null}
-					onChange={(selectedId) => handleSelectPreset(selectedId ?? null)}
-					placeholder={t('llmSettings.selectSampler')}
-					comboboxProps={{ withinPortal: false }}
-					style={{ flex: 1 }}
-				/>
-				<Group gap="xs">
-					<Button leftSection={<LuPlus />} size="xs" variant="light" onClick={() => samplersModel.createItemFx(createEmptySampler(getValues()))}>
-						{t('llmSettings.actions.create')}
-					</Button>
-					<Button leftSection={<LuPencil />} size="xs" variant="default" onClick={handleRename} disabled={!selectedItem}>
-						{t('llmSettings.actions.rename')}
-					</Button>
-					<Button leftSection={<LuCopy />} size="xs" variant="default" onClick={handleDuplicate} disabled={!selectedItem}>
-						{t('llmSettings.actions.duplicate')}
-					</Button>
-					<Button leftSection={<LuSave />} size="xs" variant="filled" onClick={handleSave} disabled={!selectedItem || !formState.isDirty}>
-						{t('llmSettings.actions.save')}
-					</Button>
-					<Button
-						leftSection={<LuTrash2 />}
-						size="xs"
-						color="red"
-						variant="light"
-						disabled={!settings.selectedId}
-						onClick={() => samplersModel.deleteItemFx(settings.selectedId as string)}
-					>
-						{t('llmSettings.actions.delete')}
-					</Button>
-				</Group>
-			</Group>
+			<PresetControls
+				labels={{
+					title: t('llmSettings.presets.title'),
+					active: t('llmSettings.presets.active'),
+					create: t('llmSettings.actions.create'),
+					rename: t('llmSettings.actions.rename'),
+					duplicate: t('llmSettings.actions.duplicate'),
+					save: t('llmSettings.actions.save'),
+					delete: t('llmSettings.actions.delete'),
+				}}
+				options={options}
+				value={settings?.selectedId ?? null}
+				onChange={(selectedId) => handleSelectPreset(selectedId ?? null)}
+				onCreate={handleCreate}
+				onRename={handleRename}
+				onDuplicate={handleDuplicate}
+				onSave={handleSave}
+				onDelete={handleDelete}
+				disableRename={!selectedItem}
+				disableDuplicate={!selectedItem}
+				disableSave={!selectedItem || !formState.isDirty}
+				disableDelete={!selectedItem}
+			/>
 
 			<FormProvider {...methods}>
 				<SamplerSettingsGrid control={control} fields={llmSettingsFields} columns={1} />

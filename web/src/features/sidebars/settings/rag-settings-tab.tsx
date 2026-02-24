@@ -2,13 +2,13 @@ import { Button, Divider, Group, Input, Select, Stack, Switch, Text, TextInput }
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuPencil, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
 import { ragProviderModel } from '@model/rag-provider';
-import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
 import type { RagPreset, RagProviderConfig, RagProviderId } from '@shared/types/rag';
+
+import { PresetControls } from './preset-controls';
 
 const toProviderTokenKey = (providerId: RagProviderId, tokenId: string | null): string => `${providerId}:${tokenId ?? 'none'}`;
 
@@ -152,41 +152,35 @@ export const RagSettingsTab = () => {
 
 	return (
 		<Stack gap="md">
-			<Stack gap="xs">
-				<Text fw={600}>{t('rag.presets.title')}</Text>
-				<Group align="flex-end">
-					<Select
-						style={{ flex: 1 }}
-						label={t('rag.presets.active')}
-						data={presetOptions}
-						value={activePresetId}
-						onChange={(value) => {
-							if (value === activePresetId) return;
-							if (hasUnsavedChanges && !window.confirm(t('rag.presets.confirm.discardChanges'))) {
-								return;
-							}
-							ragProviderModel.ragPresetSelected(value ?? null);
-						}}
-						allowDeselect={false}
-						comboboxProps={{ withinPortal: false }}
-					/>
-					<Group gap="xs" pb={4}>
-						<IconButtonWithTooltip icon={<LuPlus />} tooltip={t('rag.presets.actions.create')} onClick={() => void createPreset()} />
-						<IconButtonWithTooltip icon={<LuPencil />} tooltip={t('rag.presets.actions.rename')} onClick={() => void renamePreset()} disabled={!activePreset} />
-						<IconButtonWithTooltip icon={<LuCopy />} tooltip={t('rag.presets.actions.duplicate')} onClick={() => void duplicatePreset()} disabled={!activePreset} />
-						<Button
-							size="xs"
-							variant="filled"
-							leftSection={<LuSave />}
-							onClick={() => void savePreset()}
-							disabled={!activePreset || !hasUnsavedChanges}
-						>
-							{t('rag.presets.actions.save')}
-						</Button>
-						<IconButtonWithTooltip icon={<LuTrash2 />} tooltip={t('rag.presets.actions.delete')} onClick={() => void deletePreset()} disabled={!activePreset} />
-					</Group>
-				</Group>
-			</Stack>
+			<PresetControls
+				labels={{
+					title: t('rag.presets.title'),
+					active: t('rag.presets.active'),
+					create: t('rag.presets.actions.create'),
+					rename: t('rag.presets.actions.rename'),
+					duplicate: t('rag.presets.actions.duplicate'),
+					save: t('rag.presets.actions.save'),
+					delete: t('rag.presets.actions.delete'),
+				}}
+				options={presetOptions}
+				value={activePresetId}
+				onChange={(value) => {
+					if (value === activePresetId) return;
+					if (hasUnsavedChanges && !window.confirm(t('rag.presets.confirm.discardChanges'))) {
+						return;
+					}
+					ragProviderModel.ragPresetSelected(value ?? null);
+				}}
+				onCreate={() => void createPreset()}
+				onRename={() => void renamePreset()}
+				onDuplicate={() => void duplicatePreset()}
+				onSave={() => void savePreset()}
+				onDelete={() => void deletePreset()}
+				disableRename={!activePreset}
+				disableDuplicate={!activePreset}
+				disableSave={!activePreset || !hasUnsavedChanges}
+				disableDelete={!activePreset}
+			/>
 
 			<Divider />
 

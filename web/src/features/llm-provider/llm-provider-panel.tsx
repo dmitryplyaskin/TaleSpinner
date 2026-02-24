@@ -190,35 +190,52 @@ export const LlmProviderPanel: React.FC<Props> = ({
 
 	return (
 		<Stack gap="lg">
-			{showRuntime && (
-				<LlmRuntimeSelector
-					scope={scope}
-					scopeId={scopeId}
-					providers={providers}
-					activeProviderId={activeProviderId}
-					tokens={tokens}
-					activeTokenId={activeTokenId}
-					models={models}
-					activeModel={activeModel}
-					onProviderSelect={(providerId) => selectProvider({ scope, scopeId, providerId })}
-					onTokenSelect={(tokenId) => selectToken({ scope, scopeId, tokenId })}
-					onModelSelect={(model) => selectModel({ scope, scopeId, model })}
-					onLoadModels={async () => {
-						if (!activeTokenId) return;
-						await loadModelsFx({
-							providerId: activeProviderId,
-							scope,
-							scopeId,
-							tokenId: activeTokenId,
-						});
-					}}
-					onOpenTokenManager={openTokenManager}
+			{showPresets && (
+				<LlmPresetManager
+					presets={presets}
+					presetSettings={presetSettings}
+					hasUnsavedChanges={hasUnsavedChanges}
+					buildCurrentPayload={buildCurrentPayload}
+					onCreatePreset={(params) => createLlmPresetFx(params)}
+					onUpdatePreset={(params) => updateLlmPresetFx(params)}
+					onDeletePreset={(presetId) => deleteLlmPresetFx(presetId)}
+					onSelectPreset={handleSelectPreset}
+					onPatchSettings={(params) => patchLlmPresetSettingsFx(params)}
 				/>
+			)}
+
+			{showRuntime && (
+				<>
+					{showPresets ? <Divider /> : null}
+					<LlmRuntimeSelector
+						scope={scope}
+						scopeId={scopeId}
+						providers={providers}
+						activeProviderId={activeProviderId}
+						tokens={tokens}
+						activeTokenId={activeTokenId}
+						models={models}
+						activeModel={activeModel}
+						onProviderSelect={(providerId) => selectProvider({ scope, scopeId, providerId })}
+						onTokenSelect={(tokenId) => selectToken({ scope, scopeId, tokenId })}
+						onModelSelect={(model) => selectModel({ scope, scopeId, model })}
+						onLoadModels={async () => {
+							if (!activeTokenId) return;
+							await loadModelsFx({
+								providerId: activeProviderId,
+								scope,
+								scopeId,
+								tokenId: activeTokenId,
+							});
+						}}
+						onOpenTokenManager={openTokenManager}
+					/>
+				</>
 			)}
 
 			{showConfig && (
 				<>
-					<Divider />
+					{showPresets || showRuntime ? <Divider /> : null}
 					<LlmProviderAdvancedConfig
 						activeProviderId={activeProviderId}
 						configDraft={configDraft}
@@ -228,21 +245,6 @@ export const LlmProviderPanel: React.FC<Props> = ({
 				</>
 			)}
 
-			{showPresets && (
-				<>
-					<Divider />
-					<LlmPresetManager
-						presets={presets}
-						presetSettings={presetSettings}
-						buildCurrentPayload={buildCurrentPayload}
-						onCreatePreset={(params) => createLlmPresetFx(params)}
-						onUpdatePreset={(params) => updateLlmPresetFx(params)}
-						onDeletePreset={(presetId) => deleteLlmPresetFx(presetId)}
-						onSelectPreset={handleSelectPreset}
-						onPatchSettings={(params) => patchLlmPresetSettingsFx(params)}
-					/>
-				</>
-			)}
 		</Stack>
 	);
 };

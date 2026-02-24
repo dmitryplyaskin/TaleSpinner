@@ -1,14 +1,23 @@
 const enLlmSettings = {
 	selectSampler: 'Select sampler preset',
+	presets: {
+		title: 'LLM presets',
+		active: 'Active preset',
+	},
+	defaults: {
+		newPresetName: 'New LLM preset',
+	},
 	actions: {
 		save: 'Save',
 		create: 'Create',
+		createPrompt: 'Enter preset name',
 		rename: 'Rename',
 		renamePrompt: 'Enter new preset name',
 		duplicate: 'Duplicate',
 		delete: 'Delete',
 	},
 	confirm: {
+		delete: 'Delete selected preset?',
 		discardChanges: 'You have unsaved changes. Discard them and switch preset?',
 	},
 	fields: {

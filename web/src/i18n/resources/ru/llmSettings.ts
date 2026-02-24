@@ -1,14 +1,23 @@
 const ruLlmSettings = {
 	selectSampler: 'Выберите пресет сэмплера',
+	presets: {
+		title: 'LLM пресеты',
+		active: 'Активный пресет',
+	},
+	defaults: {
+		newPresetName: 'Новый LLM пресет',
+	},
 	actions: {
 		save: 'Сохранить',
 		create: 'Создать',
+		createPrompt: 'Введите название пресета',
 		rename: 'Переименовать',
 		renamePrompt: 'Введите новое название пресета',
 		duplicate: 'Дублировать',
 		delete: 'Удалить',
 	},
 	confirm: {
+		delete: 'Удалить выбранный пресет?',
 		discardChanges: 'Есть несохранённые изменения. Отменить их и переключить пресет?',
 	},
 	fields: {

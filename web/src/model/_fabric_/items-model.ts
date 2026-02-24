@@ -27,6 +27,8 @@ export const createItemsModel = <ItemType extends CommonModelItemType>(
 	itemsParams: FabricItems<ItemType>,
 	fabricName: string,
 ) => {
+	type DeleteInput = string | { id: string; skipConfirm?: boolean };
+
 	const $items = createStore<ItemType[]>(itemsParams.defaultValue || []);
 	const changeItem = createEvent<ItemType>();
 
@@ -92,9 +94,12 @@ export const createItemsModel = <ItemType extends CommonModelItemType>(
 		}, `Error updating ${fabricName} item`),
 	);
 
-	const deleteItemFx = createEffect<string, { data: ItemType } | undefined>((id) =>
+	const deleteItemFx = createEffect<DeleteInput, { data: ItemType } | undefined>((input) =>
 		asyncHandler(async () => {
-			if (!window.confirm(i18n.t('common.confirmDeleteEntity', { name: fabricName }))) {
+			const { id, skipConfirm } =
+				typeof input === 'string' ? { id: input, skipConfirm: false } : { id: input.id, skipConfirm: input.skipConfirm === true };
+
+			if (!skipConfirm && !window.confirm(i18n.t('common.confirmDeleteEntity', { name: fabricName }))) {
 				return;
 			}
 			const response = await fetch(`${BASE_URL}${itemsParams.route}/${id}`, {
