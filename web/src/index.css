@@ -33,6 +33,7 @@
   --ts-message-user-border: rgba(22, 88, 108, 0.28);
   --ts-message-assistant-name: #185f70;
   --ts-message-user-name: #0e4f62;
+  --ts-message-token-color: #ffffff;
   --ts-chat-avatar-preview-bg: rgba(250, 252, 253, 0.86);
   --ts-sidebar-card-bg: rgba(255, 255, 255, 0.92);
   --ts-sidebar-card-hover-border: rgba(18, 77, 95, 0.34);
@@ -95,6 +96,7 @@
   --ts-message-user-border: rgba(112, 164, 191, 0.34);
   --ts-message-assistant-name: #b6d9ea;
   --ts-message-user-name: #9fd0e6;
+  --ts-message-token-color: #ffffff;
   --ts-chat-avatar-preview-bg: rgba(22, 26, 32, 0.9);
   --ts-sidebar-card-bg: rgba(26, 31, 37, 0.92);
   --ts-sidebar-card-hover-border: rgba(104, 160, 189, 0.36);
@@ -366,10 +368,16 @@ a {
 
 .ts-message-avatar-tokens {
   margin-top: 6px;
-  opacity: 0.72;
-  line-height: 1.1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ts-message-token-color);
+  line-height: 1.2;
   text-align: center;
   white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .ts-message-card {
@@ -415,7 +423,8 @@ a {
 
 .ts-message-mobile-tokens {
   display: none;
-  opacity: 0.72;
+  opacity: 0.85;
+  color: var(--ts-message-token-color);
 }
 
 .ts-message-body {
