@@ -64,6 +64,11 @@ function withChatGenerationDebugSettings(settings: Record<string, unknown> | und
 export type ChatEntryWithVariantDto = {
 	entry: Entry;
 	variant: Variant | null;
+	promptUsage?: {
+		estimator: 'chars_div4';
+		included: boolean;
+		approxTokens: number;
+	};
 };
 
 export type EntriesCursor = {

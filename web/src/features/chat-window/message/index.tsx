@@ -141,6 +141,8 @@ const MessageInner: React.FC<MessageProps> = ({
 	const canPreviewAssistantAvatar = Boolean(assistantAvatarSrc && onAvatarPreviewRequested);
 	const canPreviewUserAvatar = Boolean(userAvatarSrc && onAvatarPreviewRequested);
 	const tsLabel = useMemo(() => new Date(data.entry.createdAt).toLocaleTimeString(), [data.entry.createdAt]);
+	const messagePromptTokens = data.promptUsage?.approxTokens ?? 0;
+	const promptTokensLabel = t('chat.message.promptTokens', { count: messagePromptTokens });
 
 	const isOptimistic =
 		String(data.entry.entryId).startsWith('local_') || (typeof data.entry.meta === 'object' && Boolean((data.entry.meta as any)?.optimistic));
@@ -360,12 +362,17 @@ const MessageInner: React.FC<MessageProps> = ({
 		<Box className="ts-message-grid">
 			<Box className="ts-message-avatar ts-message-avatar--assistant">
 				{isAssistant ? (
-					<AssistantIcon
-						size={52}
-						name={assistantName}
-						src={assistantAvatarSrc}
-						onClick={canPreviewAssistantAvatar ? handleAssistantAvatarClick : undefined}
-					/>
+					<>
+						<AssistantIcon
+							size={52}
+							name={assistantName}
+							src={assistantAvatarSrc}
+							onClick={canPreviewAssistantAvatar ? handleAssistantAvatarClick : undefined}
+						/>
+						<Text size="xs" className="ts-message-avatar-tokens">
+							{promptTokensLabel}
+						</Text>
+					</>
 				) : (
 					<Box className="ts-message-avatar-spacer" />
 				)}
@@ -407,6 +414,11 @@ const MessageInner: React.FC<MessageProps> = ({
 								<Text size="sm" className="ts-message-name" data-role={isUser ? 'user' : 'assistant'}>
 									{isUser ? userName : assistantName}
 								</Text>
+								{(isUser || isAssistant) && (
+									<Text size="xs" className="ts-message-mobile-tokens">
+										{promptTokensLabel}
+									</Text>
+								)}
 								<Text size="xs" className="ts-message-meta">
 									{tsLabel}
 								</Text>
@@ -470,15 +482,20 @@ const MessageInner: React.FC<MessageProps> = ({
 
 			<Box className="ts-message-avatar ts-message-avatar--user">
 				{isUser ? (
-					<Avatar
-						size={52}
-						name={userName}
-						src={userAvatarSrc}
-						color="cyan"
-						radius="xl"
-						onClick={canPreviewUserAvatar ? handleUserAvatarClick : undefined}
-						className={canPreviewUserAvatar ? 'ts-message-avatar-clickable' : undefined}
-					/>
+					<>
+						<Avatar
+							size={52}
+							name={userName}
+							src={userAvatarSrc}
+							color="cyan"
+							radius="xl"
+							onClick={canPreviewUserAvatar ? handleUserAvatarClick : undefined}
+							className={canPreviewUserAvatar ? 'ts-message-avatar-clickable' : undefined}
+						/>
+						<Text size="xs" className="ts-message-avatar-tokens">
+							{promptTokensLabel}
+						</Text>
+					</>
 				) : (
 					<Box className="ts-message-avatar-spacer" />
 				)}

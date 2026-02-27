@@ -26,6 +26,7 @@ import {
   getActiveVariantWithParts,
   getEntryById,
   listEntries,
+  listEntriesWithActiveVariants,
   listEntriesWithActiveVariantsPage,
   softDeleteEntry,
   softDeleteEntries,
@@ -38,7 +39,8 @@ import {
   getPartWithVariantContextById,
   softDeletePart,
 } from "../services/chat-entry-parts/parts-repository";
-import { getUiProjection } from "../services/chat-entry-parts/projection";
+import { serializePart } from "../services/chat-entry-parts/prompt-serializers";
+import { getPromptProjectionWithEntryIds, getUiProjection } from "../services/chat-entry-parts/projection";
 import {
   createVariant,
   deleteVariant,
@@ -119,6 +121,13 @@ function isActivationReached(params: {
 }
 
 type PromptDiagnosticsRole = "system" | "user" | "assistant";
+type PromptUsageEstimator = "chars_div4";
+
+export type EntryPromptUsage = {
+  estimator: PromptUsageEstimator;
+  included: boolean;
+  approxTokens: number;
+};
 
 type PromptDiagnosticsResponse = {
   generationId: string;
@@ -184,6 +193,36 @@ function approxTokensByChars(chars: number): number {
 
 function approxTokensByText(text: string): number {
   return approxTokensByChars(String(text ?? "").length);
+}
+
+const PROMPT_USAGE_HISTORY_LIMIT = 50;
+const PROMPT_USAGE_ESTIMATOR: PromptUsageEstimator = "chars_div4";
+
+export function buildPromptApproxTokensByEntryId(
+  projectedMessages: Array<{ entryId: string; content: string }>
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const item of projectedMessages) {
+    out.set(item.entryId, approxTokensByText(item.content));
+  }
+  return out;
+}
+
+export function buildEntryPromptUsage(params: {
+  entryId: string;
+  approxTokensByEntryId: ReadonlyMap<string, number>;
+}): EntryPromptUsage {
+  const approxTokens = params.approxTokensByEntryId.get(params.entryId);
+  const normalizedApproxTokens =
+    typeof approxTokens === "number" && Number.isFinite(approxTokens)
+      ? Math.max(0, Math.floor(approxTokens))
+      : 0;
+  const included = normalizedApproxTokens > 0;
+  return {
+    estimator: PROMPT_USAGE_ESTIMATOR,
+    included,
+    approxTokens: included ? normalizedApproxTokens : 0,
+  };
 }
 
 function normalizePromptRole(value: unknown): PromptDiagnosticsRole | null {
@@ -894,11 +933,30 @@ router.get(
     });
 
     const currentTurn = await getBranchCurrentTurn({ branchId });
+    const promptWindowEntries = await listEntriesWithActiveVariants({
+      chatId: params.id,
+      branchId,
+      limit: PROMPT_USAGE_HISTORY_LIMIT,
+    });
+    const promptProjected = getPromptProjectionWithEntryIds({
+      entries: promptWindowEntries,
+      currentTurn,
+      serializePart,
+    });
+    const approxTokensByEntryId = buildPromptApproxTokensByEntryId(promptProjected);
+    const entriesWithPromptUsage = page.entries.map((item) => ({
+      ...item,
+      promptUsage: buildEntryPromptUsage({
+        entryId: item.entry.entryId,
+        approxTokensByEntryId,
+      }),
+    }));
+
     return {
       data: {
         branchId,
         currentTurn,
-        entries: page.entries,
+        entries: entriesWithPromptUsage,
         pageInfo: page.pageInfo,
       },
     };

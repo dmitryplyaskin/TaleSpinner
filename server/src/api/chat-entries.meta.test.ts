@@ -4,8 +4,10 @@ import { HttpError } from "@core/middleware/error-handler";
 
 import {
   assertBatchUpdateVariantIsActive,
+  buildEntryPromptUsage,
   buildBatchUpdatePartPlan,
   buildLatestWorldInfoActivationsFromGeneration,
+  buildPromptApproxTokensByEntryId,
   buildPromptDiagnosticsFromDebug,
   buildPromptDiagnosticsFromSnapshot,
   buildUserEntryMeta,
@@ -666,6 +668,33 @@ describe("prompt diagnostics helpers", () => {
       activatedCount: 0,
       warnings: [],
       entries: [],
+    });
+  });
+});
+
+describe("entry prompt usage helpers", () => {
+  test("buildPromptApproxTokensByEntryId computes chars_div4 tokens", () => {
+    const byEntry = buildPromptApproxTokensByEntryId([
+      { entryId: "entry-1", content: "1234" },
+      { entryId: "entry-2", content: "12345" },
+    ]);
+
+    expect(byEntry.get("entry-1")).toBe(1);
+    expect(byEntry.get("entry-2")).toBe(2);
+  });
+
+  test("buildEntryPromptUsage returns 0 when entry is outside prompt window", () => {
+    const usage = buildEntryPromptUsage({
+      entryId: "entry-outside",
+      approxTokensByEntryId: new Map<string, number>([
+        ["entry-in-window", 7],
+      ]),
+    });
+
+    expect(usage).toEqual({
+      estimator: "chars_div4",
+      included: false,
+      approxTokens: 0,
     });
   });
 });

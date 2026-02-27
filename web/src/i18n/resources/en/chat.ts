@@ -60,6 +60,7 @@
 				streaming: 'Generating…',
 				saving: 'Saving…',
 				assistantFallback: 'AI Assistant',
+				promptTokens: '{{count}} tok',
 			},
 			reasoning: {
 				title: 'Reasoning',

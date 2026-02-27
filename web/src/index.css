@@ -348,7 +348,9 @@ a {
 }
 
 .ts-message-avatar--user {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  flex-direction: column;
+  align-items: center;
 }
 
 .ts-message-bulk-checkbox-wrap {
@@ -360,6 +362,14 @@ a {
 
 .ts-message-avatar-clickable {
   cursor: zoom-in;
+}
+
+.ts-message-avatar-tokens {
+  margin-top: 6px;
+  opacity: 0.72;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .ts-message-card {
@@ -400,6 +410,11 @@ a {
 }
 
 .ts-message-meta {
+  opacity: 0.72;
+}
+
+.ts-message-mobile-tokens {
+  display: none;
   opacity: 0.72;
 }
 
@@ -697,6 +712,10 @@ a {
   .ts-message-avatar,
   .ts-message-avatar-spacer {
     display: none;
+  }
+
+  .ts-message-mobile-tokens {
+    display: block;
   }
 
   .ts-chat-header {

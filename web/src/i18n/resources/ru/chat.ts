@@ -60,6 +60,7 @@
 				streaming: 'Генерация…',
 				saving: 'Сохранение…',
 				assistantFallback: 'AI Assistant',
+				promptTokens: '{{count}} ток.',
 			},
 			reasoning: {
 				title: 'Ход рассуждений',
