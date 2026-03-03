@@ -12,6 +12,15 @@ import { SamplerSettingsGrid } from '../../llm-provider/sampler-settings-grid';
 
 import { PresetControls } from './preset-controls';
 
+function hasDirtyFields(value: unknown): boolean {
+	if (value === true) return true;
+	if (Array.isArray(value)) return value.some((item) => hasDirtyFields(item));
+	if (value && typeof value === 'object') {
+		return Object.values(value as Record<string, unknown>).some((item) => hasDirtyFields(item));
+	}
+	return false;
+}
+
 export const SamplerSettingsTab: React.FC = () => {
 	const { t } = useTranslation();
 	const settings = useUnit(samplersModel.$settings);
@@ -26,6 +35,7 @@ export const SamplerSettingsTab: React.FC = () => {
 		defaultValues: selectedItem?.settings,
 	});
 	const { control, getValues, reset, formState } = methods;
+	const hasUnsavedChanges = hasDirtyFields(formState.dirtyFields);
 
 	useEffect(() => {
 		reset(selectedItem?.settings);
@@ -55,7 +65,7 @@ export const SamplerSettingsTab: React.FC = () => {
 	const handleSelectPreset = (selectedId: string | null) => {
 		const currentSelectedId = settings?.selectedId ?? null;
 		if (currentSelectedId === selectedId) return;
-		if (formState.isDirty && !window.confirm(t('llmSettings.confirm.discardChanges'))) {
+		if (hasUnsavedChanges && !window.confirm(t('llmSettings.confirm.discardChanges'))) {
 			return;
 		}
 		samplersModel.updateSettingsFx({ ...(settings ?? {}), selectedId: selectedId ?? null });
@@ -111,7 +121,7 @@ export const SamplerSettingsTab: React.FC = () => {
 				onDelete={handleDelete}
 				disableRename={!selectedItem}
 				disableDuplicate={!selectedItem}
-				disableSave={!selectedItem || !formState.isDirty}
+				disableSave={!selectedItem || !hasUnsavedChanges}
 				disableDelete={!selectedItem}
 			/>
 
