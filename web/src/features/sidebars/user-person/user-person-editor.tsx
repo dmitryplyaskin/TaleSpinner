@@ -65,6 +65,18 @@ type EditorSectionsState = {
 };
 
 const USER_PERSON_EDITOR_SECTIONS_STORAGE_KEY = 'user_person_editor_sections_v1';
+const HEADER_INTERACTIVE_TARGET_SELECTOR = 'button, input, textarea, select, label, a, [role="button"]';
+
+function isInteractiveHeaderTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) return false;
+	return target.closest(HEADER_INTERACTIVE_TARGET_SELECTOR) !== null;
+}
+
+function onHeaderToggleClick(event: React.MouseEvent<HTMLElement>, onToggle: () => void): void {
+	if (isInteractiveHeaderTarget(event.target)) return;
+	onToggle();
+}
+
 
 function loadEditorSectionsState(): EditorSectionsState {
 	if (typeof window === 'undefined') {
@@ -371,7 +383,11 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 
 						<Paper withBorder p="md" radius="md">
 							<Stack gap="sm">
-								<Group justify="space-between" align="center">
+								<Group
+									justify="space-between"
+									align="center"
+									onClick={(event) => onHeaderToggleClick(event, () => toggleSection('additionalCollapsed'))}
+								>
 									<Text fw={600}>{t('userPersons.additional.title')}</Text>
 									<Group gap="xs">
 										{!sectionsState.additionalCollapsed && (
@@ -421,7 +437,16 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 												return (
 													<Paper withBorder p="sm" radius="md" key={block.id}>
 														<Stack gap="sm">
-															<Group justify="space-between" align="center" wrap="nowrap">
+															<Group
+																justify="space-between"
+																align="center"
+																wrap="nowrap"
+																onClick={(event) =>
+																	onHeaderToggleClick(event, () =>
+																		methods.setValue(`blocks.${blockIndex}.collapsed`, !block.collapsed, { shouldDirty: true }),
+																	)
+																}
+															>
 																<Controller
 																	control={methods.control}
 																	name={`blocks.${blockIndex}.title`}
@@ -517,7 +542,16 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 																			{block.items.map((item, itemIndex) => (
 																				<Paper withBorder p="sm" radius="md" key={item.id}>
 																					<Stack gap="sm">
-																						<Group justify="space-between" align="center" wrap="nowrap">
+																						<Group
+																							justify="space-between"
+																							align="center"
+																							wrap="nowrap"
+																							onClick={(event) =>
+																								onHeaderToggleClick(event, () =>
+																									methods.setValue(`blocks.${blockIndex}.items.${itemIndex}.collapsed`, !item.collapsed, { shouldDirty: true }),
+																								)
+																							}
+																						>
 																							<Controller
 																								control={methods.control}
 																								name={`blocks.${blockIndex}.items.${itemIndex}.title`}
@@ -620,7 +654,16 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 											return (
 												<Paper withBorder p="sm" radius="md" key={block.id}>
 													<Stack gap="sm">
-														<Group justify="space-between" align="center" wrap="nowrap">
+														<Group
+															justify="space-between"
+															align="center"
+															wrap="nowrap"
+															onClick={(event) =>
+																onHeaderToggleClick(event, () =>
+																	methods.setValue(`blocks.${blockIndex}.collapsed`, !block.collapsed, { shouldDirty: true }),
+																)
+															}
+														>
 															<Controller
 																control={methods.control}
 																name={`blocks.${blockIndex}.title`}
@@ -708,7 +751,11 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 
 						<Paper withBorder p="md" radius="md">
 							<Stack gap="sm">
-								<Group justify="space-between" align="center">
+								<Group
+									justify="space-between"
+									align="center"
+									onClick={(event) => onHeaderToggleClick(event, () => toggleSection('settingsCollapsed'))}
+								>
 									<Text fw={600}>{t('userPersons.settings.title')}</Text>
 									<IconButtonWithTooltip
 										icon={sectionsState.settingsCollapsed ? <LuChevronDown /> : <LuChevronUp />}
@@ -749,7 +796,11 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 
 						<Paper withBorder p="md" radius="md">
 							<Stack gap="sm">
-								<Group justify="space-between" align="center">
+								<Group
+									justify="space-between"
+									align="center"
+									onClick={(event) => onHeaderToggleClick(event, () => toggleSection('previewCollapsed'))}
+								>
 									<Text fw={600}>{t('userPersons.preview.title')}</Text>
 									<IconButtonWithTooltip
 										icon={sectionsState.previewCollapsed ? <LuChevronDown /> : <LuChevronUp />}
