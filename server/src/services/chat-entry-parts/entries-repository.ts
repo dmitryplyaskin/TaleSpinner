@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
-import { initDb } from "../../db/client";
+import { type DbExecutor, initDb } from "../../db/client";
 import { chatEntries, entryVariants } from "../../db/schema";
 
 import { listPartsForVariants } from "./parts-repository";
@@ -53,64 +53,82 @@ function variantRowToDomain(
   };
 }
 
-export async function createEntryWithVariant(params: {
+type CreateEntryWithVariantParams = {
   ownerId?: string;
   chatId: string;
   branchId: string;
   role: EntryRole;
   variantKind: VariantKind;
   meta?: unknown;
-}): Promise<{ entry: Entry; variant: Variant }> {
-  const db = await initDb();
-  const ownerId = params.ownerId ?? "global";
+  executor?: DbExecutor;
+};
 
-  const entryId = uuidv4();
-  const variantId = uuidv4();
-  const createdAtMs = Date.now();
-  const createdAt = new Date(createdAtMs);
+export function createEntryWithVariant(
+  params: CreateEntryWithVariantParams & { executor: DbExecutor }
+): { entry: Entry; variant: Variant };
+export function createEntryWithVariant(
+  params: CreateEntryWithVariantParams
+): Promise<{ entry: Entry; variant: Variant }>;
+export function createEntryWithVariant(
+  params: CreateEntryWithVariantParams
+): Promise<{ entry: Entry; variant: Variant }> | { entry: Entry; variant: Variant } {
+  const run = (db: DbExecutor): { entry: Entry; variant: Variant } => {
+    const ownerId = params.ownerId ?? "global";
 
-  await db.insert(chatEntries).values({
-    entryId,
-    ownerId,
-    chatId: params.chatId,
-    branchId: params.branchId,
-    role: params.role,
-    createdAt,
-    activeVariantId: variantId,
-    softDeleted: false,
-    softDeletedAt: null,
-    softDeletedBy: null,
-    metaJson: typeof params.meta === "undefined" ? null : safeJsonStringify(params.meta),
-  });
+    const entryId = uuidv4();
+    const variantId = uuidv4();
+    const createdAtMs = Date.now();
+    const createdAt = new Date(createdAtMs);
 
-  await db.insert(entryVariants).values({
-    variantId,
-    ownerId,
-    entryId,
-    kind: params.variantKind,
-    createdAt,
-    derivedJson: null,
-  });
+    db.insert(chatEntries).values({
+      entryId,
+      ownerId,
+      chatId: params.chatId,
+      branchId: params.branchId,
+      role: params.role,
+      createdAt,
+      activeVariantId: variantId,
+      softDeleted: false,
+      softDeletedAt: null,
+      softDeletedBy: null,
+      metaJson: typeof params.meta === "undefined" ? null : safeJsonStringify(params.meta),
+    }).run();
 
-  const entry: Entry = {
-    entryId,
-    chatId: params.chatId,
-    branchId: params.branchId,
-    role: params.role,
-    createdAt: createdAtMs,
-    activeVariantId: variantId,
-    softDeleted: false,
-    meta: params.meta as any,
+    db.insert(entryVariants).values({
+      variantId,
+      ownerId,
+      entryId,
+      kind: params.variantKind,
+      createdAt,
+      derivedJson: null,
+    }).run();
+
+    const entry: Entry = {
+      entryId,
+      chatId: params.chatId,
+      branchId: params.branchId,
+      role: params.role,
+      createdAt: createdAtMs,
+      activeVariantId: variantId,
+      softDeleted: false,
+      meta: params.meta as any,
+    };
+    const variant: Variant = {
+      variantId,
+      entryId,
+      kind: params.variantKind,
+      createdAt: createdAtMs,
+      parts: [],
+    };
+
+    return { entry, variant };
   };
-  const variant: Variant = {
-    variantId,
-    entryId,
-    kind: params.variantKind,
-    createdAt: createdAtMs,
-    parts: [],
-  };
 
-  return { entry, variant };
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function listEntriesPage(params: {

@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
-import { initDb } from "../../db/client";
+import { type DbExecutor, initDb } from "../../db/client";
 import { entryVariants, variantParts } from "../../db/schema";
 
 import type {
@@ -80,7 +80,7 @@ export async function listPartsForVariants(params: {
   return map;
 }
 
-export async function createPart(params: {
+type CreatePartParams = {
   ownerId?: string;
   variantId: string;
   channel: PartChannel;
@@ -100,73 +100,86 @@ export async function createPart(params: {
   requestId?: string;
   replacesPartId?: string;
   tags?: string[];
-}): Promise<Part> {
-  const db = await initDb();
-  const ownerId = params.ownerId ?? "global";
-  const partId = uuidv4();
+  executor?: DbExecutor;
+};
 
-  const payloadJson = safeJsonStringify({
-    format: params.payloadFormat,
-    value: params.payload,
-    schemaId: params.schemaId,
-    label: params.label,
-  } satisfies StoredPayload);
+export function createPart(params: CreatePartParams & { executor: DbExecutor }): Part;
+export function createPart(params: CreatePartParams): Promise<Part>;
+export function createPart(params: CreatePartParams): Promise<Part> | Part {
+  const run = (db: DbExecutor): Part => {
+    const ownerId = params.ownerId ?? "global";
+    const partId = uuidv4();
 
-  await db.insert(variantParts).values({
-    partId,
-    ownerId,
-    variantId: params.variantId,
-    channel: params.channel,
-    order: params.order,
-    payloadJson,
-    visibilityJson: safeJsonStringify(params.visibility),
-    uiJson: typeof params.ui === "undefined" ? null : safeJsonStringify(params.ui),
-    promptJson: typeof params.prompt === "undefined" ? null : safeJsonStringify(params.prompt),
-    lifespanJson: safeJsonStringify(params.lifespan),
-    createdTurn: params.createdTurn,
-    source: params.source,
-    agentId: params.agentId ?? null,
-    model: params.model ?? null,
-    requestId: params.requestId ?? null,
-    replacesPartId: params.replacesPartId ?? null,
-    softDeleted: false,
-    softDeletedAt: null,
-    softDeletedBy: null,
-    tagsJson: typeof params.tags === "undefined" ? null : safeJsonStringify(params.tags),
-  });
-
-  const rows = await db
-    .select()
-    .from(variantParts)
-    .where(and(eq(variantParts.partId, partId), eq(variantParts.ownerId, ownerId)))
-    .limit(1);
-  const row = rows[0];
-  if (!row) {
-    // Should never happen; fallback to constructing a Part from inputs.
-    return {
-      partId,
-      channel: params.channel,
-      order: params.order,
-      payload: params.payload,
-      payloadFormat: params.payloadFormat,
+    const payloadJson = safeJsonStringify({
+      format: params.payloadFormat,
+      value: params.payload,
       schemaId: params.schemaId,
       label: params.label,
-      visibility: params.visibility,
-      ui: params.ui,
-      prompt: params.prompt,
-      lifespan: params.lifespan,
+    } satisfies StoredPayload);
+
+    db.insert(variantParts).values({
+      partId,
+      ownerId,
+      variantId: params.variantId,
+      channel: params.channel,
+      order: params.order,
+      payloadJson,
+      visibilityJson: safeJsonStringify(params.visibility),
+      uiJson: typeof params.ui === "undefined" ? null : safeJsonStringify(params.ui),
+      promptJson: typeof params.prompt === "undefined" ? null : safeJsonStringify(params.prompt),
+      lifespanJson: safeJsonStringify(params.lifespan),
       createdTurn: params.createdTurn,
       source: params.source,
-      agentId: params.agentId,
-      model: params.model,
-      requestId: params.requestId,
-      replacesPartId: params.replacesPartId,
+      agentId: params.agentId ?? null,
+      model: params.model ?? null,
+      requestId: params.requestId ?? null,
+      replacesPartId: params.replacesPartId ?? null,
       softDeleted: false,
-      tags: params.tags,
-    };
+      softDeletedAt: null,
+      softDeletedBy: null,
+      tagsJson: typeof params.tags === "undefined" ? null : safeJsonStringify(params.tags),
+    }).run();
+
+    const rows = db
+      .select()
+      .from(variantParts)
+      .where(and(eq(variantParts.partId, partId), eq(variantParts.ownerId, ownerId)))
+      .limit(1)
+      .all();
+    const row = rows[0];
+    if (!row) {
+      // Should never happen; fallback to constructing a Part from inputs.
+      return {
+        partId,
+        channel: params.channel,
+        order: params.order,
+        payload: params.payload,
+        payloadFormat: params.payloadFormat,
+        schemaId: params.schemaId,
+        label: params.label,
+        visibility: params.visibility,
+        ui: params.ui,
+        prompt: params.prompt,
+        lifespan: params.lifespan,
+        createdTurn: params.createdTurn,
+        source: params.source,
+        agentId: params.agentId,
+        model: params.model,
+        requestId: params.requestId,
+        replacesPartId: params.replacesPartId,
+        softDeleted: false,
+        tags: params.tags,
+      };
+    }
+
+    return partRowToDomain(row);
+  };
+
+  if (params.executor) {
+    return run(params.executor);
   }
 
-  return partRowToDomain(row);
+  return initDb().then((db) => run(db));
 }
 
 export async function updatePartPayloadText(params: {

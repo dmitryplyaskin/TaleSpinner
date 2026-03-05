@@ -15,7 +15,7 @@ import {
 import {
   getProviderConfig,
   getRuntime,
-  getTokenPlaintext,
+  getTokenPlaintextResult,
   listProviders,
   listTokens,
   touchTokenLastUsed,
@@ -105,6 +105,22 @@ function buildTokenAttemptOrder(params: {
   return ordered;
 }
 
+function describeTokenLookupFailure(params: {
+  tokenId: string;
+  activeTokenId: string | null;
+  result: Awaited<ReturnType<typeof getTokenPlaintextResult>>;
+}): string {
+  if (params.result.status === "decrypt_failed") {
+    return params.activeTokenId === params.tokenId
+      ? "Active token cannot be decrypted with current TOKENS_MASTER_KEY"
+      : `Token cannot be decrypted with current TOKENS_MASTER_KEY: ${params.tokenId}`;
+  }
+
+  return params.activeTokenId === params.tokenId
+    ? "Active token not found"
+    : `Token not found: ${params.tokenId}`;
+}
+
 async function fetchModelsWithRetry(
   url: string,
   headers: Record<string, string>
@@ -158,10 +174,11 @@ export async function getModels(params: {
     return [];
   }
 
-  const token = await getTokenPlaintext(tokenId);
-  if (!token) {
+  const tokenResult = await getTokenPlaintextResult(tokenId);
+  if (tokenResult.status !== "ok") {
     return [];
   }
+  const token = tokenResult.plaintext;
 
   const config = await getProviderConfig(params.providerId);
   try {
@@ -233,14 +250,16 @@ export async function* streamGlobalChat(params: {
     if (abortSignal?.aborted) return;
 
     const tokenId = attemptOrder[index];
-    const token = await getTokenPlaintext(tokenId);
-    if (!token) {
-      lastError =
-        runtime.activeTokenId === tokenId
-          ? "Active token not found"
-          : `Token not found: ${tokenId}`;
+    const tokenResult = await getTokenPlaintextResult(tokenId);
+    if (tokenResult.status !== "ok") {
+      lastError = describeTokenLookupFailure({
+        tokenId,
+        activeTokenId: runtime.activeTokenId,
+        result: tokenResult,
+      });
       continue;
     }
+    const token = tokenResult.plaintext;
 
     await touchTokenLastUsedThrottled(tokenId);
 

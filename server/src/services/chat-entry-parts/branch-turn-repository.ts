@@ -1,32 +1,50 @@
 import { eq, sql } from "drizzle-orm";
 
-import { initDb } from "../../db/client";
+import { type DbExecutor, initDb } from "../../db/client";
 import { chatBranches } from "../../db/schema";
 
-export async function getBranchCurrentTurn(params: { branchId: string }): Promise<number> {
-  const db = await initDb();
-  const rows = await db
+type BranchTurnParams = {
+  branchId: string;
+  executor?: DbExecutor;
+};
+
+function readBranchCurrentTurn(db: DbExecutor, branchId: string): number {
+  const rows = db
     .select({ currentTurn: chatBranches.currentTurn })
     .from(chatBranches)
-    .where(eq(chatBranches.id, params.branchId))
-    .limit(1);
+    .where(eq(chatBranches.id, branchId))
+    .limit(1)
+    .all();
   return rows[0]?.currentTurn ?? 0;
 }
 
-export async function incrementBranchTurn(params: { branchId: string }): Promise<number> {
-  const db = await initDb();
+export function getBranchCurrentTurn(params: BranchTurnParams & { executor: DbExecutor }): number;
+export function getBranchCurrentTurn(params: BranchTurnParams): Promise<number>;
+export function getBranchCurrentTurn(params: BranchTurnParams): Promise<number> | number {
+  if (params.executor) {
+    return readBranchCurrentTurn(params.executor, params.branchId);
+  }
 
-  // SQLite supports UPDATE ... RETURNING in modern versions; Drizzle uses it when available.
-  const rows = await db
-    .update(chatBranches)
-    .set({ currentTurn: sql`${chatBranches.currentTurn} + 1` })
-    .where(eq(chatBranches.id, params.branchId))
-    .returning({ currentTurn: chatBranches.currentTurn });
+  return initDb().then((db) => readBranchCurrentTurn(db, params.branchId));
+}
 
-  const current = rows[0]?.currentTurn;
-  if (typeof current === "number") return current;
+export function incrementBranchTurn(params: BranchTurnParams & { executor: DbExecutor }): number;
+export function incrementBranchTurn(params: BranchTurnParams): Promise<number>;
+export function incrementBranchTurn(params: BranchTurnParams): Promise<number> | number {
+  const run = (db: DbExecutor): number => {
+    db
+      .update(chatBranches)
+      .set({ currentTurn: sql`${chatBranches.currentTurn} + 1` })
+      .where(eq(chatBranches.id, params.branchId))
+      .run();
 
-  // Fallback: select current turn if RETURNING is not supported.
-  return await getBranchCurrentTurn({ branchId: params.branchId });
+    return readBranchCurrentTurn(db, params.branchId);
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 

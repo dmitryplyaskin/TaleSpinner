@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
-import { initDb } from "../../db/client";
+import { type DbExecutor, initDb } from "../../db/client";
 import { chatEntries, entryVariants } from "../../db/schema";
 
 import { listPartsForVariants } from "./parts-repository";
@@ -20,36 +20,48 @@ function variantRowToDomain(row: typeof entryVariants.$inferSelect, parts: Varia
   };
 }
 
-export async function createVariant(params: {
+type CreateVariantParams = {
   ownerId?: string;
   entryId: string;
   kind: VariantKind;
   derived?: unknown;
-}): Promise<Variant> {
-  const db = await initDb();
-  const ownerId = params.ownerId ?? "global";
+  executor?: DbExecutor;
+};
 
-  const variantId = uuidv4();
-  const createdAtMs = Date.now();
-  const createdAt = new Date(createdAtMs);
+export function createVariant(params: CreateVariantParams & { executor: DbExecutor }): Variant;
+export function createVariant(params: CreateVariantParams): Promise<Variant>;
+export function createVariant(params: CreateVariantParams): Promise<Variant> | Variant {
+  const run = (db: DbExecutor): Variant => {
+    const ownerId = params.ownerId ?? "global";
 
-  await db.insert(entryVariants).values({
-    variantId,
-    ownerId,
-    entryId: params.entryId,
-    kind: params.kind,
-    createdAt,
-    derivedJson: typeof params.derived === "undefined" ? null : safeJsonStringify(params.derived),
-  });
+    const variantId = uuidv4();
+    const createdAtMs = Date.now();
+    const createdAt = new Date(createdAtMs);
 
-  return {
-    variantId,
-    entryId: params.entryId,
-    kind: params.kind,
-    createdAt: createdAtMs,
-    parts: [],
-    derived: params.derived as any,
+    db.insert(entryVariants).values({
+      variantId,
+      ownerId,
+      entryId: params.entryId,
+      kind: params.kind,
+      createdAt,
+      derivedJson: typeof params.derived === "undefined" ? null : safeJsonStringify(params.derived),
+    }).run();
+
+    return {
+      variantId,
+      entryId: params.entryId,
+      kind: params.kind,
+      createdAt: createdAtMs,
+      parts: [],
+      derived: params.derived as any,
+    };
   };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function listVariantsByIds(params: { variantIds: string[] }): Promise<Map<string, Variant>> {
@@ -67,15 +79,28 @@ export async function listVariantsByIds(params: { variantIds: string[] }): Promi
   return map;
 }
 
-export async function selectActiveVariant(params: {
+type SelectActiveVariantParams = {
   entryId: string;
   variantId: string;
-}): Promise<void> {
-  const db = await initDb();
-  await db
-    .update(chatEntries)
-    .set({ activeVariantId: params.variantId })
-    .where(eq(chatEntries.entryId, params.entryId));
+  executor?: DbExecutor;
+};
+
+export function selectActiveVariant(params: SelectActiveVariantParams & { executor: DbExecutor }): void;
+export function selectActiveVariant(params: SelectActiveVariantParams): Promise<void>;
+export function selectActiveVariant(params: SelectActiveVariantParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    db
+      .update(chatEntries)
+      .set({ activeVariantId: params.variantId })
+      .where(eq(chatEntries.entryId, params.entryId))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function listEntryVariants(params: { entryId: string }): Promise<Variant[]> {
@@ -88,15 +113,28 @@ export async function listEntryVariants(params: { entryId: string }): Promise<Va
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function updateVariantDerived(params: {
+type UpdateVariantDerivedParams = {
   variantId: string;
   derived: unknown | null;
-}): Promise<void> {
-  const db = await initDb();
-  await db
-    .update(entryVariants)
-    .set({ derivedJson: params.derived === null ? null : safeJsonStringify(params.derived) })
-    .where(eq(entryVariants.variantId, params.variantId));
+  executor?: DbExecutor;
+};
+
+export function updateVariantDerived(params: UpdateVariantDerivedParams & { executor: DbExecutor }): void;
+export function updateVariantDerived(params: UpdateVariantDerivedParams): Promise<void>;
+export function updateVariantDerived(params: UpdateVariantDerivedParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    db
+      .update(entryVariants)
+      .set({ derivedJson: params.derived === null ? null : safeJsonStringify(params.derived) })
+      .where(eq(entryVariants.variantId, params.variantId))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function getVariantById(params: { variantId: string }): Promise<Variant | null> {

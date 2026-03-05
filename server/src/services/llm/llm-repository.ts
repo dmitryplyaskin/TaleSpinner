@@ -48,6 +48,15 @@ export type LlmRuntimeProviderStateRow = {
   lastModel: string | null;
 };
 
+export type TokenPlaintextLookupResult =
+  | { status: "ok"; plaintext: string }
+  | { status: "missing" }
+  | {
+      status: "decrypt_failed";
+      reason: "invalid_payload" | "key_mismatch_or_corrupt";
+      message: string;
+    };
+
 function nowDate(): Date {
   return new Date();
 }
@@ -370,25 +379,55 @@ export async function deleteToken(id: string): Promise<void> {
   await database.delete(llmTokens).where(eq(llmTokens.id, id));
 }
 
-export async function getTokenPlaintext(id: string): Promise<string | null> {
+function classifyDecryptFailure(
+  error: unknown
+): Extract<TokenPlaintextLookupResult, { status: "decrypt_failed" }> {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.trim().toLowerCase();
+  const reason =
+    normalized.includes("authenticate data") ||
+    normalized.includes("unsupported state")
+      ? "key_mismatch_or_corrupt"
+      : "invalid_payload";
+
+  return {
+    status: "decrypt_failed",
+    reason,
+    message,
+  };
+}
+
+export async function getTokenPlaintextResult(
+  id: string
+): Promise<TokenPlaintextLookupResult> {
   const database = await db();
   const rows = await database
     .select()
     .from(llmTokens)
     .where(eq(llmTokens.id, id));
   const row = rows[0];
-  if (!row) return null;
+  if (!row) return { status: "missing" };
   try {
-    return decryptSecret(row.ciphertext);
+    return {
+      status: "ok",
+      plaintext: decryptSecret(row.ciphertext),
+    };
   } catch (error) {
+    const failure = classifyDecryptFailure(error);
     // Do not crash runtime/model endpoints when token decryption is unavailable.
     // Treat it as "token missing" and let callers decide fallback behavior.
     console.warn("Failed to decrypt LLM token", {
       tokenId: id,
-      error,
+      reason: failure.reason,
+      message: failure.message,
     });
-    return null;
+    return failure;
   }
+}
+
+export async function getTokenPlaintext(id: string): Promise<string | null> {
+  const result = await getTokenPlaintextResult(id);
+  return result.status === "ok" ? result.plaintext : null;
 }
 
 export async function touchTokenLastUsed(id: string): Promise<void> {

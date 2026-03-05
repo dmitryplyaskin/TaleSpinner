@@ -19,7 +19,7 @@ import {
   resolveActiveUndoCascade,
   resolveContinueUserTurnTarget,
   resolveRestoredPartId,
-} from "./chat-entries.api";
+} from "../application/chat-runtime/chat-entry-helpers";
 
 import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
 

@@ -9,6 +9,8 @@ import { resolveDbPath as resolveDbPathFromEnv } from "../config/path-resolver";
 import * as schema from "./schema";
 
 export type Db = BetterSQLite3Database<typeof schema>;
+export type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type DbExecutor = Db | DbTransaction;
 
 let _db: Db | null = null;
 let _sqlite: Database.Database | null = null;
@@ -36,6 +38,11 @@ export async function initDb(options: DbInitOptions = {}): Promise<Db> {
   _sqlite = sqlite;
   _db = drizzle(sqlite, { schema });
   return _db;
+}
+
+export async function withDbTransaction<T>(work: (tx: DbTransaction) => T): Promise<T> {
+  const db = await initDb();
+  return db.transaction(work);
 }
 
 export function resetDbForTests(): void {

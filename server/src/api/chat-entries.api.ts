@@ -6,6 +6,11 @@ import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 import { initSse, type SseWriter } from "@core/sse/sse";
 
+import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
+import { continueGeneration } from "../application/chat-runtime/use-cases/continue-generation";
+import { createEntryAndStartGeneration } from "../application/chat-runtime/use-cases/create-entry-and-start-generation";
+import { getPromptDiagnostics } from "../application/chat-runtime/use-cases/get-prompt-diagnostics";
+import { regenerateAssistantVariant } from "../application/chat-runtime/use-cases/regenerate-assistant-variant";
 import { chatIdParamsSchema } from "../chat-core/schemas";
 import { getChatById } from "../services/chat-core/chats-repository";
 import { abortGeneration } from "../services/chat-core/generation-runtime";
@@ -19,10 +24,8 @@ import {
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../services/chat-core/prompt-template-context";
 import { renderLiquidTemplate } from "../services/chat-core/prompt-template-renderer";
-import { getSelectedUserPerson } from "../services/chat-core/user-persons-repository";
-import { getBranchCurrentTurn, incrementBranchTurn } from "../services/chat-entry-parts/branch-turn-repository";
+import { getBranchCurrentTurn } from "../services/chat-entry-parts/branch-turn-repository";
 import {
-  createEntryWithVariant,
   getActiveVariantWithParts,
   getEntryById,
   listEntries,
@@ -35,21 +38,17 @@ import {
 import {
   applyPartMutableBatchPatches,
   applyManualEditToPart,
-  createPart,
   getPartWithVariantContextById,
   softDeletePart,
 } from "../services/chat-entry-parts/parts-repository";
 import { serializePart } from "../services/chat-entry-parts/prompt-serializers";
 import { getPromptProjectionWithEntryIds, getUiProjection } from "../services/chat-entry-parts/projection";
 import {
-  createVariant,
   deleteVariant,
   getVariantById,
   listEntryVariants,
   selectActiveVariant,
-  updateVariantDerived,
 } from "../services/chat-entry-parts/variants-repository";
-import { runChatGenerationV3 } from "../services/chat-generation-v3/run-chat-generation-v3";
 import { normalizeOperationActivationConfig } from "../services/chat-generation-v3/operations/operation-activation-intervals";
 import { loadOrBootstrapRuntimeState } from "../services/chat-generation-v3/runtime/operation-runtime-state";
 import { resolveCompiledOperationProfile } from "../services/operations/operation-profile-resolver";
@@ -512,27 +511,6 @@ export function buildLatestWorldInfoActivationsFromGeneration(
   };
 }
 
-async function linkVariantToGeneration(params: {
-  variantId: string;
-  generationId: string;
-}): Promise<void> {
-  const variant = await getVariantById({ variantId: params.variantId });
-  if (!variant) return;
-
-  const derived = isRecord(variant.derived) ? { ...variant.derived } : {};
-  derived.generationId = params.generationId;
-
-  const generation = await getGenerationByIdWithDebug(params.generationId);
-  if (generation?.promptHash) {
-    derived.promptHash = generation.promptHash;
-  }
-
-  await updateVariantDerived({
-    variantId: params.variantId,
-    derived,
-  });
-}
-
 export function buildUserEntryMeta(params: {
   requestId?: string;
   selectedUser: SelectedUserLike;
@@ -717,6 +695,49 @@ async function proxyRunEventsToSse(params: {
   return summary;
 }
 
+async function streamGenerationSession(params: {
+  req: Request;
+  res: Response;
+  buildSession: (abortController: AbortController) => Promise<ChatGenerationSession>;
+}): Promise<void> {
+  const sse = initSse({ res: params.res });
+  let generationId: string | null = null;
+  const runAbortController = new AbortController();
+  let shouldAbortOnClose = false;
+  let reqClosed = false;
+
+  params.res.on("close", () => {
+    reqClosed = true;
+    if (shouldAbortOnClose) {
+      runAbortController.abort();
+      if (generationId) abortGeneration(generationId);
+    }
+    sse.close();
+  });
+
+  try {
+    const session = await params.buildSession(runAbortController);
+    shouldAbortOnClose = true;
+    if (reqClosed) {
+      runAbortController.abort();
+      if (generationId) abortGeneration(generationId);
+    }
+
+    await proxyRunEventsToSse({
+      sse,
+      envBase: session.envBase,
+      reqClosed: () => reqClosed,
+      abortController: runAbortController,
+      onGenerationId: (id) => {
+        generationId = id;
+      },
+      events: session.events,
+    });
+  } finally {
+    sse.close();
+  }
+}
+
 export function resolveContinueUserTurnTarget(params: {
   lastEntry: Entry | null;
   lastVariant: Variant | null;
@@ -782,100 +803,6 @@ export function pickPreviousUserEntries(params: {
   }
 
   return result;
-}
-
-async function resolveRegenerateUserTurnTarget(params: {
-  chatId: string;
-  branchId: string;
-  assistantEntry: Entry;
-  currentTurn: number;
-}): Promise<{ mode: "entry_parts"; userEntryId: string; userMainPartId: string } | undefined> {
-  const PAGE_LIMIT = 200;
-  let before = params.assistantEntry.createdAt + 1;
-
-  while (true) {
-    const entries = await listEntries({
-      chatId: params.chatId,
-      branchId: params.branchId,
-      limit: PAGE_LIMIT,
-      before,
-    });
-    if (entries.length === 0) return undefined;
-
-    const userCandidates = pickPreviousUserEntries({
-      entries,
-      anchorEntryId: params.assistantEntry.entryId,
-    });
-    for (const candidate of userCandidates) {
-      const candidateVariant = await getActiveVariantWithParts({ entry: candidate });
-      try {
-        const target = resolveContinueUserTurnTarget({
-          lastEntry: candidate,
-          lastVariant: candidateVariant,
-          currentTurn: params.currentTurn,
-        });
-        return {
-          mode: "entry_parts",
-          userEntryId: target.userEntryId,
-          userMainPartId: target.userMainPartId,
-        };
-      } catch {
-        // Try the next older user entry candidate.
-      }
-    }
-
-    const oldestEntry = entries[0];
-    if (!oldestEntry) return undefined;
-    before = oldestEntry.createdAt;
-  }
-}
-
-async function createAssistantReasoningPart(params: {
-  ownerId: string;
-  variantId: string;
-  createdTurn: number;
-  requestId?: string;
-}): Promise<Part> {
-  return createPart({
-    ownerId: params.ownerId,
-    variantId: params.variantId,
-    channel: "reasoning",
-    order: -1,
-    payload: "",
-    payloadFormat: "markdown",
-    visibility: { ui: "always", prompt: false },
-    ui: { rendererId: "markdown" },
-    prompt: { serializerId: "asText" },
-    lifespan: "infinite",
-    createdTurn: params.createdTurn,
-    source: "llm",
-    requestId: params.requestId,
-  });
-}
-
-function isVariantTextuallyEmpty(variant: Variant): boolean {
-  const parts = (variant.parts ?? []).filter((part) => !part.softDeleted);
-  if (parts.length === 0) return true;
-
-  return parts.every((part) => {
-    if (typeof part.payload !== "string") return false;
-    return part.payload.trim().length === 0;
-  });
-}
-
-async function cleanupEmptyGenerationVariants(entryId: string): Promise<void> {
-  let variants = await listEntryVariants({ entryId });
-  for (const variant of variants) {
-    if (variants.length <= 1) break;
-    if (variant.kind !== "generation") continue;
-    if (!isVariantTextuallyEmpty(variant)) continue;
-    try {
-      await deleteVariant({ entryId, variantId: variant.variantId });
-    } catch {
-      // best-effort cleanup; ignore failures for this variant
-    }
-    variants = variants.filter((v) => v.variantId !== variant.variantId);
-  }
 }
 
 const listEntriesQuerySchema = z
@@ -977,182 +904,18 @@ router.post(
   validate({ params: chatIdParamsSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const params = req.params as unknown as { id: string };
-    const chat = await getChatById(params.id);
-    if (!chat) throw new HttpError(404, "Chat не найден", "NOT_FOUND");
-
-    ensureSseRequested(req);
-
     const body = createEntryBodySchema.parse(req.body);
-    const ownerId = body.ownerId ?? "global";
-    const branchId = body.branchId || chat.activeBranchId;
-    if (!branchId) throw new HttpError(400, "branchId обязателен (нет activeBranchId)", "VALIDATION_ERROR");
-
-    const templateContext = await buildInstructionRenderContext({
-      ownerId,
-      chatId: params.id,
-      branchId,
-      entityProfileId: chat.entityProfileId,
-      historyLimit: 50,
-    });
-    await resolveAndApplyWorldInfoToTemplateContext({
-      context: templateContext,
-      ownerId,
-      chatId: params.id,
-      branchId,
-      entityProfileId: chat.entityProfileId,
-      trigger: "generate",
-      dryRun: true,
-    });
-    const { renderedContent, changed } = await renderUserInputWithLiquid({
-      content: body.content ?? "",
-      context: templateContext,
-    });
-
-    const sse = initSse({ res });
-
-    let generationId: string | null = null;
-    const runAbortController = new AbortController();
-    let shouldAbortOnClose = false;
-    let reqClosed = false;
-    req.on("close", () => {
-      reqClosed = true;
-      if (shouldAbortOnClose) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-      sse.close();
-    });
-
-    try {
-      const currentTurn = await getBranchCurrentTurn({ branchId });
-      const selectedUser = await getSelectedUserPerson({ ownerId });
-      const userEntryMeta = buildUserEntryMeta({
-        requestId: body.requestId,
-        selectedUser,
-        templateRender: {
-          engine: "liquidjs",
-          rawContent: body.content ?? "",
-          renderedContent,
-          changed,
-          renderedAt: new Date().toISOString(),
-          source: "entry_create",
-        },
-      });
-
-      const user = await createEntryWithVariant({
-        ownerId,
-        chatId: params.id,
-        branchId,
-        role: body.role,
-        variantKind: "manual_edit",
-        meta: userEntryMeta,
-      });
-
-      const userMainPart = await createPart({
-        ownerId,
-        variantId: user.variant.variantId,
-        channel: "main",
-        order: 0,
-        payload: renderedContent,
-        payloadFormat: "markdown",
-        visibility: { ui: "always", prompt: true },
-        ui: { rendererId: "markdown" },
-        prompt: { serializerId: "asText" },
-        lifespan: "infinite",
-        createdTurn: currentTurn,
-        source: "user",
-        requestId: body.requestId,
-      });
-
-      const newTurn = await incrementBranchTurn({ branchId });
-
-      const assistant = await createEntryWithVariant({
-        ownerId,
-        chatId: params.id,
-        branchId,
-        role: "assistant",
-        variantKind: "generation",
-      });
-
-      const assistantMainPart = await createPart({
-        ownerId,
-        variantId: assistant.variant.variantId,
-        channel: "main",
-        order: 0,
-        payload: "",
-        payloadFormat: "markdown",
-        visibility: { ui: "always", prompt: true },
-        ui: { rendererId: "markdown" },
-        prompt: { serializerId: "asText" },
-        lifespan: "infinite",
-        createdTurn: newTurn,
-        source: "llm",
-      });
-      const assistantReasoningPart = await createAssistantReasoningPart({
-        ownerId,
-        variantId: assistant.variant.variantId,
-        createdTurn: newTurn,
-        requestId: body.requestId,
-      });
-
-      shouldAbortOnClose = true;
-      if (reqClosed) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-
-      const envBase = {
-        chatId: params.id,
-        branchId,
-        userEntryId: user.entry.entryId,
-        userMainPartId: userMainPart.partId,
-        userRenderedContent: renderedContent,
-        assistantEntryId: assistant.entry.entryId,
-        assistantVariantId: assistant.variant.variantId,
-        assistantMainPartId: assistantMainPart.partId,
-        assistantReasoningPartId: assistantReasoningPart.partId,
-      };
-      await proxyRunEventsToSse({
-        sse,
-        envBase,
-        reqClosed: () => reqClosed,
-        abortController: runAbortController,
-        onGenerationId: (id) => {
-          generationId = id;
-        },
-        events: runChatGenerationV3({
-          ownerId,
+    ensureSseRequested(req);
+    await streamGenerationSession({
+      req,
+      res,
+      buildSession: (abortController) =>
+        createEntryAndStartGeneration({
           chatId: params.id,
-          branchId,
-          entityProfileId: chat.entityProfileId,
-          trigger: "generate",
-          source: body.role === "user" ? "user_message" : "system_message",
-          settings: body.settings,
-          abortController: runAbortController,
-          persistenceTarget: {
-            mode: "entry_parts",
-            assistantEntryId: assistant.entry.entryId,
-            assistantMainPartId: assistantMainPart.partId,
-            assistantReasoningPartId: assistantReasoningPart.partId,
-          },
-          userTurnTarget: {
-            mode: "entry_parts",
-            userEntryId: user.entry.entryId,
-            userMainPartId: userMainPart.partId,
-          },
+          body,
+          abortController,
         }),
-      });
-      if (generationId) {
-        await linkVariantToGeneration({
-          variantId: assistant.variant.variantId,
-          generationId,
-        });
-      }
-
-    } finally {
-      sse.close();
-    }
-
+    });
     return;
   })
 );
@@ -1169,131 +932,19 @@ router.post(
   validate({ params: chatIdParamsSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const params = req.params as unknown as { id: string };
-    const chat = await getChatById(params.id);
-    if (!chat) throw new HttpError(404, "Chat не найден", "NOT_FOUND");
     ensureSseRequested(req);
 
     const body = continueEntryBodySchema.parse(req.body);
-    const ownerId = body.ownerId ?? "global";
-    const branchId = body.branchId || chat.activeBranchId;
-    if (!branchId) throw new HttpError(400, "branchId обязателен (нет activeBranchId)", "VALIDATION_ERROR");
-
-    const sse = initSse({ res });
-    let generationId: string | null = null;
-    const runAbortController = new AbortController();
-    let shouldAbortOnClose = false;
-    let reqClosed = false;
-    req.on("close", () => {
-      reqClosed = true;
-      if (shouldAbortOnClose) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-      sse.close();
-    });
-
-    try {
-      const lastEntries = await listEntries({
-        chatId: params.id,
-        branchId,
-        limit: 1,
-      });
-      const lastEntry = lastEntries.length > 0 ? lastEntries[lastEntries.length - 1] : null;
-      const lastVariant = lastEntry ? await getActiveVariantWithParts({ entry: lastEntry }) : null;
-      const currentTurn = await getBranchCurrentTurn({ branchId });
-      const userTurnTarget = resolveContinueUserTurnTarget({
-        lastEntry,
-        lastVariant,
-        currentTurn,
-      });
-
-      const newTurn = await incrementBranchTurn({ branchId });
-      const assistant = await createEntryWithVariant({
-        ownerId,
-        chatId: params.id,
-        branchId,
-        role: "assistant",
-        variantKind: "generation",
-      });
-      const assistantMainPart = await createPart({
-        ownerId,
-        variantId: assistant.variant.variantId,
-        channel: "main",
-        order: 0,
-        payload: "",
-        payloadFormat: "markdown",
-        visibility: { ui: "always", prompt: true },
-        ui: { rendererId: "markdown" },
-        prompt: { serializerId: "asText" },
-        lifespan: "infinite",
-        createdTurn: newTurn,
-        source: "llm",
-        requestId: body.requestId,
-      });
-      const assistantReasoningPart = await createAssistantReasoningPart({
-        ownerId,
-        variantId: assistant.variant.variantId,
-        createdTurn: newTurn,
-        requestId: body.requestId,
-      });
-
-      shouldAbortOnClose = true;
-      if (reqClosed) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-
-      const envBase = {
-        chatId: params.id,
-        branchId,
-        userEntryId: userTurnTarget.userEntryId,
-        assistantEntryId: assistant.entry.entryId,
-        assistantVariantId: assistant.variant.variantId,
-        assistantMainPartId: assistantMainPart.partId,
-        assistantReasoningPartId: assistantReasoningPart.partId,
-      };
-
-      await proxyRunEventsToSse({
-        sse,
-        envBase,
-        reqClosed: () => reqClosed,
-        abortController: runAbortController,
-        onGenerationId: (id) => {
-          generationId = id;
-        },
-        events: runChatGenerationV3({
-          ownerId,
+    await streamGenerationSession({
+      req,
+      res,
+      buildSession: (abortController) =>
+        continueGeneration({
           chatId: params.id,
-          branchId,
-          entityProfileId: chat.entityProfileId,
-          trigger: "generate",
-          source: "continue",
-          settings: body.settings,
-          abortController: runAbortController,
-          persistenceTarget: {
-            mode: "entry_parts",
-            assistantEntryId: assistant.entry.entryId,
-            assistantMainPartId: assistantMainPart.partId,
-            assistantReasoningPartId: assistantReasoningPart.partId,
-          },
-          userTurnTarget: {
-            mode: "entry_parts",
-            userEntryId: userTurnTarget.userEntryId,
-            userMainPartId: userTurnTarget.userMainPartId,
-          },
+          body,
+          abortController,
         }),
-      });
-      if (generationId) {
-        await linkVariantToGeneration({
-          variantId: assistant.variant.variantId,
-          generationId,
-        });
-      }
-
-    } finally {
-      sse.close();
-    }
-
+    });
     return;
   })
 );
@@ -1313,131 +964,16 @@ router.post(
     ensureSseRequested(req);
 
     const body = regenerateBodySchema.parse(req.body);
-    const ownerId = body.ownerId ?? "global";
-
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-    if (entry.role !== "assistant") {
-      throw new HttpError(400, "regenerate поддерживается только для role=assistant", "VALIDATION_ERROR");
-    }
-
-    const chat = await getChatById(entry.chatId);
-    if (!chat) throw new HttpError(404, "Chat не найден", "NOT_FOUND");
-
-    const sse = initSse({ res });
-
-    let generationId: string | null = null;
-    const runAbortController = new AbortController();
-    let shouldAbortOnClose = false;
-    let reqClosed = false;
-    req.on("close", () => {
-      reqClosed = true;
-      if (shouldAbortOnClose) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-      sse.close();
-    });
-
-    try {
-      const currentTurn = await getBranchCurrentTurn({ branchId: entry.branchId });
-      const userTurnTarget = await resolveRegenerateUserTurnTarget({
-        chatId: entry.chatId,
-        branchId: entry.branchId,
-        assistantEntry: entry,
-        currentTurn,
-      });
-
-      const newTurn = await incrementBranchTurn({ branchId: entry.branchId });
-
-      const newVariant = await createVariant({
-        ownerId,
-        entryId: entry.entryId,
-        kind: "generation",
-      });
-      await selectActiveVariant({ entryId: entry.entryId, variantId: newVariant.variantId });
-
-      const assistantMainPart = await createPart({
-        ownerId,
-        variantId: newVariant.variantId,
-        channel: "main",
-        order: 0,
-        payload: "",
-        payloadFormat: "markdown",
-        visibility: { ui: "always", prompt: true },
-        ui: { rendererId: "markdown" },
-        prompt: { serializerId: "asText" },
-        lifespan: "infinite",
-        createdTurn: newTurn,
-        source: "llm",
-      });
-      const assistantReasoningPart = await createAssistantReasoningPart({
-        ownerId,
-        variantId: newVariant.variantId,
-        createdTurn: newTurn,
-        requestId: body.requestId,
-      });
-
-      shouldAbortOnClose = true;
-      if (reqClosed) {
-        runAbortController.abort();
-        if (generationId) abortGeneration(generationId);
-      }
-
-      const envBase = {
-        chatId: entry.chatId,
-        branchId: entry.branchId,
-        ...(userTurnTarget
-          ? {
-              userEntryId: userTurnTarget.userEntryId,
-              userMainPartId: userTurnTarget.userMainPartId,
-            }
-          : {}),
-        assistantEntryId: entry.entryId,
-        assistantVariantId: newVariant.variantId,
-        assistantMainPartId: assistantMainPart.partId,
-        assistantReasoningPartId: assistantReasoningPart.partId,
-      };
-      await proxyRunEventsToSse({
-        sse,
-        envBase,
-        reqClosed: () => reqClosed,
-        abortController: runAbortController,
-        onGenerationId: (id) => {
-          generationId = id;
-        },
-        events: runChatGenerationV3({
-          ownerId,
-          chatId: entry.chatId,
-          branchId: entry.branchId,
-          entityProfileId: chat.entityProfileId,
-          trigger: "regenerate",
-          source: "regenerate",
-          settings: body.settings,
-          abortController: runAbortController,
-          persistenceTarget: {
-            mode: "entry_parts",
-            assistantEntryId: entry.entryId,
-            assistantMainPartId: assistantMainPart.partId,
-            assistantReasoningPartId: assistantReasoningPart.partId,
-          },
-          userTurnTarget,
+    await streamGenerationSession({
+      req,
+      res,
+      buildSession: (abortController) =>
+        regenerateAssistantVariant({
+          entryId: params.id,
+          body,
+          abortController,
         }),
-      });
-      if (generationId) {
-        await linkVariantToGeneration({
-          variantId: newVariant.variantId,
-          generationId,
-        });
-      }
-
-      // Always run best-effort cleanup for empty generation variants.
-      // This removes both the current aborted-empty variant and older empty leftovers.
-      await cleanupEmptyGenerationVariants(entry.entryId);
-    } finally {
-      sse.close();
-    }
-
+    });
     return;
   })
 );
@@ -1452,46 +988,12 @@ router.get(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const query = promptDiagnosticsQuerySchema.parse(req.query);
-
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-    if (entry.role !== "assistant") {
-      throw new HttpError(400, "Prompt diagnostics доступны только для assistant entry", "VALIDATION_ERROR");
-    }
-
-    const variantId = query.variantId ?? entry.activeVariantId;
-    const variant = await getVariantById({ variantId });
-    if (!variant || variant.entryId !== entry.entryId) {
-      throw new HttpError(404, "Variant не найден", "NOT_FOUND");
-    }
-
-    const derived = isRecord(variant.derived) ? variant.derived : {};
-    const generationId =
-      typeof derived.generationId === "string" ? derived.generationId : null;
-    if (!generationId) {
-      throw new HttpError(404, "Prompt diagnostics не найдены для варианта", "NOT_FOUND");
-    }
-
-    const generation = await getGenerationByIdWithDebug(generationId);
-    if (!generation) {
-      throw new HttpError(404, "Generation не найдена", "NOT_FOUND");
-    }
-
-    const fromDebug = buildPromptDiagnosticsFromDebug({
-      generation,
-      entryId: entry.entryId,
-      variantId: variant.variantId,
-    });
-    if (fromDebug) return { data: fromDebug };
-
-    const fromSnapshot = buildPromptDiagnosticsFromSnapshot({
-      generation,
-      entryId: entry.entryId,
-      variantId: variant.variantId,
-    });
-    if (fromSnapshot) return { data: fromSnapshot };
-
-    throw new HttpError(404, "Prompt diagnostics недоступны", "NOT_FOUND");
+    return {
+      data: await getPromptDiagnostics({
+        entryId: params.id,
+        variantId: query.variantId,
+      }),
+    };
   })
 );
 
