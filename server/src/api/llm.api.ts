@@ -25,6 +25,7 @@ import {
   updateToken,
 } from "@services/llm/llm-repository";
 import { getModels } from "@services/llm/llm-service";
+import { checkProviderConnection } from "@services/llm/llm-service";
 
 const router = express.Router();
 
@@ -43,6 +44,13 @@ const runtimePatchSchema = z.object({
   activeProviderId: providerIdSchema,
   activeTokenId: z.string().min(1).nullable().optional(),
   activeModel: z.string().min(1).nullable().optional(),
+});
+
+const providerConnectionCheckBodySchema = z.object({
+  scope: scopeSchema.optional().default("global"),
+  scopeId: z.string().min(1).optional().default("global"),
+  tokenId: z.string().min(1).nullable().optional(),
+  config: z.unknown().optional(),
 });
 
 router.get(
@@ -121,6 +129,28 @@ router.patch(
 
     const saved = await upsertProviderConfig(providerId, parsed);
     return { data: saved };
+  })
+);
+
+router.post(
+  "/llm/providers/:providerId/check",
+  validate({
+    params: z.object({ providerId: providerIdSchema }),
+    body: providerConnectionCheckBodySchema,
+  }),
+  asyncHandler(async (req: Request) => {
+    const providerId = req.params.providerId as LlmProviderId;
+    const body = providerConnectionCheckBodySchema.parse(req.body);
+
+    return {
+      data: await checkProviderConnection({
+        providerId,
+        scope: body.scope,
+        scopeId: body.scopeId,
+        tokenId: body.tokenId,
+        configOverride: body.config,
+      }),
+    };
   })
 );
 

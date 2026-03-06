@@ -1,13 +1,16 @@
-import { Button, Group, Select, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Group, Select, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import type { LlmProviderConfig, LlmProviderId } from '@shared/types/llm';
+import type { LlmProviderConfig, LlmProviderConnectionCheckResult, LlmProviderId } from '@shared/types/llm';
 
 type Props = {
 	activeProviderId: LlmProviderId;
 	configDraft: LlmProviderConfig;
 	onChange: (next: LlmProviderConfig) => void;
 	onSave: () => Promise<void>;
+	onCheckConnection: () => Promise<void>;
+	isCheckingConnection: boolean;
+	connectionCheckResult: LlmProviderConnectionCheckResult | null;
 };
 
 const TTL_OPTIONS = [
@@ -15,7 +18,15 @@ const TTL_OPTIONS = [
 	{ value: '1h', label: '1h' },
 ];
 
-export const LlmProviderAdvancedConfig: React.FC<Props> = ({ activeProviderId, configDraft, onChange, onSave }) => {
+export const LlmProviderAdvancedConfig: React.FC<Props> = ({
+	activeProviderId,
+	configDraft,
+	onChange,
+	onSave,
+	onCheckConnection,
+	isCheckingConnection,
+	connectionCheckResult,
+}) => {
 	const { t } = useTranslation();
 
 	const tokenPolicy = configDraft.tokenPolicy ?? {};
@@ -142,10 +153,43 @@ export const LlmProviderAdvancedConfig: React.FC<Props> = ({ activeProviderId, c
 			</Stack>
 
 			<Group justify="flex-end">
+				<Button size="xs" variant="light" onClick={() => void onCheckConnection()} loading={isCheckingConnection}>
+					{t('provider.config.checkConnection')}
+				</Button>
 				<Button size="xs" variant="outline" onClick={() => void onSave()}>
 					{t('provider.config.save')}
 				</Button>
 			</Group>
+
+			<Text size="xs" c="dimmed">
+				{t('provider.config.checkConnectionHelp')}
+			</Text>
+
+			{connectionCheckResult ? (
+				<Alert
+					color={connectionCheckResult.ok ? 'green' : 'red'}
+					variant="light"
+					title={t(
+						connectionCheckResult.ok
+							? 'provider.config.connectionSuccessTitle'
+							: 'provider.config.connectionErrorTitle',
+					)}
+				>
+					<Stack gap={4}>
+						<Text size="sm">{connectionCheckResult.message}</Text>
+						{connectionCheckResult.checkedUrl ? (
+							<Text size="xs" c="dimmed">
+								{t('provider.config.checkedEndpoint')}: {connectionCheckResult.checkedUrl}
+							</Text>
+						) : null}
+						{connectionCheckResult.hints.map((hint, index) => (
+							<Text key={`${connectionCheckResult.issueCode ?? 'ok'}:${index}`} size="xs" c="dimmed">
+								• {hint}
+							</Text>
+						))}
+					</Stack>
+				</Alert>
+			) : null}
 		</Stack>
 	);
 };

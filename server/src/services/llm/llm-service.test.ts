@@ -43,6 +43,7 @@ import { HttpError } from "@core/middleware/error-handler";
 
 import {
   __resetTokenTouchThrottleForTests,
+  checkProviderConnection,
   getModels,
   getProvidersForUi,
   getTokensForUi,
@@ -209,6 +210,62 @@ describe("llm-service", () => {
       })
     ).resolves.toEqual([]);
     expect(mocks.axiosGet).toHaveBeenCalledTimes(2);
+  });
+
+  test("checkProviderConnection returns explicit error when openai-compatible baseUrl is missing", async () => {
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: {},
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      issueCode: "BASE_URL_MISSING",
+      message: "Base URL is required for the OpenAI-compatible provider.",
+    });
+  });
+
+  test("checkProviderConnection explains missing models endpoint for openai-compatible provider", async () => {
+    mocks.axiosGet.mockRejectedValueOnce({
+      response: { status: 404 },
+      message: "Request failed with status code 404",
+    });
+
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: { baseUrl: "http://localhost:1234/v1" },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      issueCode: "ENDPOINT_NOT_FOUND",
+      checkedUrl: "http://localhost:1234/v1/models",
+      statusCode: 404,
+    });
+    expect(result.hints).toContain("For OpenAI-compatible backends the Base URL usually ends with /v1.");
+  });
+
+  test("checkProviderConnection returns success payload with model count", async () => {
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: { baseUrl: "http://localhost:1234/v1" },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      issueCode: null,
+      checkedUrl: "http://localhost:1234/v1/models",
+      resolvedBaseUrl: "http://localhost:1234/v1",
+      modelCount: 2,
+      statusCode: null,
+    });
+    expect(result.message).toContain("Models endpoint returned 2 models");
   });
 
   test("streamGlobalChat throws HttpError when active token is missing", async () => {

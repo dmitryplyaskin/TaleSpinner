@@ -6,6 +6,7 @@ import type {
 	LlmPresetPayload,
 	LlmPresetSettings,
 	LlmProviderConfig,
+	LlmProviderConnectionCheckResult,
 	LlmProviderDefinition,
 	LlmProviderId,
 	LlmRuntime,
@@ -79,6 +80,27 @@ export async function patchProviderConfig(
 	return apiJson<{ providerId: LlmProviderId; config: LlmProviderConfig }>(
 		`/llm/providers/${encodeURIComponent(providerId)}/config`,
 		{ method: 'PATCH', body: JSON.stringify(config) },
+	);
+}
+
+export async function checkProviderConnection(params: {
+	providerId: LlmProviderId;
+	scope: LlmScope;
+	scopeId: string;
+	tokenId?: string | null;
+	config?: LlmProviderConfig;
+}): Promise<LlmProviderConnectionCheckResult> {
+	return apiJson<LlmProviderConnectionCheckResult>(
+		`/llm/providers/${encodeURIComponent(params.providerId)}/check`,
+		{
+			method: 'POST',
+			body: JSON.stringify({
+				scope: params.scope,
+				scopeId: params.scopeId,
+				tokenId: params.tokenId ?? null,
+				config: params.config,
+			}),
+		},
 	);
 }
 

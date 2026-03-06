@@ -15,6 +15,12 @@
 				title: 'Конфигурация провайдера',
 				baseUrl: 'Base URL',
 				defaultModel: 'Модель по умолчанию (опционально)',
+				checkConnection: 'Проверить подключение',
+				checkConnectionHelp:
+					'Проверка использует выбранный токен и текущий draft-конфиг. Сохранять настройки перед проверкой не нужно.',
+				connectionSuccessTitle: 'Подключение к провайдеру работает',
+				connectionErrorTitle: 'Проверка провайдера не прошла',
+				checkedEndpoint: 'Проверенный endpoint',
 				tokenPolicy: {
 					title: 'Политика токенов',
 					randomize: 'Использовать случайный токен, если токенов больше одного',
@@ -73,6 +79,12 @@
 			toasts: {
 				configSaved: 'Конфиг провайдера сохранён',
 				configSaveFailed: 'Не удалось сохранить конфиг провайдера',
+				connectionCheckPassed: 'Проверка провайдера прошла',
+				connectionCheckFailed: 'Проверка провайдера не прошла',
+				modelsEmpty: 'Список моделей пуст',
+				modelsEmptyHelp:
+					'Провайдер не вернул ни одной модели. Проверьте Base URL, токен и используйте кнопку «Проверить подключение».',
+				modelsLoadFailed: 'Не удалось загрузить модели',
 			},
 		};
 

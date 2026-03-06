@@ -897,35 +897,108 @@ sample({
 
 export const handleSseEnvelope = createEvent<SseEnvelope>();
 
+type StreamDoneStatus = 'done' | 'aborted' | 'error';
+
+type StreamTerminalState = {
+	doneStatus: StreamDoneStatus | null;
+	errorMessage: string | null;
+};
+
+function readStreamDoneStatus(env: SseEnvelope): StreamDoneStatus | null {
+	if (env.type !== 'llm.stream.done') return null;
+	const data = isRecord(env.data) ? env.data : null;
+	const status = typeof data?.status === 'string' ? data.status : '';
+	if (status === 'done' || status === 'aborted' || status === 'error') return status;
+	return null;
+}
+
+function readStreamErrorMessage(env: SseEnvelope): string | null {
+	if (env.type !== 'llm.stream.error') return null;
+	const data = isRecord(env.data) ? env.data : null;
+	const message = typeof data?.message === 'string' ? data.message.trim() : '';
+	return message.length > 0 ? message : null;
+}
+
+function reduceStreamTerminalState(current: StreamTerminalState, env: SseEnvelope): StreamTerminalState {
+	const doneStatus = readStreamDoneStatus(env) ?? current.doneStatus;
+	const errorMessage = readStreamErrorMessage(env) ?? current.errorMessage;
+	if (doneStatus === current.doneStatus && errorMessage === current.errorMessage) return current;
+	return { doneStatus, errorMessage };
+}
+
+function shouldStopStreamingLoop(env: SseEnvelope): boolean {
+	if (env.type === 'llm.stream.error') return true;
+	const doneStatus = readStreamDoneStatus(env);
+	return doneStatus === 'done' || doneStatus === 'aborted';
+}
+
+function buildStreamTerminalError(state: StreamTerminalState, fallbackMessage: string): Error | null {
+	if (state.doneStatus === 'aborted') return null;
+	if (state.doneStatus !== 'error' && !state.errorMessage) return null;
+	return new Error(state.errorMessage ?? fallbackMessage);
+}
+
 export const runSendStreamFx = createEffect(async (prep: LocalPrep): Promise<void> => {
-	for await (const env of streamChatEntry({
-		chatId: prep.chatId,
-		branchId: prep.branchId,
-		role: prep.role,
-		content: prep.promptText,
-		settings: {},
-		signal: prep.controller.signal,
-	})) {
-		logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
-		handleSseEnvelope(env);
-		if (env.type === 'llm.stream.done') break;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
+	let streamFailed: unknown = null;
+
+	try {
+		for await (const env of streamChatEntry({
+			chatId: prep.chatId,
+			branchId: prep.branchId,
+			role: prep.role,
+			content: prep.promptText,
+			settings: {},
+			signal: prep.controller.signal,
+		})) {
+			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
+			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
+			if (shouldStopStreamingLoop(env)) break;
+		}
+	} catch (error) {
+		if (isAbortLikeError(error)) {
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
+		} else {
+			streamFailed = error;
+		}
 	}
+
 	// Final sync from server to ensure canonical state.
 	await loadEntriesFx({ chatId: prep.chatId, branchId: prep.branchId });
+	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.streamError'));
+	if (terminalError) throw terminalError;
 });
 
 export const runContinueStreamFx = createEffect(async (prep: ContinuePrep): Promise<void> => {
-	for await (const env of streamContinueEntry({
-		chatId: prep.chatId,
-		branchId: prep.branchId,
-		settings: {},
-		signal: prep.controller.signal,
-	})) {
-		logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
-		handleSseEnvelope(env);
-		if (env.type === 'llm.stream.done') break;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
+	let streamFailed: unknown = null;
+
+	try {
+		for await (const env of streamContinueEntry({
+			chatId: prep.chatId,
+			branchId: prep.branchId,
+			settings: {},
+			signal: prep.controller.signal,
+		})) {
+			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
+			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
+			if (shouldStopStreamingLoop(env)) break;
+		}
+	} catch (error) {
+		if (isAbortLikeError(error)) {
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
+		} else {
+			streamFailed = error;
+		}
 	}
+
 	await loadEntriesFx({ chatId: prep.chatId, branchId: prep.branchId });
+	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.streamError'));
+	if (terminalError) throw terminalError;
 });
 
 // Track active stream state for abort button
@@ -962,12 +1035,6 @@ sample({
 });
 
 // Roll back optimistic user/assistant placeholders if stream fails before final sync.
-sample({
-	clock: runSendStreamFx.fail,
-	fn: ({ params }) => ({ chatId: params.chatId, branchId: params.branchId }),
-	target: loadEntriesFx,
-});
-
 type StreamPatch = {
 	entries: ChatEntryWithVariantDto[];
 	stream: ActiveStreamState | null;
@@ -1938,7 +2005,7 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 
 	let assistantVariantId: string | null = null;
 	let sawFirstToken = false;
-	let doneStatus: 'done' | 'aborted' | 'error' | null = null;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
 	let streamFailed: unknown = null;
 
 	try {
@@ -1949,6 +2016,7 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 		})) {
 			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
 			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
 
 			if (env.type === 'llm.stream.meta') {
 				const meta = env.data as Record<string, unknown> | null;
@@ -1962,23 +2030,18 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 				if (content.length > 0) sawFirstToken = true;
 			}
 
-			if (env.type === 'llm.stream.done') {
-				const data = env.data as Record<string, unknown> | null;
-				const status = data && typeof data.status === 'string' ? data.status : '';
-				if (status === 'done' || status === 'aborted' || status === 'error') doneStatus = status;
-				break;
-			}
+			if (shouldStopStreamingLoop(env)) break;
 		}
 	} catch (error) {
 		if (isAbortLikeError(error)) {
-			doneStatus = 'aborted';
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
 		} else {
 			streamFailed = error;
 		}
 	}
 
 	// User aborted before first token: remove empty regeneration variant automatically.
-	if (doneStatus === 'aborted' && !sawFirstToken) {
+	if (terminalState.doneStatus === 'aborted' && !sawFirstToken) {
 		const cleanupCandidates: string[] = [];
 		if (assistantVariantId) cleanupCandidates.push(assistantVariantId);
 
@@ -2002,9 +2065,14 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 	loadVariantsRequested({ entryId: prep.entryId });
 
 	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.regenerateError'));
+	if (terminalError) throw terminalError;
 });
 
 sample({ clock: prepareRegenerateFx.doneData, target: runRegenerateStreamFx });
+
+$activeStream.reset(runSendStreamFx.finally, runContinueStreamFx.finally, runRegenerateStreamFx.finally);
+$activeGenerationId.reset(runSendStreamFx.finally, runContinueStreamFx.finally, runRegenerateStreamFx.finally);
 
 $isChatStreaming.on(runRegenerateStreamFx, () => true).on(runRegenerateStreamFx.finally, () => false);
 

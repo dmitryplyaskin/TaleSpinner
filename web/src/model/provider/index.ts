@@ -52,6 +52,18 @@ export const patchProviderConfigFx = createEffect(
 	},
 );
 
+export const checkProviderConnectionFx = createEffect(
+	async (params: {
+		providerId: LlmProviderId;
+		scope: LlmScope;
+		scopeId: string;
+		tokenId?: string | null;
+		config?: LlmProviderConfig;
+	}) => {
+		return llmApi.checkProviderConnection(params);
+	},
+);
+
 export const loadTokensFx = createEffect(
 	async (providerId: LlmProviderId): Promise<{ providerId: LlmProviderId; tokens: LlmTokenListItem[] }> => {
 		const tokens = await llmApi.listTokens(providerId);
@@ -369,6 +381,7 @@ export const llmProviderModel = {
 	loadModelsFx,
 	loadProviderConfigFx,
 	patchProviderConfigFx,
+	checkProviderConnectionFx,
 	loadLlmPresetsFx,
 	loadLlmPresetSettingsFx,
 	createLlmPresetFx,

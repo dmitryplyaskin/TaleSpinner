@@ -10,7 +10,12 @@ import { LlmPresetManager } from './llm-preset-manager';
 import { LlmProviderAdvancedConfig } from './llm-provider-advanced-config';
 import { LlmRuntimeSelector } from './llm-runtime-selector';
 
-import type { LlmPresetPayload, LlmProviderConfig, LlmScope } from '@shared/types/llm';
+import type {
+	LlmPresetPayload,
+	LlmProviderConfig,
+	LlmProviderConnectionCheckResult,
+	LlmScope,
+} from '@shared/types/llm';
 
 type Props = {
 	scope: LlmScope;
@@ -42,8 +47,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		selectModel,
 		openTokenManager,
 		loadModelsFx,
+		isCheckingProviderConnection,
 		loadProviderConfigFx,
 		patchProviderConfigFx,
+		checkProviderConnectionFx,
 		createLlmPresetFx,
 		updateLlmPresetFx,
 		deleteLlmPresetFx,
@@ -63,8 +70,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		llmProviderModel.modelSelected,
 		llmProviderModel.tokenManagerOpened,
 		llmProviderModel.loadModelsFx,
+		llmProviderModel.checkProviderConnectionFx.pending,
 		llmProviderModel.loadProviderConfigFx,
 		llmProviderModel.patchProviderConfigFx,
+		llmProviderModel.checkProviderConnectionFx,
 		llmProviderModel.createLlmPresetFx,
 		llmProviderModel.updateLlmPresetFx,
 		llmProviderModel.deleteLlmPresetFx,
@@ -87,6 +96,7 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		[configByProvider, activeProviderId],
 	);
 	const [configDraft, setConfigDraft] = useState<LlmProviderConfig>({});
+	const [connectionCheckResult, setConnectionCheckResult] = useState<LlmProviderConnectionCheckResult | null>(null);
 
 	useEffect(() => {
 		if (activeProviderId === 'openai_compatible') {
@@ -96,6 +106,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		setConfigDraft(providerConfig);
 	}, [providerConfig, activeProviderId]);
 
+	useEffect(() => {
+		setConnectionCheckResult(null);
+	}, [activeProviderId, activeTokenId, configDraft]);
+
 	const saveConfig = async () => {
 		try {
 			await patchProviderConfigFx({ providerId: activeProviderId, config: configDraft });
@@ -104,6 +118,30 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		} catch (error) {
 			toaster.error({
 				title: t('provider.toasts.configSaveFailed'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
+	const checkConnection = async () => {
+		try {
+			const result = await checkProviderConnectionFx({
+				providerId: activeProviderId,
+				scope,
+				scopeId,
+				tokenId: activeTokenId,
+				config: configDraft,
+			});
+			setConnectionCheckResult(result);
+			if (result.ok) {
+				toaster.success({ title: t('provider.toasts.connectionCheckPassed'), description: result.message });
+				return;
+			}
+			toaster.error({ title: t('provider.toasts.connectionCheckFailed'), description: result.message });
+		} catch (error) {
+			setConnectionCheckResult(null);
+			toaster.error({
+				title: t('provider.toasts.connectionCheckFailed'),
 				description: error instanceof Error ? error.message : String(error),
 			});
 		}
@@ -221,12 +259,25 @@ export const LlmProviderPanel: React.FC<Props> = ({
 						onModelSelect={(model) => selectModel({ scope, scopeId, model })}
 						onLoadModels={async () => {
 							if (!activeTokenId) return;
-							await loadModelsFx({
-								providerId: activeProviderId,
-								scope,
-								scopeId,
-								tokenId: activeTokenId,
-							});
+							try {
+								const result = await loadModelsFx({
+									providerId: activeProviderId,
+									scope,
+									scopeId,
+									tokenId: activeTokenId,
+								});
+								if (result.models.length === 0) {
+									toaster.warning({
+										title: t('provider.toasts.modelsEmpty'),
+										description: t('provider.toasts.modelsEmptyHelp'),
+									});
+								}
+							} catch (error) {
+								toaster.error({
+									title: t('provider.toasts.modelsLoadFailed'),
+									description: error instanceof Error ? error.message : String(error),
+								});
+							}
 						}}
 						onOpenTokenManager={openTokenManager}
 					/>
@@ -241,6 +292,9 @@ export const LlmProviderPanel: React.FC<Props> = ({
 						configDraft={configDraft}
 						onChange={setConfigDraft}
 						onSave={saveConfig}
+						onCheckConnection={checkConnection}
+						isCheckingConnection={isCheckingProviderConnection}
+						connectionCheckResult={connectionCheckResult}
 					/>
 				</>
 			)}

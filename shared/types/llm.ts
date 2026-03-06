@@ -99,3 +99,27 @@ export type LlmModel = {
   name: string;
 };
 
+export type LlmProviderConnectionIssueCode =
+  | "TOKEN_MISSING"
+  | "TOKEN_NOT_FOUND"
+  | "TOKEN_DECRYPT_FAILED"
+  | "CONFIG_INVALID"
+  | "BASE_URL_MISSING"
+  | "AUTH_ERROR"
+  | "ENDPOINT_NOT_FOUND"
+  | "NETWORK_ERROR"
+  | "PROVIDER_ERROR"
+  | null;
+
+export type LlmProviderConnectionCheckResult = {
+  ok: boolean;
+  providerId: LlmProviderId;
+  issueCode: LlmProviderConnectionIssueCode;
+  message: string;
+  hints: string[];
+  checkedUrl: string | null;
+  resolvedBaseUrl: string | null;
+  statusCode: number | null;
+  modelCount: number;
+};
+
