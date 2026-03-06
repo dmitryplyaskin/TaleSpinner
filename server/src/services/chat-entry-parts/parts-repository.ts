@@ -277,55 +277,86 @@ export async function getPartWithVariantContextById(params: {
   };
 }
 
-export async function applyManualEditToPart(params: {
+type ApplyManualEditToPartParams = {
   partId: string;
   payloadText: string;
   payloadFormat?: PartPayloadFormat;
   requestId?: string;
-}): Promise<void> {
-  const db = await initDb();
-  const rows = await db
-    .select({ payloadJson: variantParts.payloadJson })
-    .from(variantParts)
-    .where(eq(variantParts.partId, params.partId))
-    .limit(1);
+  executor?: DbExecutor;
+};
 
-  const existing = safeJsonParse<StoredPayload>(rows[0]?.payloadJson, {
-    format: "text",
-    value: "",
-  });
+export function applyManualEditToPart(
+  params: ApplyManualEditToPartParams & { executor: DbExecutor }
+): void;
+export function applyManualEditToPart(params: ApplyManualEditToPartParams): Promise<void>;
+export function applyManualEditToPart(
+  params: ApplyManualEditToPartParams
+): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    const rows = db
+      .select({ payloadJson: variantParts.payloadJson })
+      .from(variantParts)
+      .where(eq(variantParts.partId, params.partId))
+      .limit(1)
+      .all();
 
-  const payload: StoredPayload = {
-    ...existing,
-    format: params.payloadFormat ?? existing.format ?? "markdown",
-    value: params.payloadText,
+    const existing = safeJsonParse<StoredPayload>(rows[0]?.payloadJson, {
+      format: "text",
+      value: "",
+    });
+
+    const payload: StoredPayload = {
+      ...existing,
+      format: params.payloadFormat ?? existing.format ?? "markdown",
+      value: params.payloadText,
+    };
+
+    db
+      .update(variantParts)
+      .set({
+        payloadJson: safeJsonStringify(payload),
+        source: "user",
+        agentId: null,
+        model: null,
+        requestId: params.requestId ?? null,
+      })
+      .where(eq(variantParts.partId, params.partId))
+      .run();
   };
 
-  await db
-    .update(variantParts)
-    .set({
-      payloadJson: safeJsonStringify(payload),
-      source: "user",
-      agentId: null,
-      model: null,
-      requestId: params.requestId ?? null,
-    })
-    .where(eq(variantParts.partId, params.partId));
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
-export async function softDeletePart(params: {
+type SoftDeletePartParams = {
   partId: string;
   by: "user" | "agent";
-}): Promise<void> {
-  const db = await initDb();
-  await db
-    .update(variantParts)
-    .set({
-      softDeleted: true,
-      softDeletedAt: new Date(),
-      softDeletedBy: params.by,
-    })
-    .where(eq(variantParts.partId, params.partId));
+  executor?: DbExecutor;
+};
+
+export function softDeletePart(params: SoftDeletePartParams & { executor: DbExecutor }): void;
+export function softDeletePart(params: SoftDeletePartParams): Promise<void>;
+export function softDeletePart(params: SoftDeletePartParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    db
+      .update(variantParts)
+      .set({
+        softDeleted: true,
+        softDeletedAt: new Date(),
+        softDeletedBy: params.by,
+      })
+      .where(eq(variantParts.partId, params.partId))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function updatePartReplacesPartId(params: {

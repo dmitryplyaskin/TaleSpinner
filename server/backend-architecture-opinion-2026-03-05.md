@@ -476,3 +476,197 @@ Current practical status:
 
 - The first move described in this note is no longer only a recommendation; it is now partially implemented.
 - The next logical follow-up is to continue the same migration style for the remaining `chat-entries.api.ts` domain-heavy flows and then widen explicit transaction passing beyond this first slice.
+
+## Phase 1.2 implementation status (2026-03-06)
+
+This second implementation slice has now been completed in the backend.
+
+What was done:
+
+- The remaining mutation-heavy `chat-entries` flows from this migration scope were extracted into application use cases under `server/src/application/chat-runtime/use-cases/**`:
+  - `manualEditEntry`
+  - `batchUpdateEntryParts`
+  - `selectEntryVariant`
+  - `deleteEntryVariant`
+  - `setEntryPromptVisibility`
+  - `undoPartCanonicalization`
+- `server/src/api/chat-entries.api.ts` now calls those use cases instead of assembling their business logic inline in Express handlers.
+- The application helper module became the canonical home for the mutation-side helper logic added in this slice:
+  - manual edit target selection
+  - batch update planning
+  - prompt visibility meta shaping
+  - canonicalization undo cascade resolution
+- Transaction/executor passing was widened in the repositories needed by this slice:
+  - `updateEntryMeta`
+  - `applyManualEditToPart`
+  - `softDeletePart`
+  - `deleteVariant`
+- The following writes are now atomic where they were not reliably grouped before:
+  - manual edit part update + entry meta update
+  - variant deletion + active variant fallback switch
+  - canonicalization undo cascade soft-delete
+- A new focused application-layer test file was added for these mutation use cases, including rollback coverage.
+
+Validation that was run for this slice:
+
+- `yarn typecheck:server`
+- `yarn --cwd server test -- chat-entry-mutation-use-cases`
+- `yarn --cwd server test -- chat-entries.meta`
+
+What was intentionally not changed in this slice:
+
+- No HTTP paths were changed.
+- No request/response payload shape was changed.
+- No SSE event names or envelope format were changed.
+- No DB schema migration was added.
+- The simple CRUD-style soft-delete endpoints were not moved into application use cases in this increment.
+- The read-side handlers in `chat-entries.api.ts` were not extracted yet:
+  - entries listing
+  - operation runtime state
+  - latest world info activations
+  - variants listing
+- `runChatGenerationV3` is still the same engine-level procedural core.
+- The in-memory generation runtime/abort model is still in place.
+- Startup/bootstrap separation in `server/src/app.ts` was not changed.
+- Tenant/auth/request-context work was not started yet.
+
+What this means architecturally:
+
+- The highest-value write paths inside `chat-entries.api.ts` now have a real application-layer seam.
+- HTTP is thinner on both generation and non-generation mutation flows than before.
+- Transaction boundaries are better defined for entry/variant/part mutation paths, but they are still not a backend-wide convention.
+- The migration is now clearly real, but not finished: `chat-entries.api.ts` is still large and still owns important read-side/domain-adjacent logic.
+
+Current practical status:
+
+- `chat-entries.api.ts` is smaller than before, but it is still about 1681 lines, which means the route module is improved, not yet healthy.
+- The `chat-runtime` application layer now contains the first real cluster of backend use cases instead of only generation scaffolding.
+- The next work should no longer start with more features in this area; it should finish stabilizing the backend shape first.
+
+## What still needs to be done
+
+### 1. Finish the `chat-entries` migration on the read side
+
+This is the nearest and highest-leverage follow-up.
+
+Still inside `server/src/api/chat-entries.api.ts` there are handlers that mix transport and domain/read-model logic:
+
+- `GET /chats/:id/entries`
+- `GET /chats/:id/operation-runtime-state`
+- `GET /chats/:id/world-info/latest-activations`
+- `GET /entries/:id/variants`
+
+Why this still matters:
+
+- prompt-window computation, projection shaping, and world-info/runtime-state assembly are still route-owned;
+- the route still contains canonical helper code that should belong to the application layer only;
+- tests for these read-side behaviors are still coupled more tightly to the route module than they should be.
+
+Recommended next step:
+
+- extract read-side application queries/use cases for those handlers;
+- move any remaining helper logic they need out of the route module;
+- leave HTTP as validation + response mapping only.
+
+### 2. Generalize transaction boundaries beyond this slice
+
+The repository executor pattern now exists in the right places, but it is still selective.
+
+What remains:
+
+- define which chat/runtime flows are atomic by design, not by accident;
+- continue optional `executor` support where write coordination still spans multiple repositories;
+- audit post-generation finalization/reporting/cleanup flows for partial-write risk.
+
+This is the next reliability improvement after the route extraction work.
+
+### 3. Put a real engine boundary around `runChatGenerationV3`
+
+The route and use-case extraction improved the application layer, but the generation core is still a very large mixed module at about 973 lines.
+
+What remains:
+
+- separate orchestration from persistence side effects;
+- make engine input, emitted events, and persistence/control ports more explicit;
+- reduce the amount of strategic behavior hidden inside one procedural runtime function.
+
+Until this is done, generation evolution will remain slower than the rest of the migration.
+
+### 4. Remove single-process assumptions from generation control
+
+`server/src/services/chat-core/generation-runtime.ts` is still a small in-memory active-run registry.
+
+That means:
+
+- abort is still process-local;
+- multi-instance execution is still not a first-class design target;
+- workers or remote execution would still require architectural change, not just wiring.
+
+Recommended direction:
+
+- introduce a durable/shared run-control model;
+- treat abort as a command against run state, not only an in-memory `AbortController`.
+
+### 5. Separate required startup from optional subsystem warmup
+
+`server/src/app.ts` still eagerly runs:
+
+- migrations
+- schema cutover helpers
+- LLM bootstrap
+- RAG bootstrap
+- Chroma bootstrap
+
+It also still mixes newer API registration with older manual route modules.
+
+What remains:
+
+- split hard startup requirements from optional integrations;
+- add clearer readiness boundaries by subsystem;
+- continue removing mixed architectural eras from app wiring.
+
+### 6. Make request context, tenanting, and ownership explicit
+
+The `ownerId ?? "global"` default is still the dominant ownership model.
+
+What remains:
+
+- define an explicit request context shape;
+- distinguish actor/tenant/system scope cleanly;
+- stop letting route payloads define ownership semantics directly.
+
+This should happen before deeper auth work, not after it.
+
+### 7. Reduce strategic `unknown` and weak JSON contracts
+
+This migration improved flow shape, but not yet the type strictness of many persisted domain payloads.
+
+High-value candidates still include:
+
+- generation debug payloads
+- variant derived metadata
+- edit/generation-relevant part metadata
+- operation artifacts
+- provider/runtime config payloads
+
+This is still necessary to make future refactors cheaper and safer.
+
+### 8. Improve operational observability
+
+The backend still needs:
+
+- structured request/run correlation
+- consistent operator-facing lifecycle logs
+- clearer distinction between user diagnostics and operational telemetry
+
+This becomes more important as the application layer gets cleaner, because orchestration boundaries become easier to observe consistently.
+
+## Recommended implementation order after Phase 1.2
+
+1. Finish read-side extraction from `chat-entries.api.ts`.
+2. Widen transaction conventions to remaining multi-repository write flows.
+3. Refactor `runChatGenerationV3` behind a more explicit runtime boundary.
+4. Separate startup/bootstrap concerns in `app.ts` and continue removing mixed route eras.
+5. Design request context + tenant model.
+6. Tighten typed JSON/domain contracts.
+7. Improve observability and then revisit shared/durable generation control.

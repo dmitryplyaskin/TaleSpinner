@@ -7,10 +7,16 @@ import { validate } from "@core/middleware/validate";
 import { initSse, type SseWriter } from "@core/sse/sse";
 
 import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
+import { batchUpdateEntryParts } from "../application/chat-runtime/use-cases/batch-update-entry-parts";
 import { continueGeneration } from "../application/chat-runtime/use-cases/continue-generation";
 import { createEntryAndStartGeneration } from "../application/chat-runtime/use-cases/create-entry-and-start-generation";
+import { deleteEntryVariant } from "../application/chat-runtime/use-cases/delete-entry-variant";
 import { getPromptDiagnostics } from "../application/chat-runtime/use-cases/get-prompt-diagnostics";
+import { manualEditEntry } from "../application/chat-runtime/use-cases/manual-edit-entry";
 import { regenerateAssistantVariant } from "../application/chat-runtime/use-cases/regenerate-assistant-variant";
+import { selectEntryVariant } from "../application/chat-runtime/use-cases/select-entry-variant";
+import { setEntryPromptVisibility } from "../application/chat-runtime/use-cases/set-entry-prompt-visibility";
+import { undoPartCanonicalization } from "../application/chat-runtime/use-cases/undo-part-canonicalization";
 import { chatIdParamsSchema } from "../chat-core/schemas";
 import { getChatById } from "../services/chat-core/chats-repository";
 import { abortGeneration } from "../services/chat-core/generation-runtime";
@@ -1125,17 +1131,12 @@ router.post(
   validate({ params: selectVariantParamsSchema }),
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string; variantId: string };
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-
-    const variant = await getVariantById({ variantId: params.variantId });
-    if (!variant || variant.entryId !== entry.entryId) {
-      throw new HttpError(404, "Variant не найден", "NOT_FOUND");
-    }
-
-    await selectActiveVariant({ entryId: entry.entryId, variantId: params.variantId });
-
-    return { data: { entryId: entry.entryId, activeVariantId: params.variantId } };
+    return {
+      data: await selectEntryVariant({
+        entryId: params.id,
+        variantId: params.variantId,
+      }),
+    };
   })
 );
 
@@ -1486,100 +1487,11 @@ router.post(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const body = manualEditBodySchema.parse(req.body);
-
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-
-    const activeVariant = await getActiveVariantWithParts({ entry });
-    if (!activeVariant) {
-      throw new HttpError(400, "Active variant не найден", "VALIDATION_ERROR");
-    }
-
-    const currentTurn = await getBranchCurrentTurn({ branchId: entry.branchId });
-    const sourceParts = (activeVariant.parts ?? []).filter((p) => !p.softDeleted).sort(sortPartsStable);
-
-    if (sourceParts.length === 0) {
-      throw new HttpError(400, "В активном варианте нет частей для редактирования", "VALIDATION_ERROR");
-    }
-
-    let targetPartId: string | null = null;
-    if (body.partId) {
-      const target = sourceParts.find((p) => p.partId === body.partId) ?? null;
-      if (!target || !isEditablePart(target)) {
-        throw new HttpError(400, "partId не найден или не поддерживает редактирование", "VALIDATION_ERROR");
-      }
-      targetPartId = target.partId;
-    } else {
-      const visible = getUiProjection(entry, activeVariant, currentTurn, { debugEnabled: false });
-      const editableMainVisible = visible.filter(isEditableMainPart);
-      const editableVisible = visible.filter(isEditablePart);
-      const fallbackMain =
-        editableMainVisible.length > 0 ? editableMainVisible[editableMainVisible.length - 1] : null;
-      const fallback =
-        fallbackMain ?? (editableVisible.length > 0 ? editableVisible[editableVisible.length - 1] : null);
-      if (!fallback) {
-        throw new HttpError(400, "Не найден editable part для редактирования", "VALIDATION_ERROR");
-      }
-      targetPartId = fallback.partId;
-    }
-
-    const targetPart = sourceParts.find((p) => p.partId === targetPartId) ?? null;
-    if (!targetPart) {
-      throw new HttpError(400, "partId не найден в активном варианте", "VALIDATION_ERROR");
-    }
-
-    const ownerId = body.ownerId ?? "global";
-    const chat = await getChatById(entry.chatId);
-    const templateContext = await buildInstructionRenderContext({
-      ownerId,
-      chatId: entry.chatId,
-      branchId: entry.branchId,
-      entityProfileId: chat?.entityProfileId ?? undefined,
-      historyLimit: 50,
-    });
-    await resolveAndApplyWorldInfoToTemplateContext({
-      context: templateContext,
-      ownerId,
-      chatId: entry.chatId,
-      branchId: entry.branchId,
-      entityProfileId: chat?.entityProfileId ?? undefined,
-      trigger: "generate",
-      dryRun: true,
-    });
-    const { renderedContent, changed } = await renderUserInputWithLiquid({
-      content: body.content,
-      context: templateContext,
-      options: { allowEmptyResult: true },
-    });
-
-    await applyManualEditToPart({
-      partId: targetPart.partId,
-      payloadText: renderedContent,
-      payloadFormat: targetPart.payloadFormat,
-      requestId: body.requestId,
-    });
-
-    const nextMeta = {
-      ...(isRecord(entry.meta) ? entry.meta : {}),
-      templateRender: {
-        engine: "liquidjs",
-        rawContent: body.content,
-        renderedContent,
-        changed,
-        renderedAt: new Date().toISOString(),
-        source: "manual_edit",
-      },
-    };
-    await updateEntryMeta({
-      entryId: entry.entryId,
-      meta: nextMeta,
-    });
-
     return {
-      data: {
-        entryId: entry.entryId,
-        activeVariantId: activeVariant.variantId,
-      },
+      data: await manualEditEntry({
+        entryId: params.id,
+        body,
+      }),
     };
   })
 );
@@ -1591,38 +1503,11 @@ router.post(
     const params = req.params as unknown as { id: string };
     const body = batchUpdateEntryPartsBodySchema.parse(req.body) as BatchUpdateEntryPartsBody;
 
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-
-    assertBatchUpdateVariantIsActive({
-      entry,
-      requestedVariantId: body.variantId,
-    });
-
-    const activeVariant = await getActiveVariantWithParts({ entry });
-    if (!activeVariant) {
-      throw new HttpError(404, "Active variant не найден", "NOT_FOUND");
-    }
-
-    const plan = buildBatchUpdatePartPlan({
-      variantParts: activeVariant.parts ?? [],
-      body,
-      nowMs: Date.now(),
-    });
-
-    await applyPartMutableBatchPatches({
-      variantId: activeVariant.variantId,
-      patches: plan.patches,
-    });
-
     return {
-      data: {
-        entryId: entry.entryId,
-        variantId: activeVariant.variantId,
-        mainPartId: plan.mainPartId,
-        updatedPartIds: plan.updatedPartIds,
-        deletedPartIds: plan.deletedPartIds,
-      },
+      data: await batchUpdateEntryParts({
+        entryId: params.id,
+        body,
+      }),
     };
   })
 );
@@ -1632,25 +1517,12 @@ router.post(
   validate({ params: selectVariantParamsSchema }),
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string; variantId: string };
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-
-    const variant = await getVariantById({ variantId: params.variantId });
-    if (!variant || variant.entryId !== entry.entryId) {
-      throw new HttpError(404, "Variant не найден", "NOT_FOUND");
-    }
-
-    const variants = await listEntryVariants({ entryId: entry.entryId });
-    if (variants.length <= 1) {
-      throw new HttpError(400, "Нельзя удалить последний вариант", "VALIDATION_ERROR");
-    }
-
-    const deleted = await deleteVariant({
-      entryId: entry.entryId,
-      variantId: params.variantId,
-    });
-
-    return { data: deleted };
+    return {
+      data: await deleteEntryVariant({
+        entryId: params.id,
+        variantId: params.variantId,
+      }),
+    };
   })
 );
 
@@ -1700,24 +1572,11 @@ router.post(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const body = entryPromptVisibilityBodySchema.parse(req.body);
-    const entry = await getEntryById({ entryId: params.id });
-    if (!entry) throw new HttpError(404, "Entry не найден", "NOT_FOUND");
-
-    const nextMeta = mergeEntryPromptVisibilityMeta({
-      existingMeta: entry.meta,
-      includeInPrompt: body.includeInPrompt,
-    });
-
-    await updateEntryMeta({
-      entryId: entry.entryId,
-      meta: nextMeta,
-    });
-
     return {
-      data: {
-        id: entry.entryId,
+      data: await setEntryPromptVisibility({
+        entryId: params.id,
         includeInPrompt: body.includeInPrompt,
-      },
+      }),
     };
   })
 );
@@ -1799,46 +1658,11 @@ router.post(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const body = canonicalizationUndoBodySchema.parse(req.body);
-
-    const context = await getPartWithVariantContextById({ partId: params.id });
-    if (!context) throw new HttpError(404, "Part не найден", "NOT_FOUND");
-    if (context.part.softDeleted) {
-      throw new HttpError(400, "Part уже удалён", "VALIDATION_ERROR");
-    }
-    if (!isCanonicalizationPart(context.part)) {
-      throw new HttpError(400, "Part не является canonicalization replacement", "VALIDATION_ERROR");
-    }
-
-    const variants = await listEntryVariants({ entryId: context.entryId });
-    const variant = variants.find((item) => item.variantId === context.variantId) ?? null;
-    if (!variant) {
-      throw new HttpError(404, "Variant не найден", "NOT_FOUND");
-    }
-
-    const undonePartIds = resolveActiveUndoCascade({
-      startPartId: context.part.partId,
-      parts: variant.parts ?? [],
-    });
-    if (!undonePartIds.includes(context.part.partId)) {
-      throw new HttpError(400, "Не удалось построить цепочку отката", "VALIDATION_ERROR");
-    }
-
-    for (const partId of undonePartIds) {
-      await softDeletePart({ partId, by: body.by });
-    }
-
-    const restoredPartId = resolveRestoredPartId({
-      startReplacesPartId: context.part.replacesPartId,
-      parts: variant.parts ?? [],
-      undonePartIds,
-    });
-
     return {
-      data: {
-        undonePartIds,
-        restoredPartId,
-        entryId: context.entryId,
-      },
+      data: await undoPartCanonicalization({
+        partId: params.id,
+        body,
+      }),
     };
   })
 );

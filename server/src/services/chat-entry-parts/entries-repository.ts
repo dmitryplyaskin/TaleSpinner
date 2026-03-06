@@ -375,17 +375,30 @@ export async function softDeleteEntries(params: {
   return foundEntryIds;
 }
 
-export async function updateEntryMeta(params: {
+type UpdateEntryMetaParams = {
   entryId: string;
   meta: unknown | null;
-}): Promise<void> {
-  const db = await initDb();
-  await db
-    .update(chatEntries)
-    .set({
-      metaJson: params.meta === null ? null : safeJsonStringify(params.meta),
-    })
-    .where(eq(chatEntries.entryId, params.entryId));
+  executor?: DbExecutor;
+};
+
+export function updateEntryMeta(params: UpdateEntryMetaParams & { executor: DbExecutor }): void;
+export function updateEntryMeta(params: UpdateEntryMetaParams): Promise<void>;
+export function updateEntryMeta(params: UpdateEntryMetaParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    db
+      .update(chatEntries)
+      .set({
+        metaJson: params.meta === null ? null : safeJsonStringify(params.meta),
+      })
+      .where(eq(chatEntries.entryId, params.entryId))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function hasActiveUserEntriesInBranch(params: {

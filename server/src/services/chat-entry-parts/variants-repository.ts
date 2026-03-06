@@ -148,63 +148,88 @@ export async function getVariantById(params: { variantId: string }): Promise<Var
   return row ? variantRowToDomain(row, []) : null;
 }
 
-export async function deleteVariant(params: {
+type DeleteVariantParams = {
   entryId: string;
   variantId: string;
-}): Promise<{ entryId: string; activeVariantId: string; deletedVariantId: string }> {
-  const db = await initDb();
+  executor?: DbExecutor;
+};
 
-  const entryRows = await db
-    .select({ activeVariantId: chatEntries.activeVariantId })
-    .from(chatEntries)
-    .where(eq(chatEntries.entryId, params.entryId))
-    .limit(1);
-  const entryRow = entryRows[0];
-  if (!entryRow) throw new Error("Entry не найден");
+export function deleteVariant(
+  params: DeleteVariantParams & { executor: DbExecutor }
+): { entryId: string; activeVariantId: string; deletedVariantId: string };
+export function deleteVariant(
+  params: DeleteVariantParams
+): Promise<{ entryId: string; activeVariantId: string; deletedVariantId: string }>;
+export function deleteVariant(
+  params: DeleteVariantParams
+):
+  | Promise<{ entryId: string; activeVariantId: string; deletedVariantId: string }>
+  | { entryId: string; activeVariantId: string; deletedVariantId: string } {
+  const run = (
+    db: DbExecutor
+  ): { entryId: string; activeVariantId: string; deletedVariantId: string } => {
+    const entryRows = db
+      .select({ activeVariantId: chatEntries.activeVariantId })
+      .from(chatEntries)
+      .where(eq(chatEntries.entryId, params.entryId))
+      .limit(1)
+      .all();
+    const entryRow = entryRows[0];
+    if (!entryRow) throw new Error("Entry не найден");
 
-  const variantRows = await db
-    .select({ variantId: entryVariants.variantId, createdAt: entryVariants.createdAt })
-    .from(entryVariants)
-    .where(eq(entryVariants.entryId, params.entryId));
+    const variantRows = db
+      .select({ variantId: entryVariants.variantId, createdAt: entryVariants.createdAt })
+      .from(entryVariants)
+      .where(eq(entryVariants.entryId, params.entryId))
+      .all();
 
-  const variantsSorted = variantRows
-    .slice()
-    .sort((a, b) => {
-      const ts = a.createdAt.getTime() - b.createdAt.getTime();
-      if (ts !== 0) return ts;
-      if (a.variantId < b.variantId) return -1;
-      if (a.variantId > b.variantId) return 1;
-      return 0;
-    });
+    const variantsSorted = variantRows
+      .slice()
+      .sort((a, b) => {
+        const ts = a.createdAt.getTime() - b.createdAt.getTime();
+        if (ts !== 0) return ts;
+        if (a.variantId < b.variantId) return -1;
+        if (a.variantId > b.variantId) return 1;
+        return 0;
+      });
 
-  if (variantsSorted.length <= 1) {
-    throw new Error("Нельзя удалить последний вариант");
-  }
+    if (variantsSorted.length <= 1) {
+      throw new Error("Нельзя удалить последний вариант");
+    }
 
-  const idx = variantsSorted.findIndex((v) => v.variantId === params.variantId);
-  if (idx < 0) throw new Error("Variant не найден");
+    const idx = variantsSorted.findIndex((variant) => variant.variantId === params.variantId);
+    if (idx < 0) throw new Error("Variant не найден");
 
-  const fallback = variantsSorted[idx - 1] ?? variantsSorted[idx + 1];
-  if (!fallback) throw new Error("Не найден fallback вариант");
+    const fallback = variantsSorted[idx - 1] ?? variantsSorted[idx + 1];
+    if (!fallback) throw new Error("Не найден fallback вариант");
 
-  const shouldSwitchActive = entryRow.activeVariantId === params.variantId;
-  const nextActiveVariantId = shouldSwitchActive ? fallback.variantId : entryRow.activeVariantId;
+    const shouldSwitchActive = entryRow.activeVariantId === params.variantId;
+    const nextActiveVariantId = shouldSwitchActive ? fallback.variantId : entryRow.activeVariantId;
 
-  if (shouldSwitchActive) {
-    await db
-      .update(chatEntries)
-      .set({ activeVariantId: nextActiveVariantId })
-      .where(eq(chatEntries.entryId, params.entryId));
-  }
+    if (shouldSwitchActive) {
+      db
+        .update(chatEntries)
+        .set({ activeVariantId: nextActiveVariantId })
+        .where(eq(chatEntries.entryId, params.entryId))
+        .run();
+    }
 
-  await db
-    .delete(entryVariants)
-    .where(and(eq(entryVariants.entryId, params.entryId), eq(entryVariants.variantId, params.variantId)));
+    db
+      .delete(entryVariants)
+      .where(and(eq(entryVariants.entryId, params.entryId), eq(entryVariants.variantId, params.variantId)))
+      .run();
 
-  return {
-    entryId: params.entryId,
-    activeVariantId: nextActiveVariantId,
-    deletedVariantId: params.variantId,
+    return {
+      entryId: params.entryId,
+      activeVariantId: nextActiveVariantId,
+      deletedVariantId: params.variantId,
+    };
   };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => db.transaction((tx) => run(tx)));
 }
 
