@@ -4,6 +4,7 @@ import { toaster } from '@ui/toaster';
 
 import { abortGeneration } from '../../api/chat-core';
 import {
+	batchUpdateEntryParts,
 	deleteEntryVariant,
 	getEntryPromptDiagnostics,
 	listChatEntries,
@@ -13,6 +14,7 @@ import {
 	softDeleteEntry,
 	softDeleteEntriesBulk,
 	softDeletePart,
+	undoCanonicalization,
 	setEntryPromptVisibility,
 	streamChatEntry,
 	streamContinueEntry,
@@ -24,7 +26,13 @@ import { logChatGenerationSseEvent } from '../chat-generation-debug';
 import { userPersonsModel } from '../user-persons';
 
 import type { SseEnvelope } from '../../api/chat-core';
-import type { ChatEntryWithVariantDto, PromptDiagnosticsResponse } from '../../api/chat-entry-parts';
+import type {
+	BatchUpdateEntryPartsRequest,
+	ChatEntryWithVariantDto,
+	EntriesCursor,
+	ListChatEntriesResponse,
+	PromptDiagnosticsResponse,
+} from '../../api/chat-entry-parts';
 import type { Entry, Part, Variant } from '@shared/types/chat-entry-parts';
 
 function nowIso(): string {
@@ -35,12 +43,178 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export const loadEntriesFx = createEffect(async (params: { chatId: string; branchId: string }) => {
-	return listChatEntries({ chatId: params.chatId, branchId: params.branchId, limit: 200 });
+function readHttpStatus(error: unknown): number | null {
+	if (!isRecord(error)) return null;
+	const status = error.status;
+	return typeof status === 'number' && Number.isFinite(status) ? status : null;
+}
+
+const ENTRIES_PAGE_SIZE = 50;
+const ENTRIES_SYNC_MAX = 200;
+const BOTTOM_DISTANCE_PX = 120;
+
+export type EntriesPageInfoState = {
+	hasMoreOlder: boolean;
+	nextCursor: EntriesCursor | null;
+	isLoadingInitial: boolean;
+	isLoadingOlder: boolean;
+	isSyncingLatest: boolean;
+};
+
+export type ChatViewportState = {
+	isAtBottom: boolean;
+	unseenCount: number;
+	bottomDistancePx: number;
+};
+
+function compareEntriesAsc(
+	left: ChatEntryWithVariantDto,
+	right: ChatEntryWithVariantDto,
+): number {
+	if (left.entry.createdAt !== right.entry.createdAt) {
+		return left.entry.createdAt - right.entry.createdAt;
+	}
+	return left.entry.entryId.localeCompare(right.entry.entryId);
+}
+
+function isEntryOlderThan(
+	entry: ChatEntryWithVariantDto,
+	anchor: ChatEntryWithVariantDto,
+): boolean {
+	if (entry.entry.createdAt !== anchor.entry.createdAt) {
+		return entry.entry.createdAt < anchor.entry.createdAt;
+	}
+	return entry.entry.entryId.localeCompare(anchor.entry.entryId) < 0;
+}
+
+function mergeEntriesStable(
+	existing: ChatEntryWithVariantDto[],
+	incoming: ChatEntryWithVariantDto[],
+): ChatEntryWithVariantDto[] {
+	const byId = new Map<string, ChatEntryWithVariantDto>();
+	for (const item of existing) byId.set(item.entry.entryId, item);
+	for (const item of incoming) byId.set(item.entry.entryId, item);
+	return Array.from(byId.values()).sort(compareEntriesAsc);
+}
+
+function mergeLatestWindow(
+	existing: ChatEntryWithVariantDto[],
+	incoming: ChatEntryWithVariantDto[],
+): ChatEntryWithVariantDto[] {
+	if (incoming.length === 0) return existing;
+	const oldestIncoming = incoming[0];
+	const preservedOlder = existing.filter((item) => isEntryOlderThan(item, oldestIncoming));
+	return mergeEntriesStable(preservedOlder, incoming);
+}
+
+const EMPTY_PAGE_INFO: EntriesPageInfoState = {
+	hasMoreOlder: false,
+	nextCursor: null,
+	isLoadingInitial: false,
+	isLoadingOlder: false,
+	isSyncingLatest: false,
+};
+
+export const loadInitialPageFx = createEffect(async (params: { chatId: string; branchId: string }) => {
+	return listChatEntries({ chatId: params.chatId, branchId: params.branchId, limit: ENTRIES_PAGE_SIZE });
 });
 
-export const $entries = createStore<ChatEntryWithVariantDto[]>([]).on(loadEntriesFx.doneData, (_, res) => res.entries);
-export const $currentTurn = createStore<number>(0).on(loadEntriesFx.doneData, (_, res) => res.currentTurn);
+export const loadEntriesFx = createEffect(
+	async (params: { chatId: string; branchId: string; limit?: number }) => {
+		return listChatEntries({
+			chatId: params.chatId,
+			branchId: params.branchId,
+			limit: Math.min(Math.max(params.limit ?? ENTRIES_SYNC_MAX, ENTRIES_PAGE_SIZE), ENTRIES_SYNC_MAX),
+		});
+	},
+);
+
+export const loadOlderPageFx = createEffect(
+	async (params: { chatId: string; branchId: string; cursor: EntriesCursor; limit?: number }) => {
+		return listChatEntries({
+			chatId: params.chatId,
+			branchId: params.branchId,
+			limit: Math.min(Math.max(params.limit ?? ENTRIES_PAGE_SIZE, 1), ENTRIES_SYNC_MAX),
+			cursorCreatedAt: params.cursor.createdAt,
+			cursorEntryId: params.cursor.entryId,
+		});
+	},
+);
+
+export const loadOlderPageRequested = createEvent();
+
+export const $entries = createStore<ChatEntryWithVariantDto[]>([])
+	.on(loadInitialPageFx.doneData, (_prev, res) => mergeEntriesStable([], res.entries))
+	.on(loadEntriesFx.doneData, (prev, res) => mergeLatestWindow(prev, res.entries))
+	.on(loadOlderPageFx.doneData, (prev, res) => mergeEntriesStable(res.entries, prev))
+	.on(setOpenedChat, () => []);
+
+export const $currentTurn = createStore<number>(0)
+	.on(loadInitialPageFx.doneData, (_prev, res) => res.currentTurn)
+	.on(loadEntriesFx.doneData, (_prev, res) => res.currentTurn)
+	.on(loadOlderPageFx.doneData, (_prev, res) => res.currentTurn)
+	.on(setOpenedChat, () => 0);
+
+export const $entriesPageInfo = createStore<EntriesPageInfoState>(EMPTY_PAGE_INFO)
+	.on(loadInitialPageFx, (state) => ({ ...state, isLoadingInitial: true, isSyncingLatest: false }))
+	.on(loadInitialPageFx.doneData, (_state, res) => ({
+		hasMoreOlder: res.pageInfo.hasMoreOlder,
+		nextCursor: res.pageInfo.nextCursor,
+		isLoadingInitial: false,
+		isLoadingOlder: false,
+		isSyncingLatest: false,
+	}))
+	.on(loadInitialPageFx.fail, (state) => ({ ...state, isLoadingInitial: false }))
+	.on(loadEntriesFx, (state) => ({ ...state, isSyncingLatest: true }))
+	.on(loadEntriesFx.doneData, (state, res) => ({
+		hasMoreOlder: state.hasMoreOlder || res.pageInfo.hasMoreOlder,
+		nextCursor: state.nextCursor ?? res.pageInfo.nextCursor,
+		isLoadingInitial: false,
+		isLoadingOlder: false,
+		isSyncingLatest: false,
+	}))
+	.on(loadEntriesFx.fail, (state) => ({ ...state, isSyncingLatest: false }))
+	.on(loadOlderPageFx, (state) => ({ ...state, isLoadingOlder: true }))
+	.on(loadOlderPageFx.doneData, (_state, res) => ({
+		hasMoreOlder: res.pageInfo.hasMoreOlder,
+		nextCursor: res.pageInfo.nextCursor,
+		isLoadingInitial: false,
+		isLoadingOlder: false,
+		isSyncingLatest: false,
+	}))
+	.on(loadOlderPageFx.fail, (state) => ({ ...state, isLoadingOlder: false }))
+	.on(setOpenedChat, () => EMPTY_PAGE_INFO);
+
+export const chatViewportChanged = createEvent<{ distanceToBottom: number }>();
+export const resetUnseenMessages = createEvent();
+export const incrementUnseenMessages = createEvent<{ count?: number }>();
+
+export const $chatViewportState = createStore<ChatViewportState>({
+	isAtBottom: true,
+	unseenCount: 0,
+	bottomDistancePx: 0,
+})
+	.on(chatViewportChanged, (state, payload) => {
+		const distance = Math.max(0, payload.distanceToBottom);
+		const isAtBottom = distance <= BOTTOM_DISTANCE_PX;
+		return {
+			isAtBottom,
+			unseenCount: isAtBottom ? 0 : state.unseenCount,
+			bottomDistancePx: distance,
+		};
+	})
+	.on(resetUnseenMessages, (state) => ({ ...state, unseenCount: 0 }))
+	.on(incrementUnseenMessages, (state, payload) =>
+		state.isAtBottom
+			? { ...state, unseenCount: 0 }
+			: { ...state, unseenCount: state.unseenCount + Math.max(1, payload.count ?? 1) },
+	)
+	.on(setOpenedChat, () => ({
+		isAtBottom: true,
+		unseenCount: 0,
+		bottomDistancePx: 0,
+	}));
+
 export const $isBulkDeleteMode = createStore(false);
 export const $bulkDeleteSelectedEntryIds = createStore<string[]>([]);
 export const enterBulkDeleteMode = createEvent();
@@ -48,16 +222,38 @@ export const exitBulkDeleteMode = createEvent();
 export const toggleBulkDeleteEntrySelection = createEvent<{ entryId: string }>();
 export const clearBulkDeleteSelection = createEvent();
 
-loadEntriesFx.failData.watch((error) => {
+const reportLoadEntriesError = (error: unknown) => {
 	toaster.error({ title: i18n.t('chat.toasts.loadChatError'), description: error instanceof Error ? error.message : String(error) });
-});
+};
+loadInitialPageFx.failData.watch(reportLoadEntriesError);
+loadEntriesFx.failData.watch(reportLoadEntriesError);
+loadOlderPageFx.failData.watch(reportLoadEntriesError);
 
 // Reload entries when we open a chat (chat-core still owns chat/branch selection).
 sample({
 	clock: setOpenedChat,
 	fn: ({ chat, branchId }) => ({ chatId: chat.id, branchId }),
-	target: loadEntriesFx,
+	target: loadInitialPageFx,
 });
+
+sample({
+	clock: loadOlderPageRequested,
+	source: {
+		chat: $currentChat,
+		branchId: $currentBranchId,
+		pageInfo: $entriesPageInfo,
+	},
+	filter: ({ chat, branchId, pageInfo }) =>
+		Boolean(chat?.id && branchId && pageInfo.hasMoreOlder && pageInfo.nextCursor && !pageInfo.isLoadingOlder),
+	fn: ({ chat, branchId, pageInfo }) => ({
+		chatId: chat!.id,
+		branchId: branchId!,
+		cursor: pageInfo.nextCursor!,
+	}),
+	target: loadOlderPageFx,
+});
+
+const reconcileBulkSelection = createEvent<ListChatEntriesResponse>();
 
 $isBulkDeleteMode
 	.on(enterBulkDeleteMode, () => true)
@@ -73,8 +269,11 @@ $bulkDeleteSelectedEntryIds
 	.on(clearBulkDeleteSelection, () => [])
 	.on(setOpenedChat, () => []);
 
+sample({ clock: loadInitialPageFx.doneData, target: reconcileBulkSelection });
+sample({ clock: loadEntriesFx.doneData, target: reconcileBulkSelection });
+sample({ clock: loadOlderPageFx.doneData, target: reconcileBulkSelection });
 sample({
-	clock: loadEntriesFx.doneData,
+	clock: reconcileBulkSelection,
 	source: $bulkDeleteSelectedEntryIds,
 	fn: (selected, res) => {
 		const available = new Set(res.entries.map((item) => item.entry.entryId));
@@ -92,10 +291,35 @@ export type PromptInspectorState = {
 	data: PromptDiagnosticsResponse | null;
 };
 
+export type UndoCanonicalizationStep = {
+	partId: string;
+	replacesPartId: string;
+	beforeText: string;
+	afterText: string;
+	createdTurn: number;
+};
+
+export type UndoCanonicalizationPickerState = {
+	open: boolean;
+	entryId: string | null;
+	steps: UndoCanonicalizationStep[];
+	selectedPartId: string | null;
+};
+
+export type EntryPartsEditorState = {
+	open: boolean;
+	entryId: string | null;
+};
+
 export const openPromptInspectorRequested = createEvent<{ entryId: string; variantId?: string | null }>();
 export const closePromptInspectorRequested = createEvent();
+export const openEntryPartsEditorRequested = createEvent<{ entryId: string }>();
+export const closeEntryPartsEditorRequested = createEvent();
+export const saveEntryPartsEditorRequested = createEvent<BatchUpdateEntryPartsRequest>();
 const setPromptInspectorRequest = createEvent<{ entryId: string; variantId: string | null }>();
 const resetPromptInspectorData = createEvent();
+const setUndoCanonicalizationPickerState = createEvent<UndoCanonicalizationPickerState>();
+const setEntryPartsEditorState = createEvent<EntryPartsEditorState>();
 
 export const loadPromptInspectorFx = createEffect(async (params: { entryId: string; variantId: string | null }) => {
 	return getEntryPromptDiagnostics({
@@ -103,6 +327,21 @@ export const loadPromptInspectorFx = createEffect(async (params: { entryId: stri
 		variantId: params.variantId ?? undefined,
 	});
 });
+
+export const undoCanonicalizationFx = createEffect(async (params: { partId: string }) => {
+	return undoCanonicalization(params.partId);
+});
+export const batchUpdateEntryPartsFx = createEffect(async (params: BatchUpdateEntryPartsRequest) => {
+	return batchUpdateEntryParts(params);
+});
+
+export const openUndoCanonicalizationPickerRequested = createEvent<{ entryId: string }>();
+export const closeUndoCanonicalizationPickerRequested = createEvent();
+export const selectUndoCanonicalizationStepRequested = createEvent<{ partId: string }>();
+export const confirmUndoCanonicalizationRequested = createEvent();
+export const undoCanonicalizationRequested = createEvent<{ partId: string }>();
+const refreshVariantsAfterUndo = createEvent<{ entryId: string }>();
+const refreshVariantsAfterPartBatchUpdate = createEvent<{ entryId: string }>();
 
 export const $promptInspectorState = createStore<PromptInspectorState>({
 	open: false,
@@ -167,6 +406,215 @@ sample({
 sample({
 	clock: closePromptInspectorRequested,
 	target: resetPromptInspectorData,
+});
+
+const EMPTY_ENTRY_PARTS_EDITOR_STATE: EntryPartsEditorState = {
+	open: false,
+	entryId: null,
+};
+
+export const $entryPartsEditorState = createStore<EntryPartsEditorState>(EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(setEntryPartsEditorState, (_state, payload) => payload)
+	.on(closeEntryPartsEditorRequested, () => EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(batchUpdateEntryPartsFx.done, () => EMPTY_ENTRY_PARTS_EDITOR_STATE)
+	.on(setOpenedChat, () => EMPTY_ENTRY_PARTS_EDITOR_STATE);
+
+sample({
+	clock: openEntryPartsEditorRequested,
+	fn: ({ entryId }) => ({ open: true, entryId }),
+	target: setEntryPartsEditorState,
+});
+
+sample({
+	clock: saveEntryPartsEditorRequested,
+	target: batchUpdateEntryPartsFx,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.doneData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }) => Boolean(chat?.id && branchId),
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.doneData,
+	fn: ({ entryId }) => ({ entryId }),
+	target: refreshVariantsAfterPartBatchUpdate,
+});
+
+sample({
+	clock: batchUpdateEntryPartsFx.failData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }, error) => Boolean(chat?.id && branchId) && readHttpStatus(error) === 409,
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
+});
+
+function readPartPayloadText(payload: Part['payload']): string {
+	if (typeof payload === 'string') return payload;
+	try {
+		return JSON.stringify(payload);
+	} catch {
+		return String(payload);
+	}
+}
+
+function isCanonicalizationReplacementPart(part: Part): boolean {
+	if (part.softDeleted) return false;
+	if (part.channel !== 'main') return false;
+	if (part.source !== 'agent') return false;
+	const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+	if (!replacesPartId) return false;
+	return Array.isArray(part.tags) && part.tags.includes('canonicalization');
+}
+
+function buildActiveReplacementMap(parts: Part[]): Map<string, string> {
+	const byOriginal = new Map<string, Part[]>();
+	for (const part of parts) {
+		if (part.softDeleted) continue;
+		const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+		if (!replacesPartId) continue;
+		const existing = byOriginal.get(replacesPartId);
+		if (existing) existing.push(part);
+		else byOriginal.set(replacesPartId, [part]);
+	}
+
+	const map = new Map<string, string>();
+	for (const [originalId, candidates] of byOriginal.entries()) {
+		candidates.sort((left, right) => {
+			if (left.createdTurn !== right.createdTurn) return right.createdTurn - left.createdTurn;
+			if (left.partId < right.partId) return -1;
+			if (left.partId > right.partId) return 1;
+			return 0;
+		});
+		const winner = candidates[0];
+		if (winner) map.set(originalId, winner.partId);
+	}
+	return map;
+}
+
+function resolveUndoCanonicalizationStepsForEntry(
+	entries: ChatEntryWithVariantDto[],
+	entryId: string,
+): UndoCanonicalizationStep[] {
+	const entry = entries.find((item) => item.entry.entryId === entryId);
+	const parts = entry?.variant?.parts ?? [];
+	if (parts.length === 0) return [];
+
+	const activeMainParts = parts.filter((part) => !part.softDeleted && part.channel === 'main');
+	if (activeMainParts.length === 0) return [];
+
+	const activeReplacementMap = buildActiveReplacementMap(parts);
+	const terminalMainParts = activeMainParts.filter((part) => !activeReplacementMap.has(part.partId));
+	const terminalMain =
+		terminalMainParts
+			.slice()
+			.sort((left, right) => {
+				if (left.order !== right.order) return left.order - right.order;
+				if (left.createdTurn !== right.createdTurn) return left.createdTurn - right.createdTurn;
+				return left.partId.localeCompare(right.partId);
+			})
+			.pop() ?? null;
+	if (!terminalMain) return [];
+
+	const byId = new Map(parts.map((part) => [part.partId, part] as const));
+	const chain: UndoCanonicalizationStep[] = [];
+	let cursor: Part | null = terminalMain;
+	while (cursor) {
+		if (isCanonicalizationReplacementPart(cursor)) {
+			const replacesPartId = (cursor.replacesPartId as string).trim();
+			const previousPart = byId.get(replacesPartId);
+			chain.push({
+				partId: cursor.partId,
+				replacesPartId,
+				beforeText: previousPart ? readPartPayloadText(previousPart.payload) : '',
+				afterText: readPartPayloadText(cursor.payload),
+				createdTurn: cursor.createdTurn,
+			});
+		}
+		const parentId: string = typeof cursor.replacesPartId === 'string' ? cursor.replacesPartId.trim() : '';
+		cursor = parentId ? byId.get(parentId) ?? null : null;
+	}
+
+	return chain.reverse();
+}
+
+const EMPTY_UNDO_CANONICALIZATION_PICKER_STATE: UndoCanonicalizationPickerState = {
+	open: false,
+	entryId: null,
+	steps: [],
+	selectedPartId: null,
+};
+
+export const $undoCanonicalizationPickerState = createStore<UndoCanonicalizationPickerState>(
+	EMPTY_UNDO_CANONICALIZATION_PICKER_STATE,
+)
+	.on(setUndoCanonicalizationPickerState, (_state, payload) => payload)
+	.on(selectUndoCanonicalizationStepRequested, (state, payload) => {
+		if (!state.open) return state;
+		if (!state.steps.some((step) => step.partId === payload.partId)) return state;
+		return {
+			...state,
+			selectedPartId: payload.partId,
+		};
+	})
+	.on(closeUndoCanonicalizationPickerRequested, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE)
+	.on(undoCanonicalizationFx.done, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE)
+	.on(setOpenedChat, () => EMPTY_UNDO_CANONICALIZATION_PICKER_STATE);
+
+sample({
+	clock: openUndoCanonicalizationPickerRequested,
+	source: $entries,
+	fn: (entries, { entryId }) => {
+		const steps = resolveUndoCanonicalizationStepsForEntry(entries, entryId);
+		return {
+			open: true,
+			entryId,
+			steps,
+			selectedPartId: steps.length > 0 ? steps[steps.length - 1].partId : null,
+		} satisfies UndoCanonicalizationPickerState;
+	},
+	target: setUndoCanonicalizationPickerState,
+});
+
+sample({
+	clock: confirmUndoCanonicalizationRequested,
+	source: { state: $undoCanonicalizationPickerState, pending: undoCanonicalizationFx.pending },
+	filter: ({ state, pending }) => state.open && !pending && typeof state.selectedPartId === 'string',
+	fn: ({ state }) => ({ partId: state.selectedPartId as string }),
+	target: undoCanonicalizationRequested,
+});
+
+sample({
+	clock: undoCanonicalizationRequested,
+	target: undoCanonicalizationFx,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	source: { chat: $currentChat, branchId: $currentBranchId },
+	filter: ({ chat, branchId }) => Boolean(chat?.id && branchId),
+	fn: ({ chat, branchId }) => ({ chatId: chat!.id, branchId: branchId! }),
+	target: loadEntriesFx,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	fn: ({ entryId }) => ({ entryId }),
+	target: refreshVariantsAfterUndo,
+});
+
+sample({
+	clock: undoCanonicalizationFx.doneData,
+	source: $promptInspectorState,
+	filter: (state) => Boolean(state.open && state.entryId),
+	fn: (state) => ({
+		entryId: state.entryId as string,
+		variantId: state.variantId ?? null,
+	}),
+	target: loadPromptInspectorFx,
 });
 
 export const $isChatStreaming = createStore(false);
@@ -449,35 +897,108 @@ sample({
 
 export const handleSseEnvelope = createEvent<SseEnvelope>();
 
+type StreamDoneStatus = 'done' | 'aborted' | 'error';
+
+type StreamTerminalState = {
+	doneStatus: StreamDoneStatus | null;
+	errorMessage: string | null;
+};
+
+function readStreamDoneStatus(env: SseEnvelope): StreamDoneStatus | null {
+	if (env.type !== 'llm.stream.done') return null;
+	const data = isRecord(env.data) ? env.data : null;
+	const status = typeof data?.status === 'string' ? data.status : '';
+	if (status === 'done' || status === 'aborted' || status === 'error') return status;
+	return null;
+}
+
+function readStreamErrorMessage(env: SseEnvelope): string | null {
+	if (env.type !== 'llm.stream.error') return null;
+	const data = isRecord(env.data) ? env.data : null;
+	const message = typeof data?.message === 'string' ? data.message.trim() : '';
+	return message.length > 0 ? message : null;
+}
+
+function reduceStreamTerminalState(current: StreamTerminalState, env: SseEnvelope): StreamTerminalState {
+	const doneStatus = readStreamDoneStatus(env) ?? current.doneStatus;
+	const errorMessage = readStreamErrorMessage(env) ?? current.errorMessage;
+	if (doneStatus === current.doneStatus && errorMessage === current.errorMessage) return current;
+	return { doneStatus, errorMessage };
+}
+
+function shouldStopStreamingLoop(env: SseEnvelope): boolean {
+	if (env.type === 'llm.stream.error') return true;
+	const doneStatus = readStreamDoneStatus(env);
+	return doneStatus === 'done' || doneStatus === 'aborted';
+}
+
+function buildStreamTerminalError(state: StreamTerminalState, fallbackMessage: string): Error | null {
+	if (state.doneStatus === 'aborted') return null;
+	if (state.doneStatus !== 'error' && !state.errorMessage) return null;
+	return new Error(state.errorMessage ?? fallbackMessage);
+}
+
 export const runSendStreamFx = createEffect(async (prep: LocalPrep): Promise<void> => {
-	for await (const env of streamChatEntry({
-		chatId: prep.chatId,
-		branchId: prep.branchId,
-		role: prep.role,
-		content: prep.promptText,
-		settings: {},
-		signal: prep.controller.signal,
-	})) {
-		logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
-		handleSseEnvelope(env);
-		if (env.type === 'llm.stream.done') break;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
+	let streamFailed: unknown = null;
+
+	try {
+		for await (const env of streamChatEntry({
+			chatId: prep.chatId,
+			branchId: prep.branchId,
+			role: prep.role,
+			content: prep.promptText,
+			settings: {},
+			signal: prep.controller.signal,
+		})) {
+			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
+			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
+			if (shouldStopStreamingLoop(env)) break;
+		}
+	} catch (error) {
+		if (isAbortLikeError(error)) {
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
+		} else {
+			streamFailed = error;
+		}
 	}
+
 	// Final sync from server to ensure canonical state.
 	await loadEntriesFx({ chatId: prep.chatId, branchId: prep.branchId });
+	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.streamError'));
+	if (terminalError) throw terminalError;
 });
 
 export const runContinueStreamFx = createEffect(async (prep: ContinuePrep): Promise<void> => {
-	for await (const env of streamContinueEntry({
-		chatId: prep.chatId,
-		branchId: prep.branchId,
-		settings: {},
-		signal: prep.controller.signal,
-	})) {
-		logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
-		handleSseEnvelope(env);
-		if (env.type === 'llm.stream.done') break;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
+	let streamFailed: unknown = null;
+
+	try {
+		for await (const env of streamContinueEntry({
+			chatId: prep.chatId,
+			branchId: prep.branchId,
+			settings: {},
+			signal: prep.controller.signal,
+		})) {
+			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
+			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
+			if (shouldStopStreamingLoop(env)) break;
+		}
+	} catch (error) {
+		if (isAbortLikeError(error)) {
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
+		} else {
+			streamFailed = error;
+		}
 	}
+
 	await loadEntriesFx({ chatId: prep.chatId, branchId: prep.branchId });
+	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.streamError'));
+	if (terminalError) throw terminalError;
 });
 
 // Track active stream state for abort button
@@ -514,12 +1035,6 @@ sample({
 });
 
 // Roll back optimistic user/assistant placeholders if stream fails before final sync.
-sample({
-	clock: runSendStreamFx.fail,
-	fn: ({ params }) => ({ chatId: params.chatId, branchId: params.branchId }),
-	target: loadEntriesFx,
-});
-
 type StreamPatch = {
 	entries: ChatEntryWithVariantDto[];
 	stream: ActiveStreamState | null;
@@ -568,6 +1083,71 @@ function appendDeltaToEntryPart(params: {
 		},
 	};
 
+	return nextEntries;
+}
+
+function appendCanonicalizationTag(tags: string[] | undefined): string[] {
+	const next = Array.isArray(tags) ? [...tags] : [];
+	if (!next.includes('canonicalization')) next.push('canonicalization');
+	return next;
+}
+
+function applyUserCanonicalizationPatch(params: {
+	entries: ChatEntryWithVariantDto[];
+	entryId: string;
+	replacedPartId: string;
+	canonicalPartId: string;
+	afterText: string;
+}): ChatEntryWithVariantDto[] {
+	const entryIndex = params.entries.findIndex((item) => item.entry.entryId === params.entryId);
+	if (entryIndex < 0) return params.entries;
+	const target = params.entries[entryIndex];
+	if (!target?.variant) return params.entries;
+
+	const parts = target.variant.parts ?? [];
+	let partIndex = parts.findIndex((part) => part.partId === params.canonicalPartId);
+	if (partIndex < 0) partIndex = parts.findIndex((part) => part.partId === params.replacedPartId);
+	if (partIndex < 0) {
+		for (let idx = parts.length - 1; idx >= 0; idx -= 1) {
+			const candidate = parts[idx];
+			if (!candidate || candidate.softDeleted || candidate.channel !== 'main') continue;
+			partIndex = idx;
+			break;
+		}
+	}
+	if (partIndex < 0) return params.entries;
+
+	const previousPart = parts[partIndex];
+	if (!previousPart) return params.entries;
+
+	const nextPart: Part = {
+		...previousPart,
+		partId: params.canonicalPartId,
+		payload: params.afterText,
+		source: 'agent',
+		replacesPartId: params.replacedPartId,
+		tags: appendCanonicalizationTag(previousPart.tags),
+	};
+
+	const changed =
+		nextPart.partId !== previousPart.partId ||
+		nextPart.payload !== previousPart.payload ||
+		nextPart.source !== previousPart.source ||
+		nextPart.replacesPartId !== previousPart.replacesPartId ||
+		(nextPart.tags ?? []).join('|') !== (previousPart.tags ?? []).join('|');
+	if (!changed) return params.entries;
+
+	const nextParts = [...parts];
+	nextParts[partIndex] = nextPart;
+
+	const nextEntries = [...params.entries];
+	nextEntries[entryIndex] = {
+		...target,
+		variant: {
+			...target.variant,
+			parts: nextParts,
+		},
+	};
 	return nextEntries;
 }
 
@@ -633,6 +1213,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 
 	const userEntryId = typeof meta?.userEntryId === 'string' ? meta.userEntryId : null;
 	const userMainPartId = typeof meta?.userMainPartId === 'string' ? meta.userMainPartId : null;
+	const resolvedUserMainPartId = stream.userMainPartId ?? userMainPartId;
 	const userRenderedContent = typeof meta?.userRenderedContent === 'string' ? meta.userRenderedContent : null;
 	const assistantEntryId = typeof meta?.assistantEntryId === 'string' ? meta.assistantEntryId : null;
 	const assistantVariantId = typeof meta?.assistantVariantId === 'string' ? meta.assistantVariantId : null;
@@ -652,7 +1233,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 								if (p.partId === stream.pendingUserMainPartId) {
 									return {
 										...p,
-										partId: userMainPartId ?? p.partId,
+										partId: resolvedUserMainPartId ?? p.partId,
 										payload: userRenderedContent ?? p.payload,
 									};
 								}
@@ -776,7 +1357,7 @@ function replaceIdsOnMeta(entries: ChatEntryWithVariantDto[], stream: ActiveStre
 		entries: nextEntries,
 		stream: {
 			...stream,
-			userMainPartId: userMainPartId ?? stream.userMainPartId,
+			userMainPartId: resolvedUserMainPartId ?? undefined,
 			assistantEntryId: assistantEntryId ?? stream.assistantEntryId,
 			assistantMainPartId: assistantMainPartId ?? stream.assistantMainPartId,
 			assistantReasoningPartId: assistantReasoningPartId ?? stream.assistantReasoningPartId,
@@ -790,6 +1371,45 @@ sample({
 	clock: handleSseEnvelope,
 	source: { entries: $entries, stream: $activeStream, generationId: $activeGenerationId },
 	fn: ({ entries, stream }, env) => {
+		if (env.type === 'turn.user.canonicalized') {
+			const data = env.data as Record<string, unknown> | null;
+			const userEntryId = data && typeof data.userEntryId === 'string' ? data.userEntryId : null;
+			const replacedPartId = data && typeof data.replacedPartId === 'string' ? data.replacedPartId : null;
+			const canonicalPartId = data && typeof data.canonicalPartId === 'string' ? data.canonicalPartId : null;
+			const afterText = data && typeof data.afterText === 'string' ? data.afterText : null;
+			if (!userEntryId || !replacedPartId || !canonicalPartId || afterText === null) {
+				return { entries, stream };
+			}
+
+			const fallbackEntryId =
+				stream?.mode === 'send' && stream.pendingUserEntryId ? stream.pendingUserEntryId : userEntryId;
+			let nextEntries = applyUserCanonicalizationPatch({
+				entries,
+				entryId: userEntryId,
+				replacedPartId,
+				canonicalPartId,
+				afterText,
+			});
+			if (nextEntries === entries && fallbackEntryId !== userEntryId) {
+				nextEntries = applyUserCanonicalizationPatch({
+					entries,
+					entryId: fallbackEntryId,
+					replacedPartId,
+					canonicalPartId,
+					afterText,
+				});
+			}
+
+			if (!stream) return { entries: nextEntries, stream };
+			return {
+				entries: nextEntries,
+				stream: {
+					...stream,
+					userMainPartId: canonicalPartId,
+				},
+			};
+		}
+
 		if (!stream) return { entries, stream, generationId: null };
 
 		if (env.type === 'llm.stream.meta') {
@@ -925,6 +1545,16 @@ export const $variantsLoadingByEntryId = createStore<Record<string, boolean>>({}
 	.on(loadVariantsFx.fail, (prev, { params }) => ({ ...prev, [params.entryId]: false }));
 
 sample({
+	clock: refreshVariantsAfterUndo,
+	target: loadVariantsRequested,
+});
+
+sample({
+	clock: refreshVariantsAfterPartBatchUpdate,
+	target: loadVariantsRequested,
+});
+
+sample({
 	clock: loadVariantsRequested,
 	source: $variantsLoadingByEntryId,
 	filter: (loadingById, { entryId }) => !loadingById[entryId],
@@ -1001,6 +1631,47 @@ deleteVariantFx.failData.watch((error) => {
 	toaster.error({ title: i18n.t('chat.toasts.deleteVariantError'), description: error instanceof Error ? error.message : String(error) });
 });
 
+export type EntryPartEditState = {
+	partId: string;
+	draftText: string;
+};
+
+function omitEntryEdit(
+	state: Record<string, EntryPartEditState>,
+	entryId: string,
+): Record<string, EntryPartEditState> {
+	if (!state[entryId]) return state;
+	const next = { ...state };
+	delete next[entryId];
+	return next;
+}
+
+export const openEntryPartEditRequested = createEvent<{ entryId: string; partId: string; draftText: string }>();
+export const updateEntryPartDraftRequested = createEvent<{ entryId: string; draftText: string }>();
+export const closeEntryPartEditRequested = createEvent<{ entryId: string }>();
+export const clearEntryPartEditsRequested = createEvent();
+
+export const $entryPartEdits = createStore<Record<string, EntryPartEditState>>({})
+	.on(openEntryPartEditRequested, (state, payload) => ({
+		...state,
+		[payload.entryId]: { partId: payload.partId, draftText: payload.draftText },
+	}))
+	.on(updateEntryPartDraftRequested, (state, payload) => {
+		const current = state[payload.entryId];
+		if (!current) return state;
+		return {
+			...state,
+			[payload.entryId]: {
+				...current,
+				draftText: payload.draftText,
+			},
+		};
+	})
+	.on(closeEntryPartEditRequested, (state, payload) => omitEntryEdit(state, payload.entryId))
+	.on(clearEntryPartEditsRequested, () => ({}))
+	.on(enterBulkDeleteMode, () => ({}))
+	.on(setOpenedChat, () => ({}));
+
 export const manualEditEntryRequested = createEvent<{ entryId: string; content: string; partId?: string }>();
 export const manualEditEntryFx = createEffect(async (params: { entryId: string; content: string; partId?: string }) => {
 	return manualEditEntry(params);
@@ -1020,6 +1691,12 @@ sample({
 	clock: manualEditEntryFx.doneData,
 	fn: ({ entryId }) => ({ entryId }),
 	target: loadVariantsRequested,
+});
+
+sample({
+	clock: manualEditEntryFx.doneData,
+	fn: ({ entryId }) => ({ entryId }),
+	target: closeEntryPartEditRequested,
 });
 
 manualEditEntryFx.doneData.watch(() => {
@@ -1151,6 +1828,36 @@ setEntryPromptVisibilityFx.done.watch(({ params }) => {
 setEntryPromptVisibilityFx.failData.watch((error) => {
 	toaster.error({
 		title: i18n.t('chat.toasts.togglePromptVisibilityError'),
+		description: error instanceof Error ? error.message : String(error),
+	});
+});
+
+batchUpdateEntryPartsFx.doneData.watch(() => {
+	toaster.success({ title: i18n.t('chat.toasts.partsBatchSaved') });
+});
+
+batchUpdateEntryPartsFx.failData.watch((error) => {
+	const status = readHttpStatus(error);
+	if (status === 409) {
+		toaster.error({
+			title: i18n.t('chat.toasts.partsBatchConflictTitle'),
+			description: i18n.t('chat.toasts.partsBatchConflictDescription'),
+		});
+		return;
+	}
+	toaster.error({
+		title: i18n.t('chat.toasts.partsBatchSaveError'),
+		description: error instanceof Error ? error.message : String(error),
+	});
+});
+
+undoCanonicalizationFx.doneData.watch(() => {
+	toaster.success({ title: i18n.t('chat.toasts.canonicalizationUndone') });
+});
+
+undoCanonicalizationFx.failData.watch((error) => {
+	toaster.error({
+		title: i18n.t('chat.toasts.undoCanonicalizationError'),
 		description: error instanceof Error ? error.message : String(error),
 	});
 });
@@ -1298,7 +2005,7 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 
 	let assistantVariantId: string | null = null;
 	let sawFirstToken = false;
-	let doneStatus: 'done' | 'aborted' | 'error' | null = null;
+	let terminalState: StreamTerminalState = { doneStatus: null, errorMessage: null };
 	let streamFailed: unknown = null;
 
 	try {
@@ -1309,6 +2016,7 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 		})) {
 			logChatGenerationSseEvent({ scope: 'entry-parts', envelope: env });
 			handleSseEnvelope(env);
+			terminalState = reduceStreamTerminalState(terminalState, env);
 
 			if (env.type === 'llm.stream.meta') {
 				const meta = env.data as Record<string, unknown> | null;
@@ -1322,23 +2030,18 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 				if (content.length > 0) sawFirstToken = true;
 			}
 
-			if (env.type === 'llm.stream.done') {
-				const data = env.data as Record<string, unknown> | null;
-				const status = data && typeof data.status === 'string' ? data.status : '';
-				if (status === 'done' || status === 'aborted' || status === 'error') doneStatus = status;
-				break;
-			}
+			if (shouldStopStreamingLoop(env)) break;
 		}
 	} catch (error) {
 		if (isAbortLikeError(error)) {
-			doneStatus = 'aborted';
+			terminalState = { ...terminalState, doneStatus: 'aborted' };
 		} else {
 			streamFailed = error;
 		}
 	}
 
 	// User aborted before first token: remove empty regeneration variant automatically.
-	if (doneStatus === 'aborted' && !sawFirstToken) {
+	if (terminalState.doneStatus === 'aborted' && !sawFirstToken) {
 		const cleanupCandidates: string[] = [];
 		if (assistantVariantId) cleanupCandidates.push(assistantVariantId);
 
@@ -1362,9 +2065,14 @@ export const runRegenerateStreamFx = createEffect(async (prep: Awaited<ReturnTyp
 	loadVariantsRequested({ entryId: prep.entryId });
 
 	if (streamFailed) throw streamFailed;
+	const terminalError = buildStreamTerminalError(terminalState, i18n.t('chat.toasts.regenerateError'));
+	if (terminalError) throw terminalError;
 });
 
 sample({ clock: prepareRegenerateFx.doneData, target: runRegenerateStreamFx });
+
+$activeStream.reset(runSendStreamFx.finally, runContinueStreamFx.finally, runRegenerateStreamFx.finally);
+$activeGenerationId.reset(runSendStreamFx.finally, runContinueStreamFx.finally, runRegenerateStreamFx.finally);
 
 $isChatStreaming.on(runRegenerateStreamFx, () => true).on(runRegenerateStreamFx.finally, () => false);
 

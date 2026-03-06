@@ -6,9 +6,12 @@ const mocks = vi.hoisted(() => ({
   executeOperationsPhase: vi.fn(),
   commitEffectsPhase: vi.fn(),
   runMainLlmPhase: vi.fn(),
+  generationControlAcquire: vi.fn(),
   finalizeRun: vi.fn(),
   updateGenerationPromptData: vi.fn(),
   updateGenerationDebugJson: vi.fn(),
+  loadOrBootstrapRuntimeState: vi.fn(),
+  chatRuntimeStateUpsert: vi.fn(),
 }));
 
 vi.mock("./prepare/resolve-run-context", () => ({
@@ -31,8 +34,24 @@ vi.mock("./main-llm/run-main-llm-phase", () => ({
   runMainLlmPhase: mocks.runMainLlmPhase,
 }));
 
+vi.mock("./control/generation-control-port", () => ({
+  defaultGenerationControlPort: {
+    acquire: mocks.generationControlAcquire,
+  },
+}));
+
 vi.mock("./persist/finalize-run", () => ({
   finalizeRun: mocks.finalizeRun,
+}));
+
+vi.mock("./runtime/operation-runtime-state", () => ({
+  loadOrBootstrapRuntimeState: mocks.loadOrBootstrapRuntimeState,
+}));
+
+vi.mock("./runtime/chat-runtime-state-repository", () => ({
+  ChatRuntimeStateRepository: {
+    upsert: mocks.chatRuntimeStateUpsert,
+  },
 }));
 
 vi.mock("../chat-core/generations-repository", () => ({
@@ -48,6 +67,8 @@ vi.mock("../chat-core/generation-runtime", () => ({
 vi.mock("./artifacts/profile-session-artifact-store", () => ({
   ProfileSessionArtifactStore: {
     load: vi.fn(async () => ({})),
+    loadOperationActivationStates: vi.fn(async () => ({})),
+    upsertOperationActivationState: vi.fn(async () => undefined),
   },
 }));
 
@@ -60,6 +81,7 @@ function makeRequest() {
     branchId: "branch-1",
     entityProfileId: "entity-1",
     trigger: "generate" as const,
+    source: "user_message" as const,
     settings: {},
     persistenceTarget: {
       mode: "entry_parts" as const,
@@ -144,6 +166,26 @@ beforeEach(() => {
     },
     instructionDerivedSettings: {},
   });
+  mocks.loadOrBootstrapRuntimeState.mockResolvedValue({
+    payload: {
+      version: 1,
+      activationByOpId: {},
+      bootstrap: {
+        source: "branch_active_history",
+        userEventsCount: 0,
+        lastRebuiltAt: "2026-02-01T00:00:00.000Z",
+      },
+    },
+    updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+  });
+  mocks.chatRuntimeStateUpsert.mockImplementation(async ({ payload }: any) => ({
+    payload,
+    updatedAt: new Date("2026-02-01T00:00:01.000Z"),
+  }));
+  mocks.generationControlAcquire.mockResolvedValue({
+    heartbeat: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  });
 });
 
 describe("runChatGenerationV3", () => {
@@ -176,6 +218,44 @@ describe("runChatGenerationV3", () => {
     const finished = events.find((e) => e.type === "run.finished");
     expect(finished?.data.status).toBe("failed");
     expect(finished?.data.failedType).toBe("before_barrier");
+  });
+
+  test("does not fail before barrier for required activation_not_reached skip", async () => {
+    mocks.executeOperationsPhase.mockResolvedValueOnce([
+      {
+        opId: "required-op",
+        name: "Required op",
+        required: true,
+        hook: "before_main_llm",
+        status: "skipped",
+        skipReason: "activation_not_reached",
+        skipDetails: {
+          activation: {
+            everyNTurns: 5,
+            turnsCounter: 2,
+            tokensCounter: 300,
+          },
+        },
+        order: 10,
+        dependsOn: [],
+        effects: [],
+      },
+    ]);
+    mocks.executeOperationsPhase.mockResolvedValueOnce([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events = [];
+    for await (const evt of runChatGenerationV3(makeRequest())) {
+      events.push(evt);
+    }
+
+    expect(mocks.runMainLlmPhase).toHaveBeenCalled();
+    const finished = events.find((e) => e.type === "run.finished");
+    expect(finished?.data.status).toBe("done");
   });
 
   test("passes before artifacts into after execute phase", async () => {
@@ -364,6 +444,69 @@ describe("runChatGenerationV3", () => {
     });
   });
 
+  test("passes operation.finished skip details through run events", async () => {
+    mocks.executeOperationsPhase.mockImplementation(async (params: any) => {
+      if (params.hook === "before_main_llm") {
+        params.onOperationFinished?.({
+          hook: "before_main_llm",
+          opId: "op-activation-skip",
+          name: "Activation skip op",
+          status: "skipped",
+          skipReason: "activation_not_reached",
+          skipDetails: {
+            activation: {
+              everyNTurns: 5,
+              turnsCounter: 2,
+              tokensCounter: 500,
+            },
+          },
+        });
+        return [
+          {
+            opId: "op-activation-skip",
+            name: "Activation skip op",
+            required: false,
+            hook: "before_main_llm",
+            status: "skipped",
+            skipReason: "activation_not_reached",
+            skipDetails: {
+              activation: {
+                everyNTurns: 5,
+                turnsCounter: 2,
+                tokensCounter: 500,
+              },
+            },
+            order: 10,
+            dependsOn: [],
+            effects: [],
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events: any[] = [];
+    for await (const evt of runChatGenerationV3(makeRequest())) {
+      events.push(evt);
+    }
+
+    const finished = events.find(
+      (evt) => evt.type === "operation.finished" && evt.data?.opId === "op-activation-skip"
+    );
+    expect(finished?.data?.status).toBe("skipped");
+    expect(finished?.data?.skipReason).toBe("activation_not_reached");
+    expect(finished?.data?.skipDetails?.activation).toMatchObject({
+      everyNTurns: 5,
+      turnsCounter: 2,
+      tokensCounter: 500,
+    });
+  });
+
   test("streams main_llm.reasoning_delta while main phase is running", async () => {
     const mainGate = deferred<void>();
     mocks.executeOperationsPhase.mockResolvedValue([]);
@@ -466,6 +609,164 @@ describe("runChatGenerationV3", () => {
       temperature: 0.95,
       maxTokens: 321,
       top_p: 0.91,
+    });
+  });
+
+  test("emits normalizedLlmMessages in run.debug.main_llm_input", async () => {
+    const request = makeRequest();
+    request.settings = {
+      __chatGenerationDebug: true,
+    };
+    mocks.buildBasePrompt.mockResolvedValueOnce({
+      prompt: {
+        systemPrompt: "sys-1",
+        historyReturnedCount: 1,
+        promptHash: "h",
+        promptSnapshot: {
+          v: 1,
+          messages: [],
+          truncated: false,
+          meta: { historyLimit: 50, historyReturnedCount: 1 },
+        },
+        llmMessages: [
+          { role: "system", content: "sys-1" },
+          { role: "system", content: "sys-2" },
+          { role: "user", content: "hello" },
+        ],
+        draftMessages: [
+          { role: "system", content: "sys-1" },
+          { role: "system", content: "sys-2" },
+          { role: "user", content: "hello" },
+        ],
+      },
+      templateContext: {
+        char: {},
+        user: {},
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date().toISOString(),
+      },
+      worldInfoDiagnostics: {
+        worldInfoBefore: "",
+        worldInfoAfter: "",
+        depthEntries: [],
+        outletEntries: {},
+        anTop: [],
+        anBottom: [],
+        emTop: [],
+        emBottom: [],
+        warnings: [],
+        activatedCount: 0,
+        activatedEntries: [],
+      },
+      instructionDerivedSettings: {},
+    });
+    mocks.executeOperationsPhase.mockResolvedValue([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    const events: any[] = [];
+    for await (const evt of runChatGenerationV3(request)) {
+      events.push(evt);
+    }
+
+    const debugEvent = events.find((evt) => evt.type === "run.debug.main_llm_input");
+    expect(debugEvent).toBeTruthy();
+    expect(debugEvent.data.llmMessages).toEqual([
+      { role: "system", content: "sys-1" },
+      { role: "system", content: "sys-2" },
+      { role: "user", content: "hello" },
+    ]);
+    expect(debugEvent.data.normalizedLlmMessages).toEqual([
+      { role: "system", content: "sys-1\n\nsys-2" },
+      { role: "user", content: "hello" },
+    ]);
+  });
+
+  test("persists updated operation activation counters into chat runtime state", async () => {
+    mocks.resolveRunContext.mockResolvedValueOnce({
+      context: {
+        ownerId: "global",
+        runId: "gen-1",
+        generationId: "gen-1",
+        trigger: "generate",
+        chatId: "chat-1",
+        branchId: "branch-1",
+        entityProfileId: "entity-1",
+        profileSnapshot: {
+          profileId: "profile-1",
+          version: 1,
+          executionMode: "sequential",
+          operationProfileSessionId: "sess-1",
+          operations: [
+            {
+              opId: "op-1",
+              name: "Op 1",
+              kind: "template",
+              config: {
+                enabled: true,
+                required: false,
+                hooks: ["before_main_llm"],
+                triggers: ["generate"],
+                activation: { everyNTurns: 5, everyNContextTokens: 100 },
+                order: 1,
+                params: {
+                  template: "x",
+                  output: {
+                    type: "artifacts",
+                    writeArtifact: {
+                      tag: "a",
+                      persistence: "run_only",
+                      usage: "internal",
+                      semantics: "intermediate",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        runtimeInfo: { providerId: "openrouter", model: "m" },
+        sessionKey: "k",
+        historyLimit: 50,
+        startedAt: Date.now(),
+      },
+      profile: null,
+    });
+    mocks.loadOrBootstrapRuntimeState.mockResolvedValueOnce({
+      payload: {
+        version: 1,
+        activationByOpId: {
+          "op-1": { turnsCounter: 2, tokensCounter: 7 },
+        },
+        bootstrap: {
+          source: "branch_active_history",
+          userEventsCount: 2,
+          lastRebuiltAt: "2026-02-01T00:00:00.000Z",
+        },
+      },
+      updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+    });
+    mocks.executeOperationsPhase.mockResolvedValue([]);
+    mocks.commitEffectsPhase.mockImplementation(async (params: any) => ({
+      report: { hook: params.hook, status: "done", effects: [] },
+      requiredError: false,
+    }));
+    mocks.runMainLlmPhase.mockResolvedValue({ status: "done" });
+
+    for await (const _evt of runChatGenerationV3(makeRequest())) {
+      // consume
+    }
+
+    const upsertPayload = mocks.chatRuntimeStateUpsert.mock.calls[0]?.[0]?.payload;
+    expect(upsertPayload.activationByOpId["op-1"]).toEqual({
+      turnsCounter: 3,
+      tokensCounter: 7,
     });
   });
 });

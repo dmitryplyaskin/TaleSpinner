@@ -90,6 +90,36 @@ describe("llm-gateway-adapter", () => {
     });
   });
 
+  test("splitSamplingAndExtra maps extended sampler aliases to snake_case extra fields", () => {
+    const out = splitSamplingAndExtra({
+      topK: 50,
+      minP: 0.1,
+      topA: 0.2,
+      repetitionPenalty: 1.05,
+      maxTokens: 0,
+      reasoning: {
+        enabled: true,
+        effort: "high",
+        maxTokens: 128,
+        exclude: false,
+      },
+    });
+
+    expect(out.sampling.max_tokens).toBeUndefined();
+    expect(out.extra).toEqual({
+      top_k: 50,
+      min_p: 0.1,
+      top_a: 0.2,
+      repetition_penalty: 1.05,
+      reasoning: {
+        enabled: true,
+        effort: "high",
+        max_tokens: 128,
+        exclude: false,
+      },
+    });
+  });
+
   test("buildGatewayStreamRequest assembles provider/model/messages/sampling/extra", () => {
     const abortController = new AbortController();
     const req = buildGatewayStreamRequest({
@@ -111,11 +141,58 @@ describe("llm-gateway-adapter", () => {
       messages: [{ role: "user", content: "hi" }],
       sampling: { temperature: 1 },
       extra: { extraField: "x" },
+      features: {
+        messageNormalization: {
+          enabled: true,
+          mergeSystem: true,
+          mergeConsecutiveAssistant: false,
+        },
+      },
       abortSignal: abortController.signal,
     });
   });
 
-  test("buildGatewayStreamRequest injects anthropic cache feature from provider config", () => {
+  test("buildGatewayStreamRequest enables message normalization by default when config has no explicit flag", () => {
+    const req = buildGatewayStreamRequest({
+      providerId: "openai_compatible",
+      token: "tok",
+      providerConfig: {
+        baseUrl: "http://localhost:1234/v1",
+      },
+      runtimeModel: null,
+      messages: [{ role: "user", content: "hi" }],
+      settings: {},
+    });
+
+    expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: true,
+        mergeSystem: true,
+        mergeConsecutiveAssistant: false,
+      },
+    });
+  });
+
+  test("buildGatewayStreamRequest allows disabling message normalization explicitly", () => {
+    const req = buildGatewayStreamRequest({
+      providerId: "openrouter",
+      token: "tok",
+      providerConfig: {
+        messageNormalization: { enabled: false },
+      },
+      runtimeModel: null,
+      messages: [{ role: "user", content: "hi" }],
+      settings: {},
+    });
+
+    expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: false,
+      },
+    });
+  });
+
+  test("buildGatewayStreamRequest injects both message normalization and anthropic cache features", () => {
     const req = buildGatewayStreamRequest({
       providerId: "openrouter",
       token: "tok",
@@ -129,6 +206,11 @@ describe("llm-gateway-adapter", () => {
     });
 
     expect(req.features).toEqual({
+      messageNormalization: {
+        enabled: true,
+        mergeSystem: true,
+        mergeConsecutiveAssistant: false,
+      },
       anthropicCache: { enabled: true, depth: 2, ttl: "1h" },
     });
   });

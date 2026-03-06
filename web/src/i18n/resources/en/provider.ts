@@ -15,10 +15,21 @@
 				title: 'Provider configuration',
 				baseUrl: 'Base URL',
 				defaultModel: 'Default model (optional)',
+				checkConnection: 'Check connection',
+				checkConnectionHelp:
+					'The check uses the selected token and the current config draft. You do not need to save settings first.',
+				connectionSuccessTitle: 'Provider connection is working',
+				connectionErrorTitle: 'Provider check failed',
+				checkedEndpoint: 'Checked endpoint',
 				tokenPolicy: {
 					title: 'Token policy',
 					randomize: 'Use random token when more than one token exists',
 					fallbackOnError: 'Fallback to next token on pre-stream errors',
+				},
+				messageNormalization: {
+					title: 'Message normalization',
+					enabled: 'Merge all system instructions into one message',
+					helpText: 'Enabled by default for compatibility with providers that accept only one system message.',
 				},
 				anthropicCache: {
 					title: 'Anthropic prompt cache',
@@ -45,14 +56,16 @@
 				},
 				actions: {
 					createPrompt: 'Enter preset name',
+					renamePrompt: 'Enter new preset name',
 					create: 'Create',
 					save: 'Save',
+					rename: 'Rename',
 					duplicate: 'Duplicate',
-					apply: 'Apply',
 					delete: 'Delete',
 				},
 				confirm: {
 					delete: 'Delete selected preset?',
+					discardChanges: 'You have unsaved changes. Discard them and switch preset?',
 				},
 				toasts: {
 					created: 'Preset created',
@@ -66,6 +79,12 @@
 			toasts: {
 				configSaved: 'Provider config saved',
 				configSaveFailed: 'Failed to save provider config',
+				connectionCheckPassed: 'Provider check passed',
+				connectionCheckFailed: 'Provider check failed',
+				modelsEmpty: 'Models list is empty',
+				modelsEmptyHelp:
+					'The provider returned no models. Check Base URL, token, and use the connection check button.',
+				modelsLoadFailed: 'Failed to load models',
 			},
 		};
 

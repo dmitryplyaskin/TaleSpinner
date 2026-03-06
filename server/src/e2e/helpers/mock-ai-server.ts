@@ -1,8 +1,8 @@
 import { once } from "node:events";
+import { type Server } from "node:http";
 import { type AddressInfo } from "node:net";
 
 import express, { type Request, type Response } from "express";
-import { type Server } from "node:http";
 
 export type RunningMockAiServer = {
   baseUrl: string;

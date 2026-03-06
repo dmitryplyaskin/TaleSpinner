@@ -1,10 +1,11 @@
-import "dotenv/config";
-import path from "path";
-
 import { defineConfig } from "drizzle-kit";
 
-const dbPath =
-  process.env.DB_PATH ?? path.join(process.cwd(), "data", "db.sqlite");
+import { loadBackendEnvOnce } from "./src/config/load-backend-env";
+import { resolveDbPath } from "./src/config/path-resolver";
+
+loadBackendEnvOnce();
+
+const dbPath = resolveDbPath();
 
 export default defineConfig({
   schema: "./src/db/schema.ts",

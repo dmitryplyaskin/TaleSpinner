@@ -10,7 +10,12 @@ import { LlmPresetManager } from './llm-preset-manager';
 import { LlmProviderAdvancedConfig } from './llm-provider-advanced-config';
 import { LlmRuntimeSelector } from './llm-runtime-selector';
 
-import type { LlmPresetPayload, LlmProviderConfig, LlmScope } from '@shared/types/llm';
+import type {
+	LlmPresetPayload,
+	LlmProviderConfig,
+	LlmProviderConnectionCheckResult,
+	LlmScope,
+} from '@shared/types/llm';
 
 type Props = {
 	scope: LlmScope;
@@ -42,8 +47,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		selectModel,
 		openTokenManager,
 		loadModelsFx,
+		isCheckingProviderConnection,
 		loadProviderConfigFx,
 		patchProviderConfigFx,
+		checkProviderConnectionFx,
 		createLlmPresetFx,
 		updateLlmPresetFx,
 		deleteLlmPresetFx,
@@ -63,8 +70,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		llmProviderModel.modelSelected,
 		llmProviderModel.tokenManagerOpened,
 		llmProviderModel.loadModelsFx,
+		llmProviderModel.checkProviderConnectionFx.pending,
 		llmProviderModel.loadProviderConfigFx,
 		llmProviderModel.patchProviderConfigFx,
+		llmProviderModel.checkProviderConnectionFx,
 		llmProviderModel.createLlmPresetFx,
 		llmProviderModel.updateLlmPresetFx,
 		llmProviderModel.deleteLlmPresetFx,
@@ -87,6 +96,7 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		[configByProvider, activeProviderId],
 	);
 	const [configDraft, setConfigDraft] = useState<LlmProviderConfig>({});
+	const [connectionCheckResult, setConnectionCheckResult] = useState<LlmProviderConnectionCheckResult | null>(null);
 
 	useEffect(() => {
 		if (activeProviderId === 'openai_compatible') {
@@ -96,6 +106,10 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		setConfigDraft(providerConfig);
 	}, [providerConfig, activeProviderId]);
 
+	useEffect(() => {
+		setConnectionCheckResult(null);
+	}, [activeProviderId, activeTokenId, configDraft]);
+
 	const saveConfig = async () => {
 		try {
 			await patchProviderConfigFx({ providerId: activeProviderId, config: configDraft });
@@ -104,6 +118,30 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		} catch (error) {
 			toaster.error({
 				title: t('provider.toasts.configSaveFailed'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
+	const checkConnection = async () => {
+		try {
+			const result = await checkProviderConnectionFx({
+				providerId: activeProviderId,
+				scope,
+				scopeId,
+				tokenId: activeTokenId,
+				config: configDraft,
+			});
+			setConnectionCheckResult(result);
+			if (result.ok) {
+				toaster.success({ title: t('provider.toasts.connectionCheckPassed'), description: result.message });
+				return;
+			}
+			toaster.error({ title: t('provider.toasts.connectionCheckFailed'), description: result.message });
+		} catch (error) {
+			setConnectionCheckResult(null);
+			toaster.error({
+				title: t('provider.toasts.connectionCheckFailed'),
 				description: error instanceof Error ? error.message : String(error),
 			});
 		}
@@ -123,63 +161,144 @@ export const LlmProviderPanel: React.FC<Props> = ({
 		},
 	});
 
+	const activePresetId = presetSettings?.activePresetId ?? null;
+	const activePreset = presets.find((item) => item.presetId === activePresetId) ?? null;
+
+	const normalizePayload = (payload: LlmPresetPayload): LlmPresetPayload => ({
+		activeProviderId: payload.activeProviderId,
+		activeModel: payload.activeModel ?? null,
+		activeTokenId: payload.activeTokenId ?? null,
+		providerConfigsById: {
+			openrouter: payload.providerConfigsById.openrouter ?? {},
+			openai_compatible: payload.providerConfigsById.openai_compatible ?? {},
+		},
+	});
+
+	const hasUnsavedPresetChanges = activePreset
+		? JSON.stringify(normalizePayload(activePreset.payload)) !== JSON.stringify(normalizePayload(buildCurrentPayload()))
+		: false;
+	const normalizeConfigForCompare = (config: LlmProviderConfig): LlmProviderConfig => {
+		if (activeProviderId === 'openai_compatible') {
+			return { baseUrl: '', ...config };
+		}
+		return config ?? {};
+	};
+	const hasUnsavedConfigDraft =
+		JSON.stringify(normalizeConfigForCompare(configDraft ?? {})) !==
+		JSON.stringify(normalizeConfigForCompare(providerConfig ?? {}));
+	const hasUnsavedChanges = hasUnsavedPresetChanges || hasUnsavedConfigDraft;
+
+	const handleSelectPreset = async (presetId: string | null, options?: { skipUnsavedConfirm?: boolean }) => {
+		if (presetId === activePresetId) return;
+		if (hasUnsavedChanges && !options?.skipUnsavedConfirm) {
+			if (!window.confirm(t('provider.presets.confirm.discardChanges'))) return;
+		}
+
+		if (!presetId) {
+			await patchLlmPresetSettingsFx({ activePresetId: null });
+			return;
+		}
+
+		try {
+			const result = await applyLlmPresetFx({
+				presetId,
+				scope,
+				scopeId,
+			});
+
+			if (result.warnings.length > 0) {
+				toaster.warning({
+					title: t('provider.presets.toasts.appliedWithWarnings'),
+					description: result.warnings.join('; '),
+				});
+				return;
+			}
+
+			toaster.success({
+				title: t('provider.presets.toasts.applied'),
+				description: result.preset.name,
+			});
+		} catch (error) {
+			toaster.error({
+				title: t('provider.presets.toasts.failed'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
 	return (
 		<Stack gap="lg">
-			{showRuntime && (
-				<LlmRuntimeSelector
-					scope={scope}
-					scopeId={scopeId}
-					providers={providers}
-					activeProviderId={activeProviderId}
-					tokens={tokens}
-					activeTokenId={activeTokenId}
-					models={models}
-					activeModel={activeModel}
-					onProviderSelect={(providerId) => selectProvider({ scope, scopeId, providerId })}
-					onTokenSelect={(tokenId) => selectToken({ scope, scopeId, tokenId })}
-					onModelSelect={(model) => selectModel({ scope, scopeId, model })}
-					onLoadModels={async () => {
-						if (!activeTokenId) return;
-						await loadModelsFx({
-							providerId: activeProviderId,
-							scope,
-							scopeId,
-							tokenId: activeTokenId,
-						});
-					}}
-					onOpenTokenManager={openTokenManager}
+			{showPresets && (
+				<LlmPresetManager
+					presets={presets}
+					presetSettings={presetSettings}
+					hasUnsavedChanges={hasUnsavedChanges}
+					buildCurrentPayload={buildCurrentPayload}
+					onCreatePreset={(params) => createLlmPresetFx(params)}
+					onUpdatePreset={(params) => updateLlmPresetFx(params)}
+					onDeletePreset={(presetId) => deleteLlmPresetFx(presetId)}
+					onSelectPreset={handleSelectPreset}
+					onPatchSettings={(params) => patchLlmPresetSettingsFx(params)}
 				/>
+			)}
+
+			{showRuntime && (
+				<>
+					{showPresets ? <Divider /> : null}
+					<LlmRuntimeSelector
+						scope={scope}
+						scopeId={scopeId}
+						providers={providers}
+						activeProviderId={activeProviderId}
+						tokens={tokens}
+						activeTokenId={activeTokenId}
+						models={models}
+						activeModel={activeModel}
+						onProviderSelect={(providerId) => selectProvider({ scope, scopeId, providerId })}
+						onTokenSelect={(tokenId) => selectToken({ scope, scopeId, tokenId })}
+						onModelSelect={(model) => selectModel({ scope, scopeId, model })}
+						onLoadModels={async () => {
+							if (!activeTokenId) return;
+							try {
+								const result = await loadModelsFx({
+									providerId: activeProviderId,
+									scope,
+									scopeId,
+									tokenId: activeTokenId,
+								});
+								if (result.models.length === 0) {
+									toaster.warning({
+										title: t('provider.toasts.modelsEmpty'),
+										description: t('provider.toasts.modelsEmptyHelp'),
+									});
+								}
+							} catch (error) {
+								toaster.error({
+									title: t('provider.toasts.modelsLoadFailed'),
+									description: error instanceof Error ? error.message : String(error),
+								});
+							}
+						}}
+						onOpenTokenManager={openTokenManager}
+					/>
+				</>
 			)}
 
 			{showConfig && (
 				<>
-					<Divider />
+					{showPresets || showRuntime ? <Divider /> : null}
 					<LlmProviderAdvancedConfig
 						activeProviderId={activeProviderId}
 						configDraft={configDraft}
 						onChange={setConfigDraft}
 						onSave={saveConfig}
+						onCheckConnection={checkConnection}
+						isCheckingConnection={isCheckingProviderConnection}
+						connectionCheckResult={connectionCheckResult}
 					/>
 				</>
 			)}
 
-			{showPresets && (
-				<>
-					<Divider />
-					<LlmPresetManager
-						scope={scope}
-						scopeId={scopeId}
-						presets={presets}
-						presetSettings={presetSettings}
-						buildCurrentPayload={buildCurrentPayload}
-						onCreatePreset={(params) => createLlmPresetFx(params)}
-						onUpdatePreset={(params) => updateLlmPresetFx(params)}
-						onDeletePreset={(presetId) => deleteLlmPresetFx(presetId)}
-						onApplyPreset={(params) => applyLlmPresetFx(params)}
-						onPatchSettings={(params) => patchLlmPresetSettingsFx(params)}
-					/>
-				</>
-			)}
 		</Stack>
 	);
 };

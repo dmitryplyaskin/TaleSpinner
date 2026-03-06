@@ -56,7 +56,7 @@ export type Part = {
   channel: PartChannel;
   order: number;
 
-  payload: string | object;
+  payload: string | object | number | boolean | null;
   payloadFormat: PartPayloadFormat;
   schemaId?: string;
   label?: string;

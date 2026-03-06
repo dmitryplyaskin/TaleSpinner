@@ -9,26 +9,33 @@ function nowMs(): number {
   return Date.now();
 }
 
-export function registerGeneration(generationId: string, abortController: AbortController): void {
+export function registerGenerationAbortController(
+  generationId: string,
+  abortController: AbortController
+): void {
   active.set(generationId, { abortController, createdAtMs: nowMs() });
 }
 
-export function unregisterGeneration(generationId: string): void {
+export function unregisterGenerationAbortController(generationId: string): void {
   active.delete(generationId);
 }
 
-export function getAbortController(generationId: string): AbortController | null {
-  return active.get(generationId)?.abortController ?? null;
-}
-
-export function abortGeneration(generationId: string): boolean {
+export function abortRegisteredGeneration(generationId: string): boolean {
   const entry = active.get(generationId);
   if (!entry) return false;
   entry.abortController.abort();
   return true;
 }
 
-export function getActiveGenerationIds(): string[] {
-  return [...active.keys()];
+export function registerGeneration(generationId: string, abortController: AbortController): void {
+  registerGenerationAbortController(generationId, abortController);
+}
+
+export function unregisterGeneration(generationId: string): void {
+  unregisterGenerationAbortController(generationId);
+}
+
+export function abortGeneration(generationId: string): boolean {
+  return abortRegisteredGeneration(generationId);
 }
 

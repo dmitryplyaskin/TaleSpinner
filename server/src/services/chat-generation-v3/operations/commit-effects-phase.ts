@@ -1,8 +1,12 @@
-import type { OperationHook, OperationProfile } from "@shared/types/operation-profiles";
 
-import { RunArtifactStore } from "../artifacts/run-artifact-store";
+import { type RunArtifactStore } from "../artifacts/run-artifact-store";
+
+import { applyArtifactEffect } from "./effect-handlers/artifact-effects";
+import { applyPromptEffect } from "./effect-handlers/prompt-effects";
+import { persistUserTurnText } from "./effect-handlers/turn-effects";
+import { validateEffectForHook } from "./effect-policy";
+
 import type {
-  ArtifactValue,
   CommitPhaseReport,
   OperationExecutionResult,
   RuntimeEffect,
@@ -10,10 +14,7 @@ import type {
   TurnUserCanonicalizationRecord,
   UserTurnTarget,
 } from "../contracts";
-import { applyArtifactEffect } from "./effect-handlers/artifact-effects";
-import { applyPromptEffect } from "./effect-handlers/prompt-effects";
-import { persistUserTurnText } from "./effect-handlers/turn-effects";
-import { validateEffectForHook } from "./effect-policy";
+import type { OperationHook, OperationProfile } from "@shared/types/operation-profiles";
 
 type CommitOrderNode = {
   opId: string;
@@ -114,6 +115,7 @@ export async function commitEffectsPhase(params: {
   const doneResults = results.filter((item) => item.status === "done");
   const orderedDoneResults = resolveDeterministicCommitOrder(doneResults);
   const effectsReport: CommitPhaseReport["effects"] = [];
+  let currentUserTurnTarget = params.userTurnTarget;
 
   let requiredError = false;
   for (const opResult of orderedDoneResults) {
@@ -188,22 +190,29 @@ export async function commitEffectsPhase(params: {
 
         if (effect.type === "turn.user.replace_text") {
           const persisted = await persistUserTurnText({
-            target: params.userTurnTarget,
+            target: currentUserTurnTarget,
             text: effect.text,
           });
           applyUserTurnToPromptDraft(params.runState, effect.text);
-          if (params.userTurnTarget) {
+          if (currentUserTurnTarget) {
             const record: TurnUserCanonicalizationRecord = {
               hook: params.hook,
               opId: opResult.opId,
-              userEntryId: params.userTurnTarget.userEntryId,
-              userMainPartId: params.userTurnTarget.userMainPartId,
+              userEntryId: currentUserTurnTarget.userEntryId,
+              userMainPartId: currentUserTurnTarget.userMainPartId,
+              replacedPartId: persisted.replacedPartId,
+              canonicalPartId: persisted.canonicalPartId,
               beforeText: persisted.previousText ?? "",
               afterText: effect.text,
               committedAt: new Date().toISOString(),
             };
             params.runState.turnUserCanonicalizationHistory.push(record);
             params.onUserTurnCanonicalized?.(record);
+
+            currentUserTurnTarget = {
+              ...currentUserTurnTarget,
+              userMainPartId: persisted.canonicalPartId,
+            };
           }
           effectsReport.push({
             opId: opResult.opId,

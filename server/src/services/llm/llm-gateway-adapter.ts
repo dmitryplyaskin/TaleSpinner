@@ -12,6 +12,13 @@ import type { GenerateMessage } from "@shared/types/generate";
 const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.0-flash-lite-preview-02-05:free";
 const DEFAULT_OPENAI_COMPATIBLE_MODEL = "gpt-4o-mini";
 
+export type MessageNormalizationGatewayFeature = {
+  enabled: boolean;
+  mergeSystem?: boolean;
+  mergeConsecutiveAssistant?: boolean;
+  separator?: string;
+};
+
 function normalizeNonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -28,6 +35,10 @@ function toGatewayMessages(messages: GenerateMessage[]): LlmGatewayMessage[] {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function pickFirst<T>(settings: Record<string, unknown>, keys: string[]): T | undefined {
@@ -50,9 +61,35 @@ function resolveGatewayFeatures(params: {
   providerConfig: unknown;
 }): LlmGatewayRequest["features"] | undefined {
   const parsed = parseProviderConfig(params.providerId, params.providerConfig);
-  if (!parsed.anthropicCache) return undefined;
+  const messageNormalization = resolveMessageNormalizationFeature({
+    providerId: params.providerId,
+    providerConfig: params.providerConfig,
+  });
+
+  const features: NonNullable<LlmGatewayRequest["features"]> = {
+    messageNormalization,
+  };
+
+  if (parsed.anthropicCache) {
+    features.anthropicCache = parsed.anthropicCache;
+  }
+
+  return features;
+}
+
+export function resolveMessageNormalizationFeature(params: {
+  providerId: LlmProviderId;
+  providerConfig: unknown;
+}): MessageNormalizationGatewayFeature {
+  const parsed = parseProviderConfig(params.providerId, params.providerConfig);
+  const enabled = parsed.messageNormalization?.enabled !== false;
+  if (!enabled) {
+    return { enabled: false };
+  }
   return {
-    anthropicCache: parsed.anthropicCache,
+    enabled: true,
+    mergeSystem: true,
+    mergeConsecutiveAssistant: false,
   };
 }
 
@@ -94,6 +131,7 @@ export function splitSamplingAndExtra(settings: Record<string, unknown>): {
   extra: Record<string, unknown>;
 } {
   const sampling: LlmSamplingParams = {};
+  const extra: Record<string, unknown> = {};
 
   const temperature = pickFirst<unknown>(settings, ["temperature"]);
   if (isFiniteNumber(temperature)) sampling.temperature = temperature;
@@ -101,8 +139,17 @@ export function splitSamplingAndExtra(settings: Record<string, unknown>): {
   const topP = pickFirst<unknown>(settings, ["top_p", "topP"]);
   if (isFiniteNumber(topP)) sampling.top_p = topP;
 
+  const topK = pickFirst<unknown>(settings, ["top_k", "topK"]);
+  if (isFiniteNumber(topK)) extra.top_k = topK;
+
+  const minP = pickFirst<unknown>(settings, ["min_p", "minP"]);
+  if (isFiniteNumber(minP)) extra.min_p = minP;
+
+  const topA = pickFirst<unknown>(settings, ["top_a", "topA"]);
+  if (isFiniteNumber(topA)) extra.top_a = topA;
+
   const maxTokens = pickFirst<unknown>(settings, ["max_tokens", "maxTokens"]);
-  if (isFiniteNumber(maxTokens)) sampling.max_tokens = maxTokens;
+  if (isFiniteNumber(maxTokens) && maxTokens > 0) sampling.max_tokens = maxTokens;
 
   const stop = pickFirst<unknown>(settings, ["stop"]);
   const stopSequences = pickFirst<unknown>(settings, ["stopSequences"]);
@@ -121,6 +168,37 @@ export function splitSamplingAndExtra(settings: Record<string, unknown>): {
   const frequencyPenalty = pickFirst<unknown>(settings, ["frequency_penalty", "frequencyPenalty"]);
   if (isFiniteNumber(frequencyPenalty)) sampling.frequency_penalty = frequencyPenalty;
 
+  const repetitionPenalty = pickFirst<unknown>(settings, ["repetition_penalty", "repetitionPenalty"]);
+  if (isFiniteNumber(repetitionPenalty)) extra.repetition_penalty = repetitionPenalty;
+
+  const rawReasoning = pickFirst<unknown>(settings, ["reasoning"]);
+  if (isRecord(rawReasoning)) {
+    const reasoning: Record<string, unknown> = {};
+    if (typeof rawReasoning.enabled === "boolean") reasoning.enabled = rawReasoning.enabled;
+    if (typeof rawReasoning.effort === "string" && rawReasoning.effort.trim().length > 0) {
+      reasoning.effort = rawReasoning.effort;
+    }
+    if (isFiniteNumber(rawReasoning.max_tokens) && rawReasoning.max_tokens > 0) {
+      reasoning.max_tokens = rawReasoning.max_tokens;
+    }
+    if (isFiniteNumber(rawReasoning.maxTokens) && rawReasoning.maxTokens > 0) {
+      reasoning.max_tokens = rawReasoning.maxTokens;
+    }
+    if (typeof rawReasoning.exclude === "boolean") reasoning.exclude = rawReasoning.exclude;
+    if (Object.keys(reasoning).length > 0) {
+      extra.reasoning = reasoning;
+    }
+  }
+
+  const reasoningEffort = pickFirst<unknown>(settings, ["reasoning_effort", "reasoningEffort"]);
+  if (
+    !Object.prototype.hasOwnProperty.call(extra, "reasoning") &&
+    typeof reasoningEffort === "string" &&
+    reasoningEffort.trim().length > 0
+  ) {
+    extra.reasoning = { effort: reasoningEffort };
+  }
+
   const blockedKeys = new Set([
     // Reserved request fields
     "model",
@@ -131,6 +209,12 @@ export function splitSamplingAndExtra(settings: Record<string, unknown>): {
     "temperature",
     "top_p",
     "topP",
+    "top_k",
+    "topK",
+    "min_p",
+    "minP",
+    "top_a",
+    "topA",
     "max_tokens",
     "maxTokens",
     "stop",
@@ -140,9 +224,13 @@ export function splitSamplingAndExtra(settings: Record<string, unknown>): {
     "presencePenalty",
     "frequency_penalty",
     "frequencyPenalty",
+    "repetition_penalty",
+    "repetitionPenalty",
+    "reasoning",
+    "reasoning_effort",
+    "reasoningEffort",
   ]);
 
-  const extra: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(settings)) {
     if (blockedKeys.has(key)) continue;
     extra[key] = value;

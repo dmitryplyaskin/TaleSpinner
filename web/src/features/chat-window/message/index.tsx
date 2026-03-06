@@ -1,22 +1,28 @@
 import { Avatar, Box, Checkbox, Flex, Stack, Text } from '@mantine/core';
-import { useUnit } from 'effector-react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useStoreMap, useUnit } from 'effector-react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { $currentEntityProfile } from '@model/chat-core';
 import {
 	$currentTurn,
+	$entryPartEdits,
 	$isChatStreaming,
 	$variantsByEntryId,
+	closeEntryPartEditRequested,
 	loadVariantsRequested,
 	manualEditEntryRequested,
+	openEntryPartEditRequested,
 	openDeleteEntryConfirm,
 	openDeletePartConfirm,
 	openDeleteVariantConfirm,
+	openEntryPartsEditorRequested,
 	openPromptInspectorRequested,
+	openUndoCanonicalizationPickerRequested,
 	regenerateRequested,
 	selectVariantRequested,
 	setEntryPromptVisibilityRequested,
+	updateEntryPartDraftRequested,
 } from '@model/chat-entry-parts';
 import { userPersonsModel } from '@model/user-persons';
 import { toaster } from '@ui/toaster';
@@ -38,7 +44,7 @@ type MessageProps = {
 	onAvatarPreviewRequested?: (preview: ChatAvatarPreview) => void;
 	isBulkDeleteMode: boolean;
 	isBulkSelected: boolean;
-	onToggleBulkSelection: () => void;
+	onToggleBulkSelection: (payload: { entryId: string }) => void;
 };
 
 type PersonaSnapshot = {
@@ -47,8 +53,139 @@ type PersonaSnapshot = {
 	avatarUrl?: string;
 };
 
+type ReplacementDecision = {
+	replacedByPartId: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function approxTokensByChars(chars: number): number {
+	if (!Number.isFinite(chars)) return 0;
+	const normalized = Math.max(0, Math.floor(chars));
+	if (normalized === 0) return 0;
+	return Math.ceil(normalized / 4);
+}
+
+function safeJsonStringify(value: unknown, fallback = ''): string {
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return fallback;
+	}
+}
+
+function serializePartForPrompt(part: Part): string {
+	const serializerId = part.prompt?.serializerId ?? 'asText';
+	const props = part.prompt?.props;
+	const value = part.payload;
+
+	const asText = (): string => {
+		if (typeof value === 'string') return value;
+		if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+		return safeJsonStringify(value, '');
+	};
+
+	if (serializerId === 'asText' || serializerId === 'asMarkdown') return asText();
+	if (serializerId === 'asJson') return safeJsonStringify(value, '{}');
+	if (serializerId === 'asXmlTag') {
+		const rawTag = typeof props?.tagName === 'string' ? props.tagName : 'data';
+		const tagName = rawTag.trim().length > 0 ? rawTag.trim() : 'data';
+		const content = typeof value === 'string' ? value : safeJsonStringify(value, '{}');
+		return `<${tagName}>\n${content}\n</${tagName}>`;
+	}
+
+	return asText();
+}
+
+function isTtlExpired(part: Part, currentTurn: number): boolean {
+	if (part.lifespan === 'infinite') return false;
+	return currentTurn - part.createdTurn >= part.lifespan.turns;
+}
+
+function compareParts(a: Part, b: Part): number {
+	if (a.order !== b.order) return a.order - b.order;
+	if (a.partId < b.partId) return -1;
+	if (a.partId > b.partId) return 1;
+	return 0;
+}
+
+function computeReplacementMap(parts: Part[]): Map<string, ReplacementDecision> {
+	const byOriginal = new Map<string, Part[]>();
+	for (const part of parts) {
+		if (part.softDeleted) continue;
+		if (typeof part.replacesPartId !== "string" || part.replacesPartId.trim().length === 0) continue;
+		const existing = byOriginal.get(part.replacesPartId);
+		if (existing) existing.push(part);
+		else byOriginal.set(part.replacesPartId, [part]);
+	}
+
+	const out = new Map<string, ReplacementDecision>();
+	for (const [originalId, candidates] of byOriginal.entries()) {
+		candidates.sort((left, right) => {
+			if (left.createdTurn !== right.createdTurn) return right.createdTurn - left.createdTurn;
+			if (left.partId < right.partId) return -1;
+			if (left.partId > right.partId) return 1;
+			return 0;
+		});
+		const winner = candidates[0];
+		if (winner) out.set(originalId, { replacedByPartId: winner.partId });
+	}
+	return out;
+}
+
+function resolveReplacementChain(
+	originalPartId: string,
+	replacementMap: Map<string, ReplacementDecision>,
+	maxDepth = 32,
+): string | null {
+	let current = originalPartId;
+	let depth = 0;
+	while (depth < maxDepth) {
+		const next = replacementMap.get(current)?.replacedByPartId ?? null;
+		if (!next) return current === originalPartId ? null : current;
+		current = next;
+		depth += 1;
+	}
+	return current === originalPartId ? null : current;
+}
+
+function isPartReplaced(part: Part, parts: Part[], replacementMap: Map<string, ReplacementDecision>): boolean {
+	const final = resolveReplacementChain(part.partId, replacementMap);
+	if (!final) return false;
+	if (final === part.partId) return false;
+	return parts.some((item) => item.partId === final);
+}
+
+function isSuppressedReplacer(part: Part, replacementMap: Map<string, ReplacementDecision>): boolean {
+	if (typeof part.replacesPartId !== 'string' || part.replacesPartId.trim().length === 0) return false;
+	const winner = replacementMap.get(part.replacesPartId)?.replacedByPartId ?? null;
+	return Boolean(winner && winner !== part.partId);
+}
+
+function computeEntryPromptTokensFallback(params: { entry: ChatEntryWithVariantDto['entry']; variant: ChatEntryWithVariantDto['variant']; currentTurn: number }): number {
+	const { entry, variant, currentTurn } = params;
+	if (entry.softDeleted) return 0;
+	if (isRecord(entry.meta) && entry.meta.excludedFromPrompt === true) return 0;
+	if (!variant) return 0;
+
+	const allParts = variant.parts ?? [];
+	const replacementMap = computeReplacementMap(allParts);
+	const promptParts = allParts
+		.filter((part) => {
+			if (part.softDeleted) return false;
+			if (isSuppressedReplacer(part, replacementMap)) return false;
+			if (isPartReplaced(part, allParts, replacementMap)) return false;
+			if (isTtlExpired(part, currentTurn)) return false;
+			return part.visibility?.prompt === true;
+		})
+		.slice()
+		.sort(compareParts);
+
+	const content = promptParts.map(serializePartForPrompt).filter((value) => value.trim().length > 0).join('\n\n');
+	if (!content.trim()) return 0;
+	return approxTokensByChars(content.length);
 }
 
 function readPersonaSnapshot(meta: unknown): PersonaSnapshot | null {
@@ -83,6 +220,15 @@ function isEditableMainPart(part: Part): boolean {
 	return part.channel === 'main' && isEditablePart(part);
 }
 
+function isCanonicalizationReplacementPart(part: Part): boolean {
+	if (part.softDeleted) return false;
+	if (part.channel !== 'main') return false;
+	if (part.source !== 'agent') return false;
+	const replacesPartId = typeof part.replacesPartId === 'string' ? part.replacesPartId.trim() : '';
+	if (!replacesPartId) return false;
+	return Array.isArray(part.tags) && part.tags.includes('canonicalization');
+}
+
 const MessageInner: React.FC<MessageProps> = ({
 	data,
 	isLast,
@@ -93,13 +239,23 @@ const MessageInner: React.FC<MessageProps> = ({
 }) => {
 	const { t } = useTranslation();
 	const [currentProfile, selectedUserPerson] = useUnit([$currentEntityProfile, userPersonsModel.$selectedItem]);
+	const [openEntryPartEdit, updateEntryPartDraft, closeEntryPartEdit] = useUnit([
+		openEntryPartEditRequested,
+		updateEntryPartDraftRequested,
+		closeEntryPartEditRequested,
+	]);
 	const isStreaming = useUnit($isChatStreaming);
 	const currentTurn = useUnit($currentTurn);
 	const variantsById = useUnit($variantsByEntryId);
-	const [editingPartId, setEditingPartId] = useState<string | null>(null);
-	const [draftText, setDraftText] = useState('');
 	const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 	const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+	const editState = useStoreMap({
+		store: $entryPartEdits,
+		keys: [data.entry.entryId],
+		fn: (state, [entryId]) => state[entryId] ?? null,
+	});
+	const editingPartId = editState?.partId ?? null;
+	const draftText = editState?.draftText ?? '';
 
 	const isUser = data.entry.role === 'user';
 	const isAssistant = data.entry.role === 'assistant';
@@ -116,6 +272,15 @@ const MessageInner: React.FC<MessageProps> = ({
 	const canPreviewAssistantAvatar = Boolean(assistantAvatarSrc && onAvatarPreviewRequested);
 	const canPreviewUserAvatar = Boolean(userAvatarSrc && onAvatarPreviewRequested);
 	const tsLabel = useMemo(() => new Date(data.entry.createdAt).toLocaleTimeString(), [data.entry.createdAt]);
+	const fallbackPromptTokens = useMemo(
+		() => computeEntryPromptTokensFallback({ entry: data.entry, variant: data.variant, currentTurn }),
+		[data.entry, data.variant, currentTurn],
+	);
+	const messagePromptTokens =
+		typeof data.promptUsage?.approxTokens === 'number' && Number.isFinite(data.promptUsage.approxTokens)
+			? Math.max(0, Math.floor(data.promptUsage.approxTokens))
+			: fallbackPromptTokens;
+	const promptTokensLabel = t('chat.message.promptTokens', { count: messagePromptTokens });
 
 	const isOptimistic =
 		String(data.entry.entryId).startsWith('local_') || (typeof data.entry.meta === 'object' && Boolean((data.entry.meta as any)?.optimistic));
@@ -127,6 +292,11 @@ const MessageInner: React.FC<MessageProps> = ({
 		Boolean((data.entry.meta as any)?.imported) &&
 		((data.entry.meta as any)?.kind === 'first_mes' || (data.entry.meta as any)?.source === 'entity_profile_import');
 	const canSwipeVariants = isAssistant && isLast && !isBulkDeleteMode;
+	const canOpenUndoCanonicalization = useMemo(() => {
+		if (!isUser) return false;
+		const parts = data.variant?.parts ?? [];
+		return parts.some(isCanonicalizationReplacementPart);
+	}, [data.variant?.parts, isUser]);
 
 	const editableMainPart = useMemo(() => {
 		const parts = data.variant?.parts ?? [];
@@ -152,9 +322,8 @@ const MessageInner: React.FC<MessageProps> = ({
 
 	useEffect(() => {
 		if (!isBulkDeleteMode) return;
-		setEditingPartId(null);
-		setDraftText('');
-	}, [isBulkDeleteMode]);
+		closeEntryPartEdit({ entryId: data.entry.entryId });
+	}, [closeEntryPartEdit, data.entry.entryId, isBulkDeleteMode]);
 
 	const currentVariantIndex = useMemo(() => {
 		if (variants.length === 0) return -1;
@@ -247,8 +416,7 @@ const MessageInner: React.FC<MessageProps> = ({
 			});
 			return;
 		}
-		setEditingPartId(part.partId);
-		setDraftText(part.payload);
+		openEntryPartEdit({ entryId: data.entry.entryId, partId: part.partId, draftText: part.payload });
 	};
 
 	const handleOpenEditPart = (part: Part) => {
@@ -256,21 +424,25 @@ const MessageInner: React.FC<MessageProps> = ({
 		if (part.channel === 'main') return;
 		if (!canMutateParts || !isEditablePart(part)) return;
 		if (typeof part.payload !== 'string') return;
-		setEditingPartId(part.partId);
-		setDraftText(part.payload);
+		openEntryPartEdit({ entryId: data.entry.entryId, partId: part.partId, draftText: part.payload });
 	};
 
 	const handleCancelEdit = () => {
-		setEditingPartId(null);
-		setDraftText('');
+		closeEntryPartEdit({ entryId: data.entry.entryId });
 	};
 
 	const handleConfirmEdit = () => {
 		if (!editingPartId) return;
 		manualEditEntryRequested({ entryId: data.entry.entryId, partId: editingPartId, content: draftText });
-		setEditingPartId(null);
-		setDraftText('');
+		closeEntryPartEdit({ entryId: data.entry.entryId });
 	};
+
+	const handleDraftTextChange = useCallback(
+		(next: string) => {
+			updateEntryPartDraft({ entryId: data.entry.entryId, draftText: next });
+		},
+		[data.entry.entryId, updateEntryPartDraft],
+	);
 
 	const handleRequestDeleteMessage = () => {
 		if (isOptimistic || isStreaming || isEditing) return;
@@ -304,6 +476,16 @@ const MessageInner: React.FC<MessageProps> = ({
 		});
 	};
 
+	const handleOpenUndoCanonicalization = () => {
+		if (!canOpenUndoCanonicalization || isStreaming || isEditing || isBulkDeleteMode) return;
+		openUndoCanonicalizationPickerRequested({ entryId: data.entry.entryId });
+	};
+
+	const handleOpenPartsEditor = () => {
+		if (isOptimistic || isStreaming || isBulkDeleteMode) return;
+		openEntryPartsEditorRequested({ entryId: data.entry.entryId });
+	};
+
 	const handleAssistantAvatarClick = () => {
 		if (!assistantAvatarSrc || !onAvatarPreviewRequested) return;
 		onAvatarPreviewRequested({ src: assistantAvatarSrc, name: assistantName, kind: 'assistant' });
@@ -318,12 +500,17 @@ const MessageInner: React.FC<MessageProps> = ({
 		<Box className="ts-message-grid">
 			<Box className="ts-message-avatar ts-message-avatar--assistant">
 				{isAssistant ? (
-					<AssistantIcon
-						size={52}
-						name={assistantName}
-						src={assistantAvatarSrc}
-						onClick={canPreviewAssistantAvatar ? handleAssistantAvatarClick : undefined}
-					/>
+					<>
+						<AssistantIcon
+							size={52}
+							name={assistantName}
+							src={assistantAvatarSrc}
+							onClick={canPreviewAssistantAvatar ? handleAssistantAvatarClick : undefined}
+						/>
+						<Text size="xs" className="ts-message-avatar-tokens">
+							{promptTokensLabel}
+						</Text>
+					</>
 				) : (
 					<Box className="ts-message-avatar-spacer" />
 				)}
@@ -332,7 +519,7 @@ const MessageInner: React.FC<MessageProps> = ({
 						<Checkbox
 							checked={isBulkSelected}
 							color="red"
-							onChange={() => onToggleBulkSelection()}
+							onChange={() => onToggleBulkSelection({ entryId: data.entry.entryId })}
 							onClick={(event) => event.stopPropagation()}
 							aria-label={t('chat.management.bulkSelectMessage')}
 							size="sm"
@@ -357,7 +544,7 @@ const MessageInner: React.FC<MessageProps> = ({
 						onTouchEnd={handleTouchEnd}
 						onPointerDown={handlePointerDown}
 						onPointerUp={handlePointerUp}
-						onClick={isBulkDeleteMode ? onToggleBulkSelection : undefined}
+						onClick={isBulkDeleteMode ? () => onToggleBulkSelection({ entryId: data.entry.entryId }) : undefined}
 						style={isBulkDeleteMode ? { cursor: 'pointer' } : undefined}
 					>
 						<Flex align="center" justify="space-between" gap="sm">
@@ -365,6 +552,11 @@ const MessageInner: React.FC<MessageProps> = ({
 								<Text size="sm" className="ts-message-name" data-role={isUser ? 'user' : 'assistant'}>
 									{isUser ? userName : assistantName}
 								</Text>
+								{(isUser || isAssistant) && (
+									<Text size="xs" className="ts-message-mobile-tokens">
+										{promptTokensLabel}
+									</Text>
+								)}
 								<Text size="xs" className="ts-message-meta">
 									{tsLabel}
 								</Text>
@@ -388,8 +580,12 @@ const MessageInner: React.FC<MessageProps> = ({
 											isPromptExcluded={isPromptExcluded}
 											showPromptInspectorAction={isAssistant}
 											canOpenPromptInspector={canOpenPromptInspector}
+											showUndoCanonicalizationAction={isUser}
+											canOpenUndoCanonicalization={canOpenUndoCanonicalization}
 											onTogglePromptVisibility={handleTogglePromptVisibility}
 											onOpenPromptInspector={handleOpenPromptInspector}
+											onOpenUndoCanonicalization={handleOpenUndoCanonicalization}
+											onOpenPartsEditor={handleOpenPartsEditor}
 											onOpenEdit={handleOpenEdit}
 											onCancelEdit={handleCancelEdit}
 											onConfirmEdit={handleConfirmEdit}
@@ -411,7 +607,7 @@ const MessageInner: React.FC<MessageProps> = ({
 								canMutateParts={canMutateParts}
 								editingPartId={editingPartId}
 								draftText={draftText}
-								onDraftTextChange={setDraftText}
+								onDraftTextChange={handleDraftTextChange}
 								onCancelEditPart={handleCancelEdit}
 								onConfirmEditPart={handleConfirmEdit}
 								onEditPart={handleOpenEditPart}
@@ -424,15 +620,20 @@ const MessageInner: React.FC<MessageProps> = ({
 
 			<Box className="ts-message-avatar ts-message-avatar--user">
 				{isUser ? (
-					<Avatar
-						size={52}
-						name={userName}
-						src={userAvatarSrc}
-						color="cyan"
-						radius="xl"
-						onClick={canPreviewUserAvatar ? handleUserAvatarClick : undefined}
-						className={canPreviewUserAvatar ? 'ts-message-avatar-clickable' : undefined}
-					/>
+					<>
+						<Avatar
+							size={52}
+							name={userName}
+							src={userAvatarSrc}
+							color="cyan"
+							radius="xl"
+							onClick={canPreviewUserAvatar ? handleUserAvatarClick : undefined}
+							className={canPreviewUserAvatar ? 'ts-message-avatar-clickable' : undefined}
+						/>
+						<Text size="xs" className="ts-message-avatar-tokens">
+							{promptTokensLabel}
+						</Text>
+					</>
 				) : (
 					<Box className="ts-message-avatar-spacer" />
 				)}

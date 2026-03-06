@@ -1,6 +1,6 @@
+import type { ArtifactValue } from "../contracts";
 import type { ArtifactUsage, ArtifactSemantics } from "@shared/types/operation-profiles";
 
-import type { ArtifactValue } from "../contracts";
 
 export class RunArtifactStore {
   private readonly byTag = new Map<string, ArtifactValue>();

@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { runMainLlmPhase } from "./run-main-llm-phase";
 import { streamGlobalChat } from "../../llm/llm-service";
+
+import { runMainLlmPhase } from "./run-main-llm-phase";
 
 import type { RunRequest, RunState } from "../contracts";
 
@@ -20,6 +21,7 @@ function makeRequest(abortController: AbortController): RunRequest {
     branchId: "branch-1",
     entityProfileId: "profile-1",
     trigger: "regenerate",
+    source: "regenerate",
     settings: {},
     abortController,
     persistenceTarget: {

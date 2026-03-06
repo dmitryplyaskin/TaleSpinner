@@ -1,7 +1,7 @@
 import { once } from "node:events";
+import { type Server } from "node:http";
 import { type AddressInfo } from "node:net";
 
-import { type Server } from "node:http";
 
 import { resetDbForTests } from "../../db/client";
 

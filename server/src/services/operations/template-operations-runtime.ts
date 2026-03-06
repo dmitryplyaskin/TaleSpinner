@@ -1,4 +1,8 @@
 import { runOrchestrator } from "@core/operation-orchestrator";
+
+import { renderLiquidTemplate } from "../chat-core/prompt-template-renderer";
+
+import type { InstructionRenderContext } from "../chat-core/prompt-template-renderer";
 import type {
   OperationInProfile,
   OperationOutput,
@@ -6,8 +10,6 @@ import type {
   OperationTrigger,
 } from "@shared/types/operation-profiles";
 
-import type { InstructionRenderContext } from "../chat-core/prompt-template-renderer";
-import { renderLiquidTemplate } from "../chat-core/prompt-template-renderer";
 
 export type PromptDraftMessage = {
   role: "system" | "user" | "assistant";
@@ -146,7 +148,7 @@ async function runTemplateOperations(params: {
   state: RuntimeState;
   templateContext: InstructionRenderContext;
 }): Promise<void> {
-  const ops = params.profile.operations.filter(
+  const ops = (params.profile.operations ?? []).filter(
     (op): op is Extract<OperationInProfile, { kind: "template" }> =>
       op.kind === "template" &&
       op.config.hooks.includes(params.hook) &&

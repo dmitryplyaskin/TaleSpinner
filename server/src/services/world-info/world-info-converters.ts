@@ -1,6 +1,7 @@
 import { inflateSync } from "zlib";
 
 import { normalizeWorldInfoBookPayload } from "./world-info-normalizer";
+
 import type { WorldInfoBookData } from "./world-info-types";
 
 export const worldInfoImportFormats = [

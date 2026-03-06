@@ -28,8 +28,52 @@ Therefore `/chats/:id` in router files becomes `/api/chats/:id`.
 - chat entries / variants / streaming
 - entity profiles
 - llm providers / tokens / runtime / presets
+- rag chroma (collections / documents / query / world-info reindex)
 - operation profiles
 - instructions
 - ui themes
 - world info
 - files
+
+## ChromaDB connection modes
+
+Backend supports two modes:
+
+1. `CHROMA_URL` is set: use direct remote/external Chroma URL.
+2. `CHROMA_URL` is empty: URL is built from `CHROMA_HOST` + `CHROMA_PORT` + `CHROMA_SSL`.
+
+Main env vars:
+
+- `CHROMA_URL`
+- `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`
+- `CHROMA_TENANT`, `CHROMA_DATABASE`
+- `CHROMA_COLLECTION_WORLD_INFO`
+- `CHROMA_DATA_DIR`
+- `CHROMA_TIMEOUT_MS`
+
+## ChromaDB local docker run
+
+Quick local run with persisted data:
+
+```bash
+docker run --name talespinner-chroma -p 8000:8000 \
+  -v ./data/chroma:/data \
+  chromadb/chroma:latest
+```
+
+Or with `docker compose`:
+
+```yaml
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/chroma:/data
+```
+
+Then use default backend config:
+
+- `CHROMA_HOST=127.0.0.1`
+- `CHROMA_PORT=8000`

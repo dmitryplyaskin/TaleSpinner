@@ -216,6 +216,58 @@ beforeEach(() => {
 });
 
 describe("executeOperationsPhase", () => {
+  test("returns activation skip with skip details", async () => {
+    const out = await executeOperationsPhase({
+      runId: "run-eligible-filter",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeTemplateOp({
+          opId: "eligible-op",
+          order: 10,
+          template: "eligible",
+          output: artifactOutput("eligible_tag"),
+        }),
+        makeTemplateOp({
+          opId: "ineligible-op",
+          order: 20,
+          template: "ineligible",
+          output: artifactOutput("ineligible_tag"),
+        }),
+      ],
+      activationSkippedByOpId: new Map([
+        [
+          "ineligible-op",
+          {
+            everyNTurns: 5,
+            turnsCounter: 3,
+            tokensCounter: 1200,
+          },
+        ],
+      ]),
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out).toHaveLength(2);
+    const byId = new Map(out.map((item) => [item.opId, item] as const));
+    expect(byId.get("eligible-op")?.status).toBe("done");
+    expect(byId.get("ineligible-op")).toMatchObject({
+      status: "skipped",
+      skipReason: "activation_not_reached",
+      skipDetails: {
+        activation: {
+          everyNTurns: 5,
+          turnsCounter: 3,
+          tokensCounter: 1200,
+        },
+      },
+    });
+  });
+
   test("executes simple template->artifact happy path", async () => {
     const out = await executeOperationsPhase({
       runId: "run-1",
@@ -471,6 +523,83 @@ describe("executeOperationsPhase", () => {
     expect(byId.get("b")).toMatchObject({
       status: "skipped",
       skipReason: "dependency_not_done",
+    });
+  });
+
+  test("normalizes dependency_missing to dependency_not_done when dependency is activation-skipped", async () => {
+    const finishedEvents = collectEvents<{
+      opId: string;
+      status: string;
+      skipReason?: string;
+      skipDetails?: { blockedByOpIds?: string[]; blockedByReason?: string };
+    }>();
+
+    const out = await executeOperationsPhase({
+      runId: "run-activation-dependency",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeTemplateOp({
+          opId: "a",
+          order: 10,
+          template: "A",
+          output: artifactOutput("a"),
+        }),
+        makeTemplateOp({
+          opId: "b",
+          order: 20,
+          dependsOn: ["a"],
+          template: "B",
+          output: artifactOutput("b"),
+        }),
+      ],
+      activationSkippedByOpId: new Map([
+        [
+          "a",
+          {
+            everyNTurns: 5,
+            turnsCounter: 3,
+            tokensCounter: 900,
+          },
+        ],
+      ]),
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+      onOperationFinished: (event) => {
+        finishedEvents.push({
+          opId: event.opId,
+          status: event.status,
+          skipReason: event.skipReason,
+          skipDetails: event.skipDetails as any,
+        });
+      },
+    });
+
+    const byId = new Map(out.map((item) => [item.opId, item] as const));
+    expect(byId.get("a")).toMatchObject({
+      status: "skipped",
+      skipReason: "activation_not_reached",
+    });
+    expect(byId.get("b")).toMatchObject({
+      status: "skipped",
+      skipReason: "dependency_not_done",
+      skipDetails: {
+        blockedByOpIds: ["a"],
+        blockedByReason: "activation_not_reached",
+      },
+    });
+
+    const bEvent = finishedEvents.items.find((event) => event.opId === "b");
+    expect(bEvent).toMatchObject({
+      status: "skipped",
+      skipReason: "dependency_not_done",
+      skipDetails: {
+        blockedByOpIds: ["a"],
+        blockedByReason: "activation_not_reached",
+      },
     });
   });
 

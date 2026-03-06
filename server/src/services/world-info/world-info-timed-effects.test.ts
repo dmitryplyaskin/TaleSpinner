@@ -18,6 +18,7 @@ import {
   isEntryDelayed,
   loadTimedEffectsState,
 } from "./world-info-timed-effects";
+
 import type { PreparedWorldInfoEntry } from "./world-info-types";
 
 function makeEntry(hash: string, patch: Partial<PreparedWorldInfoEntry>): PreparedWorldInfoEntry {

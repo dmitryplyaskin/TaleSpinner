@@ -1,5 +1,5 @@
 import { asc, desc, eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";
@@ -13,7 +13,7 @@ export type UserPersonDto = {
   avatarUrl?: string;
   type: "default" | "extended";
   contentTypeDefault?: string;
-  contentTypeExtended?: unknown[];
+  contentTypeExtended?: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -91,7 +91,7 @@ export async function createUserPerson(params: {
   avatarUrl?: string;
   type?: "default" | "extended";
   contentTypeDefault?: string;
-  contentTypeExtended?: unknown[];
+  contentTypeExtended?: unknown;
   createdAt?: Date;
   updatedAt?: Date;
 }): Promise<UserPersonDto> {
@@ -146,7 +146,7 @@ export async function updateUserPerson(params: {
   avatarUrl?: string;
   type?: "default" | "extended";
   contentTypeDefault?: string;
-  contentTypeExtended?: unknown[];
+  contentTypeExtended?: unknown;
   updatedAt?: Date;
 }): Promise<UserPersonDto | null> {
   const db = await initDb();

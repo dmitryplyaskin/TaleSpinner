@@ -20,10 +20,12 @@
 					rename: 'Rename',
 					save: 'Save',
 					duplicate: 'Duplicate',
-					apply: 'Apply',
 					delete: 'Delete',
 				},
-				confirm: { delete: 'Delete selected preset?' },
+				confirm: {
+					delete: 'Delete selected preset?',
+					discardChanges: 'You have unsaved changes. Discard them and switch preset?',
+				},
 			},
 			toasts: {
 				configSaved: 'RAG config saved',

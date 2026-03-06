@@ -28,6 +28,7 @@ function computeReplacementMap(parts: Part[]): Map<string, ReplacementDecision> 
   // Rule (v1): prefer higher createdTurn, then lexical partId.
   const byOriginal = new Map<string, Part[]>();
   for (const p of parts) {
+    if (p.softDeleted) continue;
     if (typeof p.replacesPartId === "string" && p.replacesPartId.trim()) {
       const k = p.replacesPartId;
       const list = byOriginal.get(k);
@@ -113,7 +114,18 @@ export function getPromptProjection(params: {
   currentTurn: number;
   serializePart: (part: Part) => string;
 }): GenerateMessage[] {
-  const messages: GenerateMessage[] = [];
+  return getPromptProjectionWithEntryIds(params).map((item) => ({
+    role: item.role,
+    content: item.content,
+  }));
+}
+
+export function getPromptProjectionWithEntryIds(params: {
+  entries: Array<{ entry: Entry; variant: Variant | null }>;
+  currentTurn: number;
+  serializePart: (part: Part) => string;
+}): Array<{ entryId: string; role: GenerateMessage["role"]; content: string }> {
+  const projected: Array<{ entryId: string; role: GenerateMessage["role"]; content: string }> = [];
 
   for (const { entry, variant } of params.entries) {
     if (entry.softDeleted) continue;
@@ -137,9 +149,13 @@ export function getPromptProjection(params: {
     const content = parts.map(params.serializePart).filter((s) => s.trim().length > 0).join("\n\n");
     if (!content.trim()) continue;
 
-    messages.push({ role: entry.role, content });
+    projected.push({
+      entryId: entry.entryId,
+      role: entry.role,
+      content,
+    });
   }
 
-  return messages;
+  return projected;
 }
 

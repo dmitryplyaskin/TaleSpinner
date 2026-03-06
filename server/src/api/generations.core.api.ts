@@ -5,7 +5,7 @@ import { asyncHandler } from "@core/middleware/async-handler";
 import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 
-import { abortGeneration } from "../services/chat-core/generation-runtime";
+import { GenerationControlService } from "../services/chat-core/generation-control-service";
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ router.post(
   validate({ params: abortParamsSchema }),
   asyncHandler(async (req: Request) => {
     const id = String((req.params as unknown as { id: string }).id);
-    const ok = abortGeneration(id);
+    const ok = await GenerationControlService.requestAbort(id);
     if (!ok) {
       throw new HttpError(404, "Generation not found or not active", "NOT_FOUND");
     }

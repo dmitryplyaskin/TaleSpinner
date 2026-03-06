@@ -5,8 +5,19 @@ import path from "path";
 import { initDb } from "./client";
 
 export function resolveMigrationsFolder(): string {
-  // Resolve relative to server/ so it works regardless of process.cwd().
-  return path.join(__dirname, "../../drizzle");
+  const cwdPath = path.resolve(process.cwd(), "drizzle");
+  if (fs.existsSync(path.join(cwdPath, "meta", "_journal.json"))) {
+    return cwdPath;
+  }
+
+  // ts-node/dev fallback when started from nested working directories.
+  const sourceRelativePath = path.resolve(__dirname, "../../drizzle");
+  if (fs.existsSync(path.join(sourceRelativePath, "meta", "_journal.json"))) {
+    return sourceRelativePath;
+  }
+
+  // dist fallback when compiled output is nested under dist/server/src.
+  return path.resolve(__dirname, "../../../../drizzle");
 }
 
 type Journal = {
@@ -50,7 +61,7 @@ function readMigrationFilesSafe(migrationsFolder: string): Array<{
 
     if (parts.length !== partsRaw.length) {
       const removed = partsRaw.length - parts.length;
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[db] migration '${entry.tag}': ignored ${removed} empty SQL chunk(s)`
       );

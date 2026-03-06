@@ -11,6 +11,14 @@ import {
   listInstructionsQuerySchema,
   updateInstructionBodySchema,
 } from "../chat-core/schemas";
+import { getRequestOwnerId } from "../core/request-context/request-context";
+import {
+  createInstruction,
+  deleteInstruction,
+  getInstructionById,
+  listInstructions,
+  updateInstruction,
+} from "../services/chat-core/instructions-repository";
 import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
@@ -19,13 +27,6 @@ import {
   renderLiquidTemplate,
   validateLiquidTemplate,
 } from "../services/chat-core/prompt-template-renderer";
-import {
-  createInstruction,
-  deleteInstruction,
-  getInstructionById,
-  listInstructions,
-  updateInstruction,
-} from "../services/chat-core/instructions-repository";
 
 const router = express.Router();
 
@@ -45,7 +46,7 @@ router.get(
   asyncHandler(async (req: Request) => {
     const query = listInstructionsQuerySchema.parse(req.query);
     const instructions = await listInstructions({
-      ownerId: query.ownerId ?? "global",
+      ownerId: getRequestOwnerId(req, query.ownerId),
     });
     return { data: instructions };
   })
@@ -67,7 +68,7 @@ router.post(
     }
 
     const context = await buildInstructionRenderContext({
-      ownerId: body.ownerId ?? "global",
+      ownerId: getRequestOwnerId(req, body.ownerId),
       chatId: body.chatId,
       branchId: body.branchId,
       entityProfileId: body.entityProfileId,
@@ -75,7 +76,7 @@ router.post(
     });
     await resolveAndApplyWorldInfoToTemplateContext({
       context,
-      ownerId: body.ownerId ?? "global",
+      ownerId: getRequestOwnerId(req, body.ownerId),
       chatId: body.chatId,
       branchId: body.branchId,
       entityProfileId: body.entityProfileId,
@@ -107,7 +108,7 @@ router.post(
     }
 
     const created = await createInstruction({
-      ownerId: req.body.ownerId,
+      ownerId: getRequestOwnerId(req, req.body.ownerId),
       name: req.body.name,
       engine: req.body.engine,
       templateText: req.body.templateText,

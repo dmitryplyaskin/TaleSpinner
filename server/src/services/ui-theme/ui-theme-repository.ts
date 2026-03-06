@@ -1,5 +1,6 @@
 import {
   BUILT_IN_UI_THEME_PRESETS,
+  DEFAULT_UI_THEME_PAYLOAD,
   UI_THEME_BUILT_IN_IDS,
   UI_THEME_EXPORT_TYPE,
   UI_THEME_EXPORT_VERSION,
@@ -10,7 +11,7 @@ import {
   type UiThemeSettings,
 } from "@shared/types/ui-theme";
 import { and, desc, eq, or } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { HttpError } from "@core/middleware/error-handler";
 
@@ -43,9 +44,20 @@ export function resolveImportedPresetName(input: string, existingNames: string[]
 }
 
 function rowToPreset(row: UiThemePresetRow): UiThemePreset {
-  const payload = validateUiThemePayload(
+  const validatedPayload = validateUiThemePayload(
     safeJsonParse<UiThemePresetPayload>(row.payloadJson, BUILT_IN_UI_THEME_PRESETS[0].payload)
   );
+  const payload: UiThemePresetPayload = {
+    ...validatedPayload,
+    lightTokens: {
+      ...DEFAULT_UI_THEME_PAYLOAD.lightTokens,
+      ...validatedPayload.lightTokens,
+    },
+    darkTokens: {
+      ...DEFAULT_UI_THEME_PAYLOAD.darkTokens,
+      ...validatedPayload.darkTokens,
+    },
+  };
   return {
     presetId: row.id,
     ownerId: row.ownerId,

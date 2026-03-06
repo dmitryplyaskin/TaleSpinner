@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";
@@ -11,12 +11,14 @@ import {
   worldInfoSettings,
   worldInfoTimedEffects,
 } from "../../db/schema";
+
 import { buildDefaultWorldInfoSettings } from "./world-info-defaults";
 import {
   normalizeWorldInfoBookPayload,
   normalizeWorldInfoSettingsPatch,
   slugifyWorldInfoName,
 } from "./world-info-normalizer";
+
 import type {
   WorldInfoBindingDto,
   WorldInfoBindingRole,
@@ -231,6 +233,19 @@ export async function getWorldInfoBooksByIds(params: {
     );
   const byId = new Map(rows.map((row) => [row.id, rowToBookDto(row)]));
   return params.ids.map((id) => byId.get(id)).filter((item): item is WorldInfoBookDto => Boolean(item));
+}
+
+export async function listWorldInfoBooksForIndexing(params?: {
+  ownerId?: string;
+}): Promise<WorldInfoBookDto[]> {
+  const db = await initDb();
+  const ownerId = params?.ownerId ?? "global";
+  const rows = await db
+    .select()
+    .from(worldInfoBooks)
+    .where(and(eq(worldInfoBooks.ownerId, ownerId), isNull(worldInfoBooks.deletedAt)))
+    .orderBy(desc(worldInfoBooks.updatedAt), desc(worldInfoBooks.id));
+  return rows.map(rowToBookDto);
 }
 
 export async function createWorldInfoBook(params: {

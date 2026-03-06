@@ -141,6 +141,34 @@
       "when": 1771010000000,
       "tag": "0023_instructions_cutover",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1771020000000,
+      "tag": "0024_operation_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1771030000000,
+      "tag": "0025_rag_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1771040000000,
+      "tag": "0026_chat_runtime_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1772790000000,
+      "tag": "0027_generation_runtime_control",
+      "breakpoints": true
     }
   ]
 }

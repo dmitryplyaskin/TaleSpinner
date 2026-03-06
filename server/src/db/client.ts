@@ -4,10 +4,13 @@ import path from "path";
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 
-import { getDataRootPath } from "../const";
+import { resolveDbPath as resolveDbPathFromEnv } from "../config/path-resolver";
+
 import * as schema from "./schema";
 
 export type Db = BetterSQLite3Database<typeof schema>;
+export type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type DbExecutor = Db | DbTransaction;
 
 let _db: Db | null = null;
 let _sqlite: Database.Database | null = null;
@@ -17,19 +20,7 @@ export type DbInitOptions = {
 };
 
 export function resolveDbPath(): string {
-  const configured = process.env.DB_PATH?.trim();
-  if (!configured) {
-    // Default to server-local data folder (stable regardless of process.cwd()).
-    return path.join(getDataRootPath(), "db.sqlite");
-  }
-
-  if (path.isAbsolute(configured)) {
-    return configured;
-  }
-
-  // Resolve relative DB_PATH against server root, not process.cwd().
-  const serverRoot = path.resolve(__dirname, "../..");
-  return path.resolve(serverRoot, configured);
+  return resolveDbPathFromEnv();
 }
 
 export async function initDb(options: DbInitOptions = {}): Promise<Db> {
@@ -47,6 +38,11 @@ export async function initDb(options: DbInitOptions = {}): Promise<Db> {
   _sqlite = sqlite;
   _db = drizzle(sqlite, { schema });
   return _db;
+}
+
+export async function withDbTransaction<T>(work: (tx: DbTransaction) => T): Promise<T> {
+  const db = await initDb();
+  return db.transaction(work);
 }
 
 export function resetDbForTests(): void {

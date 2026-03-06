@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { DEFAULT_WORLD_INFO_ENTRY, buildDefaultWorldInfoSettings } from "./world-info-defaults";
 import { matchEntryAgainstText } from "./world-info-matcher";
+
 import type { PreparedWorldInfoEntry } from "./world-info-types";
 
 function makeEntry(patch: Partial<PreparedWorldInfoEntry>): PreparedWorldInfoEntry {

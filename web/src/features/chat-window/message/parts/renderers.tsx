@@ -10,21 +10,21 @@ export type RenderPartOptions = {
 	plainTextForMarkdown?: boolean;
 };
 
-const TextRenderer: PartRenderer = ({ part }) => {
+function renderTextPart(part: Part): React.ReactNode {
 	const content = typeof part.payload === 'string' ? part.payload : '';
 	return (
 		<Text style={{ whiteSpace: 'pre-wrap' }} size="sm" className="ts-chat-serif">
 			{content}
 		</Text>
 	);
-};
+}
 
-const MarkdownRenderer: PartRenderer = ({ part }) => {
+function renderMarkdownPart(part: Part): React.ReactNode {
 	const content = typeof part.payload === 'string' ? part.payload : '';
 	return <RenderMd content={content} containerProps={{ className: 'ts-chat-serif' }} />;
-};
+}
 
-const JsonRenderer: PartRenderer = ({ part }) => {
+function renderJsonPart(part: Part): React.ReactNode {
 	const value = typeof part.payload === 'string' ? part.payload : part.payload;
 	const json = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 	return (
@@ -32,26 +32,26 @@ const JsonRenderer: PartRenderer = ({ part }) => {
 			<Code block>{json}</Code>
 		</Paper>
 	);
-};
+}
 
-const FallbackRenderer: PartRenderer = ({ part }) => {
+function renderFallbackPart(part: Part): React.ReactNode {
 	return (
 		<Box>
 			<Text fw={600} size="sm">
 				Unknown renderer: {part.ui?.rendererId ?? '(none)'}
 			</Text>
-			<JsonRenderer part={part} />
+			{renderJsonPart(part)}
 		</Box>
 	);
-};
+}
 
 export function renderPart(part: Part, options?: RenderPartOptions): React.ReactNode {
 	const id = part.ui?.rendererId ?? 'markdown';
-	if (id === 'text') return <TextRenderer part={part} />;
-	if (id === 'markdown' && options?.plainTextForMarkdown) return <TextRenderer part={part} />;
-	if (id === 'markdown') return <MarkdownRenderer part={part} />;
-	if (id === 'json') return <JsonRenderer part={part} />;
-	if (id === 'card') return <JsonRenderer part={part} />;
-	return <FallbackRenderer part={part} />;
+	if (id === 'text') return renderTextPart(part);
+	if (id === 'markdown' && options?.plainTextForMarkdown) return renderTextPart(part);
+	if (id === 'markdown') return renderMarkdownPart(part);
+	if (id === 'json') return renderJsonPart(part);
+	if (id === 'card') return renderJsonPart(part);
+	return renderFallbackPart(part);
 }
 

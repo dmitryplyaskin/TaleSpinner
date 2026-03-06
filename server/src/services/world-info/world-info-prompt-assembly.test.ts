@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { DEFAULT_WORLD_INFO_ENTRY, buildDefaultWorldInfoSettings } from "./world-info-defaults";
 import { assembleWorldInfoPromptOutput } from "./world-info-prompt-assembly";
+
 import type { PreparedWorldInfoEntry } from "./world-info-types";
 
 function entry(hash: string, patch: Partial<PreparedWorldInfoEntry>): PreparedWorldInfoEntry {

@@ -2,15 +2,30 @@ import { Button, Divider, Group, Input, Select, Stack, Switch, Text, TextInput }
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuPencil, LuPlus, LuTrash2 } from 'react-icons/lu';
 
 import { ragProviderModel } from '@model/rag-provider';
-import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
-import type { RagProviderConfig, RagProviderId } from '@shared/types/rag';
+import type { RagPreset, RagProviderConfig, RagProviderId } from '@shared/types/rag';
+
+import { PresetControls } from './preset-controls';
 
 const toProviderTokenKey = (providerId: RagProviderId, tokenId: string | null): string => `${providerId}:${tokenId ?? 'none'}`;
+
+const normalizePayload = (payload: RagPreset['payload']) => ({
+	activeProviderId: payload.activeProviderId,
+	activeTokenId: payload.activeTokenId ?? null,
+	activeModel: payload.activeModel ?? null,
+	providerConfigsById: {
+		openrouter: payload.providerConfigsById.openrouter ?? {},
+		ollama: payload.providerConfigsById.ollama ?? {},
+	},
+});
+
+const isPayloadEqual = (
+	left: ReturnType<typeof normalizePayload>,
+	right: ReturnType<typeof normalizePayload>,
+): boolean => JSON.stringify(left) === JSON.stringify(right);
 
 export const RagSettingsTab = () => {
 	const { t } = useTranslation();
@@ -65,6 +80,12 @@ export const RagSettingsTab = () => {
 			ollama: configs.ollama ?? {},
 		},
 	});
+	const hasUnsavedPresetChanges = activePreset
+		? !isPayloadEqual(normalizePayload(activePreset.payload), normalizePayload(buildPayload()))
+		: false;
+	const hasUnsavedConfigDraft = JSON.stringify(configDraft ?? {}) !== JSON.stringify(activeConfig ?? {});
+	const hasUnsavedModelDraft = (modelDraft ?? '').trim() !== (runtime?.activeModel ?? '');
+	const hasUnsavedChanges = hasUnsavedPresetChanges || hasUnsavedConfigDraft || hasUnsavedModelDraft;
 
 	const askValue = (prompt: string, defaultValue: string): string | null => {
 		const value = window.prompt(prompt, defaultValue)?.trim();
@@ -116,30 +137,50 @@ export const RagSettingsTab = () => {
 		}
 	};
 
+	const savePreset = async () => {
+		if (!activePreset) return;
+		try {
+			await ragProviderModel.updatePresetFx({
+				...activePreset,
+				payload: buildPayload(),
+			});
+			toaster.success({ title: t('provider.presets.toasts.saved'), description: activePreset.name });
+		} catch (error) {
+			toaster.error({ title: t('provider.presets.toasts.failed'), description: error instanceof Error ? error.message : String(error) });
+		}
+	};
+
 	return (
 		<Stack gap="md">
-			<Stack gap="xs">
-				<Text fw={600}>{t('rag.presets.title')}</Text>
-				<Group align="flex-end">
-					<Select
-						style={{ flex: 1 }}
-						label={t('rag.presets.active')}
-						data={presetOptions}
-						value={activePresetId}
-						onChange={(value) => {
-							ragProviderModel.ragPresetSelected(value ?? null);
-						}}
-						allowDeselect={false}
-						comboboxProps={{ withinPortal: false }}
-					/>
-					<Group gap="xs" pb={4}>
-						<IconButtonWithTooltip icon={<LuPlus />} tooltip={t('rag.presets.actions.create')} onClick={() => void createPreset()} />
-						<IconButtonWithTooltip icon={<LuPencil />} tooltip={t('rag.presets.actions.rename')} onClick={() => void renamePreset()} disabled={!activePreset} />
-						<IconButtonWithTooltip icon={<LuCopy />} tooltip={t('rag.presets.actions.duplicate')} onClick={() => void duplicatePreset()} disabled={!activePreset} />
-						<IconButtonWithTooltip icon={<LuTrash2 />} tooltip={t('rag.presets.actions.delete')} onClick={() => void deletePreset()} disabled={!activePreset} />
-					</Group>
-				</Group>
-			</Stack>
+			<PresetControls
+				labels={{
+					title: t('rag.presets.title'),
+					active: t('rag.presets.active'),
+					create: t('rag.presets.actions.create'),
+					rename: t('rag.presets.actions.rename'),
+					duplicate: t('rag.presets.actions.duplicate'),
+					save: t('rag.presets.actions.save'),
+					delete: t('rag.presets.actions.delete'),
+				}}
+				options={presetOptions}
+				value={activePresetId}
+				onChange={(value) => {
+					if (value === activePresetId) return;
+					if (hasUnsavedChanges && !window.confirm(t('rag.presets.confirm.discardChanges'))) {
+						return;
+					}
+					ragProviderModel.ragPresetSelected(value ?? null);
+				}}
+				onCreate={() => void createPreset()}
+				onRename={() => void renamePreset()}
+				onDuplicate={() => void duplicatePreset()}
+				onSave={() => void savePreset()}
+				onDelete={() => void deletePreset()}
+				disableRename={!activePreset}
+				disableDuplicate={!activePreset}
+				disableSave={!activePreset || !hasUnsavedChanges}
+				disableDelete={!activePreset}
+			/>
 
 			<Divider />
 

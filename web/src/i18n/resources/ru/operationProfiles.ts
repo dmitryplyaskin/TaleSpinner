@@ -2,10 +2,37 @@
 			sidebar: {
 				title: 'Операции',
 			},
+			tabs: {
+				profiles: 'Профили',
+				blocks: 'Блоки',
+			},
 			defaults: {
 				newProfile: 'Новый профиль',
 				copyName: '{{name}} (копия)',
 				untitledOperation: 'Операция без названия',
+			},
+			blocks: {
+				defaults: {
+					newBlock: 'Новый блок',
+				},
+				blockSettingsTitle: 'Настройки блока',
+				blockName: 'Название блока',
+				blockEnabled: 'Блок включен',
+				selectBlock: 'Выберите блок',
+				emptySelectBlock: 'Выберите блок для редактирования операций.',
+				profileCompositionTitle: 'Состав профиля',
+				addBlock: 'Добавить блок',
+				emptyComposition: 'В профиль пока не добавлены блоки.',
+				blockRefEnabled: 'Включен в этом профиле',
+				blockOrder: 'Порядок',
+				actions: {
+					createBlock: 'Создать блок',
+					duplicateBlock: 'Дублировать блок',
+					editBlock: 'Редактировать блок',
+					deleteBlock: 'Удалить блок',
+					exportBlock: 'Экспортировать блок',
+					importBlocks: 'Импортировать блоки',
+				},
 			},
 			actions: {
 				openNodeEditor: 'Открыть Node Editor',
@@ -74,6 +101,8 @@
 				triggers: 'Триггеры',
 				order: 'Порядок',
 				dependsOn: 'Зависит от',
+				activationEveryNTurns: 'Каждые N ходов',
+				activationEveryNContextTokens: 'Каждые N токенов контекста',
 				effectType: 'Тип эффекта',
 				artifactTag: 'Тег артефакта',
 				persistence: 'Persistence',
@@ -94,6 +123,10 @@
 				triggers: 'generate запускается на новом ходе; regenerate — при новой assistant-вариации.',
 				order: 'Порядок коммита детерминирован: сначала зависимости, затем меньший order, затем opId.',
 				dependsOn: 'Операция ждёт завершения всех зависимостей со статусом done. Неудачная или пропущенная зависимость блокирует старт.',
+				activationEveryNTurns:
+					'0 — выключено. Если задано N, операция станет доступна на каждом N-м событии user send (регенерация/continue/system не учитываются).',
+				activationEveryNContextTokens:
+					'0 — выключено. Считается накопление токенов только по user/assistant сообщениям контекста (без system), оценка chars/4.',
 				effectType: 'Выберите, как применить отрендеренный результат при commit во время выполнения.',
 				artifactTag: 'Используйте тег без префикса art. У каждого тега в профиле должен быть один writer.',
 				persistence: 'persisted переживает ходы; run_only существует только в текущем запуске.',
@@ -106,6 +139,10 @@
 				depthFromEnd:
 					'0 — вставить в конец; N — вставить на глубине N от конца. Большие значения ограничиваются позицией сразу после основной system-инструкции.',
 				target: 'before_main_llm допускает только target=user; after_main_llm допускает user или assistant.',
+			},
+			execution: {
+				activationRule:
+					'Условия объединяются по OR: достаточно одного порога. При срабатывании одного — оба счетчика этой операции сбрасываются.',
 			},
 			outputType: {
 				artifacts: 'Artifacts',
@@ -258,6 +295,7 @@
 			},
 			confirm: {
 				deleteProfile: 'Удалить этот профиль операций?',
+				deleteBlock: 'Удалить этот блок операций?',
 				deleteOperation: 'Удалить выбранную операцию?',
 				deleteGroup: 'Удалить эту группу?',
 				deleteSelectedOperations: 'Удалить выбранные операции?',

@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 import { z } from "zod";
 
 import { HttpError } from "@core/middleware/error-handler";

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getRuntime: vi.fn(),
   listProviders: vi.fn(),
   listTokens: vi.fn(),
-  getTokenPlaintext: vi.fn(),
+  getTokenPlaintextResult: vi.fn(),
   touchTokenLastUsed: vi.fn(),
   getProviderConfig: vi.fn(),
   resolveGatewayProviderSpec: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("./llm-repository", () => ({
   getRuntime: mocks.getRuntime,
   listProviders: mocks.listProviders,
   listTokens: mocks.listTokens,
-  getTokenPlaintext: mocks.getTokenPlaintext,
+  getTokenPlaintextResult: mocks.getTokenPlaintextResult,
   touchTokenLastUsed: mocks.touchTokenLastUsed,
   getProviderConfig: mocks.getProviderConfig,
 }));
@@ -43,6 +43,7 @@ import { HttpError } from "@core/middleware/error-handler";
 
 import {
   __resetTokenTouchThrottleForTests,
+  checkProviderConnection,
   getModels,
   getProvidersForUi,
   getTokensForUi,
@@ -65,7 +66,10 @@ beforeEach(() => {
   mocks.listTokens.mockResolvedValue([
     { id: "tok-1", providerId: "openrouter", name: "main", tokenHint: "***" },
   ]);
-  mocks.getTokenPlaintext.mockResolvedValue("secret");
+  mocks.getTokenPlaintextResult.mockResolvedValue({
+    status: "ok",
+    plaintext: "secret",
+  });
   mocks.touchTokenLastUsed.mockResolvedValue(undefined);
   mocks.getProviderConfig.mockResolvedValue({
     providerId: "openrouter",
@@ -137,7 +141,7 @@ describe("llm-service", () => {
   });
 
   test("getModels returns [] when plaintext token is not found", async () => {
-    mocks.getTokenPlaintext.mockResolvedValueOnce(null);
+    mocks.getTokenPlaintextResult.mockResolvedValueOnce({ status: "missing" });
 
     await expect(
       getModels({
@@ -208,6 +212,62 @@ describe("llm-service", () => {
     expect(mocks.axiosGet).toHaveBeenCalledTimes(2);
   });
 
+  test("checkProviderConnection returns explicit error when openai-compatible baseUrl is missing", async () => {
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: {},
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      issueCode: "BASE_URL_MISSING",
+      message: "Base URL is required for the OpenAI-compatible provider.",
+    });
+  });
+
+  test("checkProviderConnection explains missing models endpoint for openai-compatible provider", async () => {
+    mocks.axiosGet.mockRejectedValueOnce({
+      response: { status: 404 },
+      message: "Request failed with status code 404",
+    });
+
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: { baseUrl: "http://localhost:1234/v1" },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      issueCode: "ENDPOINT_NOT_FOUND",
+      checkedUrl: "http://localhost:1234/v1/models",
+      statusCode: 404,
+    });
+    expect(result.hints).toContain("For OpenAI-compatible backends the Base URL usually ends with /v1.");
+  });
+
+  test("checkProviderConnection returns success payload with model count", async () => {
+    const result = await checkProviderConnection({
+      providerId: "openai_compatible",
+      scope: "global",
+      scopeId: "global",
+      configOverride: { baseUrl: "http://localhost:1234/v1" },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      issueCode: null,
+      checkedUrl: "http://localhost:1234/v1/models",
+      resolvedBaseUrl: "http://localhost:1234/v1",
+      modelCount: 2,
+      statusCode: null,
+    });
+    expect(result.message).toContain("Models endpoint returned 2 models");
+  });
+
   test("streamGlobalChat throws HttpError when active token is missing", async () => {
     mocks.getRuntime.mockResolvedValueOnce({
       scope: "global",
@@ -235,7 +295,7 @@ describe("llm-service", () => {
   });
 
   test("streamGlobalChat throws HttpError when active token is not found", async () => {
-    mocks.getTokenPlaintext.mockResolvedValueOnce(null);
+    mocks.getTokenPlaintextResult.mockResolvedValueOnce({ status: "missing" });
 
     const iter = streamGlobalChat({
       messages: [{ role: "user", content: "hi" }],
@@ -244,6 +304,24 @@ describe("llm-service", () => {
 
     await expect(iter.next()).rejects.toMatchObject({
       code: "LLM_TOKEN_NOT_FOUND",
+    });
+  });
+
+  test("streamGlobalChat surfaces decrypt failures with a master-key hint", async () => {
+    mocks.getTokenPlaintextResult.mockResolvedValueOnce({
+      status: "decrypt_failed",
+      reason: "key_mismatch_or_corrupt",
+      message: "Unsupported state or unable to authenticate data",
+    });
+
+    const iter = streamGlobalChat({
+      messages: [{ role: "user", content: "hi" }],
+      settings: {},
+    });
+
+    await expect(iter.next()).rejects.toMatchObject({
+      code: "LLM_TOKEN_NOT_FOUND",
+      message: "Active token cannot be decrypted with current TOKENS_MASTER_KEY",
     });
   });
 
@@ -256,10 +334,10 @@ describe("llm-service", () => {
       providerId: "openrouter",
       config: { tokenPolicy: { fallbackOnError: true } },
     });
-    mocks.getTokenPlaintext.mockImplementation(async (id: string) => {
-      if (id === "tok-1") return "secret-1";
-      if (id === "tok-2") return "secret-2";
-      return null;
+    mocks.getTokenPlaintextResult.mockImplementation(async (id: string) => {
+      if (id === "tok-1") return { status: "ok", plaintext: "secret-1" };
+      if (id === "tok-2") return { status: "ok", plaintext: "secret-2" };
+      return { status: "missing" };
     });
     mocks.llmGatewayStream
       .mockImplementationOnce(async function* () {
@@ -297,10 +375,10 @@ describe("llm-service", () => {
       providerId: "openrouter",
       config: { tokenPolicy: { fallbackOnError: true } },
     });
-    mocks.getTokenPlaintext.mockImplementation(async (id: string) => {
-      if (id === "tok-1") return "secret-1";
-      if (id === "tok-2") return "secret-2";
-      return null;
+    mocks.getTokenPlaintextResult.mockImplementation(async (id: string) => {
+      if (id === "tok-1") return { status: "ok", plaintext: "secret-1" };
+      if (id === "tok-2") return { status: "ok", plaintext: "secret-2" };
+      return { status: "missing" };
     });
     mocks.llmGatewayStream.mockImplementationOnce(async function* () {
       yield { type: "delta", text: "partial" };
@@ -332,7 +410,10 @@ describe("llm-service", () => {
       providerId: "openrouter",
       config: { tokenPolicy: { randomize: true } },
     });
-    mocks.getTokenPlaintext.mockImplementation(async (id: string) => `secret-${id}`);
+    mocks.getTokenPlaintextResult.mockImplementation(async (id: string) => ({
+      status: "ok",
+      plaintext: `secret-${id}`,
+    }));
     mocks.llmGatewayStream.mockImplementation(async function* () {
       yield { type: "done", status: "done" as const };
     });
@@ -362,9 +443,9 @@ describe("llm-service", () => {
     mocks.listTokens.mockResolvedValueOnce([
       { id: "tok-2", providerId: "openrouter", name: "backup", tokenHint: "***" },
     ]);
-    mocks.getTokenPlaintext.mockImplementation(async (id: string) => {
-      if (id === "tok-2") return "secret-2";
-      return null;
+    mocks.getTokenPlaintextResult.mockImplementation(async (id: string) => {
+      if (id === "tok-2") return { status: "ok", plaintext: "secret-2" };
+      return { status: "missing" };
     });
     mocks.llmGatewayStream.mockImplementationOnce(async function* () {
       yield { type: "delta", text: "from-backup" };

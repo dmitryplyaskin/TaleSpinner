@@ -49,11 +49,13 @@ export type UserTurnTarget =
   };
 
 export type RunRequest = {
+  requestId?: string;
   ownerId?: string;
   chatId: string;
   branchId: string;
   entityProfileId: string;
   trigger: OperationTrigger;
+  source: "user_message" | "continue" | "regenerate" | "system_message";
   settings: Record<string, unknown>;
   persistenceTarget: RunPersistenceTarget;
   userTurnTarget?: UserTurnTarget;
@@ -73,6 +75,12 @@ export type ProfileSnapshot = {
 export type RuntimeInfoSnapshot = {
   providerId: string;
   model: string;
+  messageNormalization?: {
+    enabled: boolean;
+    mergeSystem?: boolean;
+    mergeConsecutiveAssistant?: boolean;
+    separator?: string;
+  };
 };
 
 export type RunContext = {
@@ -152,6 +160,26 @@ export type RuntimeEffect =
 
 export type OperationExecutionStatus = "done" | "skipped" | "error" | "aborted";
 
+export type OperationSkipReason =
+  | "activation_not_reached"
+  | "dependency_not_done"
+  | "dependency_missing"
+  | "unsupported_kind"
+  | "orchestrator_aborted"
+  | "filtered_out"
+  | "disabled";
+
+export type OperationSkipDetails = {
+  activation?: {
+    everyNTurns?: number;
+    everyNContextTokens?: number;
+    turnsCounter: number;
+    tokensCounter: number;
+  };
+  blockedByOpIds?: string[];
+  blockedByReason?: "activation_not_reached";
+};
+
 export type OperationExecutionResult = {
   opId: string;
   name: string;
@@ -166,7 +194,8 @@ export type OperationExecutionResult = {
     code: string;
     message: string;
   };
-  skipReason?: string;
+  skipReason?: OperationSkipReason;
+  skipDetails?: OperationSkipDetails;
 };
 
 export type OperationFinishedEventData = {
@@ -174,7 +203,8 @@ export type OperationFinishedEventData = {
   opId: string;
   name: string;
   status: OperationExecutionStatus;
-  skipReason?: string;
+  skipReason?: OperationSkipReason;
+  skipDetails?: OperationSkipDetails;
   error?: { code: string; message: string };
   result?: {
     effects: RuntimeEffect[];
@@ -200,6 +230,8 @@ export type TurnUserCanonicalizationRecord = {
   opId: string;
   userEntryId: string;
   userMainPartId: string;
+  replacedPartId?: string;
+  canonicalPartId?: string;
   beforeText: string;
   afterText: string;
   committedAt: string;
@@ -343,6 +375,7 @@ export type RunEvent =
         basePromptDraft: PromptDraftMessage[];
         effectivePromptDraft: PromptDraftMessage[];
         llmMessages: GenerateMessage[];
+        normalizedLlmMessages: GenerateMessage[];
       };
     }
   | {
@@ -362,6 +395,36 @@ export type RunEvent =
       runId: string;
       seq: number;
       type: "run.debug.turn_user_canonicalization";
+      data: TurnUserCanonicalizationRecord;
+    }
+  | {
+      runId: string;
+      seq: number;
+      type: "run.debug.operation_activation_state_snapshot";
+      data: {
+        chatId: string;
+        branchId: string;
+        profileId: string | null;
+        operationProfileSessionId: string | null;
+        updatedAt: string;
+        source: "user_message" | "continue" | "regenerate" | "system_message";
+        trigger: OperationTrigger;
+        operations: Array<{
+          opId: string;
+          everyNTurns?: number;
+          everyNContextTokens?: number;
+          turnsCounter: number;
+          tokensCounter: number;
+          shouldRunNow: boolean;
+          hasActivation: boolean;
+          supportsCurrentTrigger: boolean;
+        }>;
+      };
+    }
+  | {
+      runId: string;
+      seq: number;
+      type: "turn.user.canonicalized";
       data: TurnUserCanonicalizationRecord;
     }
   | {

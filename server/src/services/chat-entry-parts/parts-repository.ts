@@ -1,9 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
-import { initDb } from "../../db/client";
-import { variantParts } from "../../db/schema";
+import { type DbExecutor, initDb } from "../../db/client";
+import { entryVariants, variantParts } from "../../db/schema";
 
 import type {
   Part,
@@ -16,7 +16,7 @@ import type {
 
 type StoredPayload = {
   format: PartPayloadFormat;
-  value: string | object;
+  value: string | object | number | boolean | null;
   schemaId?: string;
   label?: string;
 };
@@ -80,7 +80,7 @@ export async function listPartsForVariants(params: {
   return map;
 }
 
-export async function createPart(params: {
+type CreatePartParams = {
   ownerId?: string;
   variantId: string;
   channel: PartChannel;
@@ -100,73 +100,86 @@ export async function createPart(params: {
   requestId?: string;
   replacesPartId?: string;
   tags?: string[];
-}): Promise<Part> {
-  const db = await initDb();
-  const ownerId = params.ownerId ?? "global";
-  const partId = uuidv4();
+  executor?: DbExecutor;
+};
 
-  const payloadJson = safeJsonStringify({
-    format: params.payloadFormat,
-    value: params.payload,
-    schemaId: params.schemaId,
-    label: params.label,
-  } satisfies StoredPayload);
+export function createPart(params: CreatePartParams & { executor: DbExecutor }): Part;
+export function createPart(params: CreatePartParams): Promise<Part>;
+export function createPart(params: CreatePartParams): Promise<Part> | Part {
+  const run = (db: DbExecutor): Part => {
+    const ownerId = params.ownerId ?? "global";
+    const partId = uuidv4();
 
-  await db.insert(variantParts).values({
-    partId,
-    ownerId,
-    variantId: params.variantId,
-    channel: params.channel,
-    order: params.order,
-    payloadJson,
-    visibilityJson: safeJsonStringify(params.visibility),
-    uiJson: typeof params.ui === "undefined" ? null : safeJsonStringify(params.ui),
-    promptJson: typeof params.prompt === "undefined" ? null : safeJsonStringify(params.prompt),
-    lifespanJson: safeJsonStringify(params.lifespan),
-    createdTurn: params.createdTurn,
-    source: params.source,
-    agentId: params.agentId ?? null,
-    model: params.model ?? null,
-    requestId: params.requestId ?? null,
-    replacesPartId: params.replacesPartId ?? null,
-    softDeleted: false,
-    softDeletedAt: null,
-    softDeletedBy: null,
-    tagsJson: typeof params.tags === "undefined" ? null : safeJsonStringify(params.tags),
-  });
-
-  const rows = await db
-    .select()
-    .from(variantParts)
-    .where(and(eq(variantParts.partId, partId), eq(variantParts.ownerId, ownerId)))
-    .limit(1);
-  const row = rows[0];
-  if (!row) {
-    // Should never happen; fallback to constructing a Part from inputs.
-    return {
-      partId,
-      channel: params.channel,
-      order: params.order,
-      payload: params.payload,
-      payloadFormat: params.payloadFormat,
+    const payloadJson = safeJsonStringify({
+      format: params.payloadFormat,
+      value: params.payload,
       schemaId: params.schemaId,
       label: params.label,
-      visibility: params.visibility,
-      ui: params.ui,
-      prompt: params.prompt,
-      lifespan: params.lifespan,
+    } satisfies StoredPayload);
+
+    db.insert(variantParts).values({
+      partId,
+      ownerId,
+      variantId: params.variantId,
+      channel: params.channel,
+      order: params.order,
+      payloadJson,
+      visibilityJson: safeJsonStringify(params.visibility),
+      uiJson: typeof params.ui === "undefined" ? null : safeJsonStringify(params.ui),
+      promptJson: typeof params.prompt === "undefined" ? null : safeJsonStringify(params.prompt),
+      lifespanJson: safeJsonStringify(params.lifespan),
       createdTurn: params.createdTurn,
       source: params.source,
-      agentId: params.agentId,
-      model: params.model,
-      requestId: params.requestId,
-      replacesPartId: params.replacesPartId,
+      agentId: params.agentId ?? null,
+      model: params.model ?? null,
+      requestId: params.requestId ?? null,
+      replacesPartId: params.replacesPartId ?? null,
       softDeleted: false,
-      tags: params.tags,
-    };
+      softDeletedAt: null,
+      softDeletedBy: null,
+      tagsJson: typeof params.tags === "undefined" ? null : safeJsonStringify(params.tags),
+    }).run();
+
+    const rows = db
+      .select()
+      .from(variantParts)
+      .where(and(eq(variantParts.partId, partId), eq(variantParts.ownerId, ownerId)))
+      .limit(1)
+      .all();
+    const row = rows[0];
+    if (!row) {
+      // Should never happen; fallback to constructing a Part from inputs.
+      return {
+        partId,
+        channel: params.channel,
+        order: params.order,
+        payload: params.payload,
+        payloadFormat: params.payloadFormat,
+        schemaId: params.schemaId,
+        label: params.label,
+        visibility: params.visibility,
+        ui: params.ui,
+        prompt: params.prompt,
+        lifespan: params.lifespan,
+        createdTurn: params.createdTurn,
+        source: params.source,
+        agentId: params.agentId,
+        model: params.model,
+        requestId: params.requestId,
+        replacesPartId: params.replacesPartId,
+        softDeleted: false,
+        tags: params.tags,
+      };
+    }
+
+    return partRowToDomain(row);
+  };
+
+  if (params.executor) {
+    return run(params.executor);
   }
 
-  return partRowToDomain(row);
+  return initDb().then((db) => run(db));
 }
 
 export async function updatePartPayloadText(params: {
@@ -212,55 +225,138 @@ export async function getPartPayloadTextById(params: {
   return safeJsonStringify(existing.value, "");
 }
 
-export async function applyManualEditToPart(params: {
+export async function getPartById(params: {
+  partId: string;
+}): Promise<Part | null> {
+  const db = await initDb();
+  const rows = await db
+    .select()
+    .from(variantParts)
+    .where(eq(variantParts.partId, params.partId))
+    .limit(1);
+  const row = rows[0];
+  return row ? partRowToDomain(row) : null;
+}
+
+export async function getPartWithVariantContextById(params: {
+  partId: string;
+}): Promise<
+  | {
+      part: Part;
+      ownerId: string;
+      variantId: string;
+      entryId: string;
+    }
+  | null
+> {
+  const db = await initDb();
+  const partRows = await db
+    .select()
+    .from(variantParts)
+    .where(eq(variantParts.partId, params.partId))
+    .limit(1);
+  const partRow = partRows[0];
+  if (!partRow) return null;
+
+  const variantRows = await db
+    .select({
+      variantId: entryVariants.variantId,
+      entryId: entryVariants.entryId,
+    })
+    .from(entryVariants)
+    .where(eq(entryVariants.variantId, partRow.variantId))
+    .limit(1);
+  const variant = variantRows[0];
+  if (!variant) return null;
+
+  return {
+    part: partRowToDomain(partRow),
+    ownerId: partRow.ownerId,
+    variantId: partRow.variantId,
+    entryId: variant.entryId,
+  };
+}
+
+type ApplyManualEditToPartParams = {
   partId: string;
   payloadText: string;
   payloadFormat?: PartPayloadFormat;
   requestId?: string;
-}): Promise<void> {
-  const db = await initDb();
-  const rows = await db
-    .select({ payloadJson: variantParts.payloadJson })
-    .from(variantParts)
-    .where(eq(variantParts.partId, params.partId))
-    .limit(1);
+  executor?: DbExecutor;
+};
 
-  const existing = safeJsonParse<StoredPayload>(rows[0]?.payloadJson, {
-    format: "text",
-    value: "",
-  });
+export function applyManualEditToPart(
+  params: ApplyManualEditToPartParams & { executor: DbExecutor }
+): void;
+export function applyManualEditToPart(params: ApplyManualEditToPartParams): Promise<void>;
+export function applyManualEditToPart(
+  params: ApplyManualEditToPartParams
+): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    const rows = db
+      .select({ payloadJson: variantParts.payloadJson })
+      .from(variantParts)
+      .where(eq(variantParts.partId, params.partId))
+      .limit(1)
+      .all();
 
-  const payload: StoredPayload = {
-    ...existing,
-    format: params.payloadFormat ?? existing.format ?? "markdown",
-    value: params.payloadText,
+    const existing = safeJsonParse<StoredPayload>(rows[0]?.payloadJson, {
+      format: "text",
+      value: "",
+    });
+
+    const payload: StoredPayload = {
+      ...existing,
+      format: params.payloadFormat ?? existing.format ?? "markdown",
+      value: params.payloadText,
+    };
+
+    db
+      .update(variantParts)
+      .set({
+        payloadJson: safeJsonStringify(payload),
+        source: "user",
+        agentId: null,
+        model: null,
+        requestId: params.requestId ?? null,
+      })
+      .where(eq(variantParts.partId, params.partId))
+      .run();
   };
 
-  await db
-    .update(variantParts)
-    .set({
-      payloadJson: safeJsonStringify(payload),
-      source: "user",
-      agentId: null,
-      model: null,
-      requestId: params.requestId ?? null,
-    })
-    .where(eq(variantParts.partId, params.partId));
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
-export async function softDeletePart(params: {
+type SoftDeletePartParams = {
   partId: string;
   by: "user" | "agent";
-}): Promise<void> {
-  const db = await initDb();
-  await db
-    .update(variantParts)
-    .set({
-      softDeleted: true,
-      softDeletedAt: new Date(),
-      softDeletedBy: params.by,
-    })
-    .where(eq(variantParts.partId, params.partId));
+  executor?: DbExecutor;
+};
+
+export function softDeletePart(params: SoftDeletePartParams & { executor: DbExecutor }): void;
+export function softDeletePart(params: SoftDeletePartParams): Promise<void>;
+export function softDeletePart(params: SoftDeletePartParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    db
+      .update(variantParts)
+      .set({
+        softDeleted: true,
+        softDeletedAt: new Date(),
+        softDeletedBy: params.by,
+      })
+      .where(eq(variantParts.partId, params.partId))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function updatePartReplacesPartId(params: {
@@ -272,5 +368,59 @@ export async function updatePartReplacesPartId(params: {
     .update(variantParts)
     .set({ replacesPartId: params.replacesPartId })
     .where(eq(variantParts.partId, params.partId));
+}
+
+export type PartMutableBatchPatch = {
+  partId: string;
+  channel: PartChannel;
+  order: number;
+  payload: string | object | number | boolean | null;
+  payloadFormat: PartPayloadFormat;
+  schemaId?: string;
+  label?: string;
+  visibility: PartVisibility;
+  replacesPartId: string | null;
+  softDeleted: boolean;
+  softDeletedAt?: number | null;
+  softDeletedBy?: "user" | "agent" | null;
+};
+
+export async function applyPartMutableBatchPatches(params: {
+  variantId: string;
+  patches: PartMutableBatchPatch[];
+}): Promise<void> {
+  const db = await initDb();
+
+  await db.transaction((tx) => {
+    for (const patch of params.patches) {
+      tx
+        .update(variantParts)
+        .set({
+          channel: patch.channel,
+          order: patch.order,
+          payloadJson: safeJsonStringify({
+            format: patch.payloadFormat,
+            value: patch.payload,
+            schemaId: patch.schemaId,
+            label: patch.label,
+          } satisfies StoredPayload),
+          visibilityJson: safeJsonStringify(patch.visibility),
+          replacesPartId: patch.replacesPartId,
+          softDeleted: patch.softDeleted,
+          softDeletedAt:
+            patch.softDeleted && typeof patch.softDeletedAt === "number"
+              ? new Date(patch.softDeletedAt)
+              : null,
+          softDeletedBy: patch.softDeleted ? patch.softDeletedBy ?? "user" : null,
+        })
+        .where(
+          and(
+            eq(variantParts.partId, patch.partId),
+            eq(variantParts.variantId, params.variantId)
+          )
+        )
+        .run();
+    }
+  });
 }
 

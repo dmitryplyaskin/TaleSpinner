@@ -1,6 +1,6 @@
 import { Badge, Button, Checkbox, Group, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useUnit } from 'effector-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { LuArrowDown, LuArrowUp, LuPlus, LuTrash2 } from 'react-icons/lu';
@@ -101,14 +101,24 @@ export const InstructionEditor = () => {
 			templateText: tpl?.templateText ?? '',
 		},
 	});
+	const { reset } = methods;
+	const lastResetInstructionIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
+		const nextInstructionId = tpl?.id ?? null;
+		if (nextInstructionId === null) {
+			lastResetInstructionIdRef.current = null;
+			return;
+		}
+		if (lastResetInstructionIdRef.current === nextInstructionId) return;
+		lastResetInstructionIdRef.current = nextInstructionId;
+
 		const tsInstruction = getTsInstructionMeta(tpl?.meta);
 		const mode = tsInstruction?.mode ?? 'basic';
 		const advancedConfig =
 			tsInstruction?.stAdvanced ?? createDefaultAdvancedConfig(tpl?.templateText ?? '');
 
-		methods.reset({
+		reset({
 			name: tpl?.name ?? '',
 			templateText: tpl?.templateText ?? '',
 		});
@@ -117,7 +127,7 @@ export const InstructionEditor = () => {
 		setNewPromptIdentifier(null);
 		setPreview('');
 		setPreviewError(null);
-	}, [tpl?.id]);
+	}, [reset, tpl?.id, tpl?.meta, tpl?.name, tpl?.templateText]);
 
 	const preferredOrder = useMemo(() => {
 		if (!stAdvanced) return null;

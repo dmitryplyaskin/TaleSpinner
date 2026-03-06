@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { configureLlmOpenAiCompatible, createEntityProfileAndChat } from "./helpers/fixtures";
@@ -107,13 +108,66 @@ describe("backend e2e full matrix", () => {
     expect((await requestJson({ baseUrl, method: "GET", path: "/api/chats/missing" })).status).toBe(404);
 
     expect((await requestJson({ baseUrl, method: "GET", path: `/api/chats/${chatId}/entries?branchId=${branchId}` })).status).toBe(200);
-    expect((await requestJson({ baseUrl, method: "GET", path: `/api/entries/${assistantEntryId}/variants` })).status).toBe(200);
+    const variantsRes = await requestJson<
+      ApiEnvelope<
+        Array<{
+          variantId: string;
+          parts: Array<{
+            partId: string;
+            channel: string;
+            payload: unknown;
+            visibility?: { ui?: string; prompt?: boolean };
+            softDeleted?: boolean;
+          }>;
+        }>
+      >
+    >({ baseUrl, method: "GET", path: `/api/entries/${assistantEntryId}/variants` });
+    expect(variantsRes.status).toBe(200);
     expect(
       (
         await requestJson({
           baseUrl,
           method: "POST",
           path: `/api/entries/${assistantEntryId}/variants/${assistantVariantId}/select`,
+        })
+      ).status
+    ).toBe(200);
+    const variantsPayload = variantsRes.data.data;
+    const activeVariant =
+      variantsPayload.find((item) => item.variantId === assistantVariantId) ??
+      variantsPayload[variantsPayload.length - 1];
+    const activeParts = (activeVariant?.parts ?? []).filter((part) => !part.softDeleted);
+    const nextMainPart = activeParts.find((part) => part.channel === "main") ?? activeParts[0];
+    expect(nextMainPart?.partId).toBeTruthy();
+    expect(
+      (
+        await requestJson({
+          baseUrl,
+          method: "POST",
+          path: `/api/entries/${assistantEntryId}/parts/batch-update`,
+          body: {
+            variantId: activeVariant?.variantId ?? assistantVariantId,
+            mainPartId: nextMainPart?.partId ?? assistantMainPartId,
+            orderedPartIds: activeParts.map((part) => part.partId),
+            parts: activeParts.map((part) => ({
+              partId: part.partId,
+              deleted: false,
+              visibility: {
+                ui: part.visibility?.ui === "never" ? "never" : "always",
+                prompt: Boolean(part.visibility?.prompt),
+              },
+              payload: part.payload,
+            })),
+          },
+        })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await requestJson({
+          baseUrl,
+          method: "GET",
+          path: `/api/chats/${chatId}/operation-runtime-state?branchId=${branchId}`,
         })
       ).status
     ).toBe(200);
@@ -195,7 +249,7 @@ describe("backend e2e full matrix", () => {
           enabled: true,
           executionMode: "sequential",
           operationProfileSessionId: randomUUID(),
-          operations: [],
+          blockRefs: [],
         },
       },
     });

@@ -8,6 +8,7 @@ describe("llm-definitions.parseProviderConfig", () => {
       defaultModel: "model-x",
       tokenPolicy: { randomize: true, fallbackOnError: true },
       anthropicCache: { enabled: true, depth: 2, ttl: "1h" },
+      messageNormalization: { enabled: false },
       custom: "ok",
     });
 
@@ -15,6 +16,7 @@ describe("llm-definitions.parseProviderConfig", () => {
       defaultModel: "model-x",
       tokenPolicy: { randomize: true, fallbackOnError: true },
       anthropicCache: { enabled: true, depth: 2, ttl: "1h" },
+      messageNormalization: { enabled: false },
       custom: "ok",
     });
   });
@@ -23,11 +25,13 @@ describe("llm-definitions.parseProviderConfig", () => {
     const out = parseProviderConfig("openai_compatible", {
       baseUrl: "http://localhost:1234/v1",
       defaultModel: "m",
+      messageNormalization: { enabled: true },
     });
 
     expect(out).toEqual({
       baseUrl: "http://localhost:1234/v1",
       defaultModel: "m",
+      messageNormalization: { enabled: true },
     });
   });
 

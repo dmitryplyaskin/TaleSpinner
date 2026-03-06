@@ -125,6 +125,31 @@ export const llmRuntimeProviderState = sqliteTable(
   })
 );
 
+export const generationRuntimeControl = sqliteTable(
+  "generation_runtime_control",
+  {
+    generationId: text("generation_id")
+      .primaryKey()
+      .references(() => llmGenerations.id, { onDelete: "cascade" }),
+    runInstanceId: text("run_instance_id").notNull(),
+    status: text("status", { enum: ["active", "abort_requested"] })
+      .notNull()
+      .default("active"),
+    abortRequestedAt: integer("abort_requested_at", { mode: "timestamp_ms" }),
+    heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }).notNull(),
+    leaseExpiresAt: integer("lease_expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => ({
+    statusLeaseIdx: index("generation_runtime_control_status_lease_idx").on(
+      t.status,
+      t.leaseExpiresAt
+    ),
+    runInstanceIdx: index("generation_runtime_control_run_instance_idx").on(t.runInstanceId),
+  })
+);
+
 export const llmPresets = sqliteTable(
   "llm_presets",
   {

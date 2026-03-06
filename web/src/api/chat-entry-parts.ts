@@ -1,9 +1,11 @@
 import { BASE_URL } from '../const';
 
 import type { SseEnvelope } from './chat-core';
+import type { ChatOperationRuntimeStateDto } from '@shared/types/chat-runtime-state';
 import type { Variant, Entry } from '@shared/types/chat-entry-parts';
 
 type ApiEnvelope<T> = { data: T; error?: unknown };
+export type ApiHttpError = Error & { status?: number };
 
 const CHAT_GENERATION_DEBUG_STORAGE_KEY = 'chat_generation_debug';
 const CHAT_GENERATION_DEBUG_SETTINGS_KEY = '__chatGenerationDebug';
@@ -23,7 +25,9 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 	if (!res.ok) {
 		const message = body?.error?.message ?? `HTTP error ${res.status}`;
-		throw new Error(message);
+		const error = new Error(message) as ApiHttpError;
+		error.status = res.status;
+		throw error;
 	}
 
 	return body.data as T;
@@ -60,6 +64,28 @@ function withChatGenerationDebugSettings(settings: Record<string, unknown> | und
 export type ChatEntryWithVariantDto = {
 	entry: Entry;
 	variant: Variant | null;
+	promptUsage?: {
+		estimator: 'chars_div4';
+		included: boolean;
+		approxTokens: number;
+	};
+};
+
+export type EntriesCursor = {
+	createdAt: number;
+	entryId: string;
+};
+
+export type EntriesPageInfo = {
+	hasMoreOlder: boolean;
+	nextCursor: EntriesCursor | null;
+};
+
+export type ListChatEntriesResponse = {
+	branchId: string;
+	currentTurn: number;
+	entries: ChatEntryWithVariantDto[];
+	pageInfo: EntriesPageInfo;
 };
 
 export type PromptDiagnosticsResponse = {
@@ -91,6 +117,8 @@ export type PromptDiagnosticsResponse = {
 		opId: string;
 		userEntryId: string;
 		userMainPartId: string;
+		replacedPartId?: string;
+		canonicalPartId?: string;
 		beforeText: string;
 		afterText: string;
 		committedAt: string;
@@ -120,12 +148,16 @@ export async function listChatEntries(params: {
 	branchId?: string;
 	limit?: number;
 	before?: number;
-}): Promise<{ branchId: string; currentTurn: number; entries: ChatEntryWithVariantDto[] }> {
+	cursorCreatedAt?: number;
+	cursorEntryId?: string;
+}): Promise<ListChatEntriesResponse> {
 	const qs = new URLSearchParams();
 	if (params.branchId) qs.set('branchId', params.branchId);
 	if (typeof params.limit === 'number') qs.set('limit', String(params.limit));
 	if (typeof params.before === 'number') qs.set('before', String(params.before));
-	return apiJson<{ branchId: string; currentTurn: number; entries: ChatEntryWithVariantDto[] }>(
+	if (typeof params.cursorCreatedAt === 'number') qs.set('cursorCreatedAt', String(params.cursorCreatedAt));
+	if (params.cursorEntryId) qs.set('cursorEntryId', params.cursorEntryId);
+	return apiJson<ListChatEntriesResponse>(
 		`/chats/${encodeURIComponent(params.chatId)}/entries?${qs.toString()}`,
 	);
 }
@@ -315,6 +347,58 @@ export async function softDeletePart(partId: string): Promise<{ id: string }> {
 	});
 }
 
+export async function undoCanonicalization(partId: string): Promise<{
+	undonePartIds: string[];
+	restoredPartId: string | null;
+	entryId: string;
+}> {
+	return apiJson<{ undonePartIds: string[]; restoredPartId: string | null; entryId: string }>(
+		`/parts/${encodeURIComponent(partId)}/canonicalization-undo`,
+		{
+			method: 'POST',
+			body: JSON.stringify({ by: 'user' }),
+		},
+	);
+}
+
+export type BatchUpdateEntryPartsRequest = {
+	entryId: string;
+	variantId: string;
+	mainPartId: string;
+	orderedPartIds: string[];
+	parts: Array<{
+		partId: string;
+		deleted: boolean;
+		visibility: { ui: 'always' | 'never'; prompt: boolean };
+		payload: string | object | number | boolean | null;
+	}>;
+};
+
+export type BatchUpdateEntryPartsResponse = {
+	entryId: string;
+	variantId: string;
+	mainPartId: string;
+	updatedPartIds: string[];
+	deletedPartIds: string[];
+};
+
+export async function batchUpdateEntryParts(
+	params: BatchUpdateEntryPartsRequest,
+): Promise<BatchUpdateEntryPartsResponse> {
+	return apiJson<BatchUpdateEntryPartsResponse>(
+		`/entries/${encodeURIComponent(params.entryId)}/parts/batch-update`,
+		{
+			method: 'POST',
+			body: JSON.stringify({
+				variantId: params.variantId,
+				mainPartId: params.mainPartId,
+				orderedPartIds: params.orderedPartIds,
+				parts: params.parts,
+			}),
+		},
+	);
+}
+
 export async function setEntryPromptVisibility(params: {
 	entryId: string;
 	includeInPrompt: boolean;
@@ -347,6 +431,17 @@ export async function getLatestWorldInfoActivations(params: {
 	if (params.branchId) qs.set('branchId', params.branchId);
 	return apiJson<LatestWorldInfoActivationsResponse>(
 		`/chats/${encodeURIComponent(params.chatId)}/world-info/latest-activations${qs.toString() ? `?${qs.toString()}` : ''}`,
+	);
+}
+
+export async function getOperationRuntimeState(params: {
+	chatId: string;
+	branchId?: string;
+}): Promise<ChatOperationRuntimeStateDto> {
+	const qs = new URLSearchParams();
+	if (params.branchId) qs.set('branchId', params.branchId);
+	return apiJson<ChatOperationRuntimeStateDto>(
+		`/chats/${encodeURIComponent(params.chatId)}/operation-runtime-state${qs.toString() ? `?${qs.toString()}` : ''}`,
 	);
 }
 

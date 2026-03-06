@@ -50,10 +50,17 @@
 				duplicateEntry: 'Duplicate entry',
 				deleteEntry: 'Delete entry',
 				searchEntries: 'Search entries',
+				pageSizeLabel: 'Page size',
+				shownOfTotal: 'Shown {{shown}} of {{total}}',
 				selectEntry: 'Select an entry to edit',
 				entryTitle: 'Entry #{{id}}',
 				noEntries: 'No entries',
+				noSearchResults: 'No entries match your search',
 				noKeys: 'No keys',
+				actions: {
+					moveUp: 'Move up',
+					moveDown: 'Move down',
+				},
 				tabs: {
 					content: 'Content',
 					matching: 'Matching',

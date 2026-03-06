@@ -1,21 +1,53 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getPartPayloadTextById: vi.fn(),
-  updatePartPayloadText: vi.fn(),
+  getPartWithVariantContextById: vi.fn(),
+  createPart: vi.fn(),
 }));
 
 vi.mock("../../../chat-entry-parts/parts-repository", () => ({
-  getPartPayloadTextById: mocks.getPartPayloadTextById,
-  updatePartPayloadText: mocks.updatePartPayloadText,
+  getPartWithVariantContextById: mocks.getPartWithVariantContextById,
+  createPart: mocks.createPart,
 }));
 
 import { persistUserTurnText } from "./turn-effects";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getPartPayloadTextById.mockResolvedValue("original user text");
-  mocks.updatePartPayloadText.mockResolvedValue(undefined);
+  mocks.getPartWithVariantContextById.mockResolvedValue({
+    ownerId: "global",
+    variantId: "variant-1",
+    entryId: "entry-1",
+    part: {
+      partId: "part-1",
+      channel: "main",
+      order: 0,
+      payload: "original user text",
+      payloadFormat: "markdown",
+      visibility: { ui: "always", prompt: true },
+      ui: { rendererId: "markdown" },
+      prompt: { serializerId: "asText" },
+      lifespan: "infinite",
+      createdTurn: 3,
+      source: "user",
+      tags: [],
+    },
+  });
+  mocks.createPart.mockResolvedValue({
+    partId: "part-2",
+    channel: "main",
+    order: 0,
+    payload: "normalized user text",
+    payloadFormat: "markdown",
+    visibility: { ui: "always", prompt: true },
+    ui: { rendererId: "markdown" },
+    prompt: { serializerId: "asText" },
+    lifespan: "infinite",
+    createdTurn: 3,
+    source: "agent",
+    replacesPartId: "part-1",
+    tags: ["canonicalization"],
+  });
 });
 
 describe("persistUserTurnText", () => {
@@ -23,11 +55,11 @@ describe("persistUserTurnText", () => {
     await expect(persistUserTurnText({ target: undefined, text: "x" })).rejects.toThrow(
       /target is required/
     );
-    expect(mocks.getPartPayloadTextById).not.toHaveBeenCalled();
-    expect(mocks.updatePartPayloadText).not.toHaveBeenCalled();
+    expect(mocks.getPartWithVariantContextById).not.toHaveBeenCalled();
+    expect(mocks.createPart).not.toHaveBeenCalled();
   });
 
-  test("delegates user text update with markdown format and returns previous text", async () => {
+  test("creates replacement part and returns canonicalization metadata", async () => {
     const result = await persistUserTurnText({
       target: {
         mode: "entry_parts",
@@ -37,14 +69,68 @@ describe("persistUserTurnText", () => {
       text: "normalized user text",
     });
 
-    expect(mocks.getPartPayloadTextById).toHaveBeenCalledWith({
+    expect(mocks.getPartWithVariantContextById).toHaveBeenCalledWith({
       partId: "part-1",
     });
-    expect(mocks.updatePartPayloadText).toHaveBeenCalledWith({
-      partId: "part-1",
-      payloadText: "normalized user text",
+    expect(mocks.createPart).toHaveBeenCalledWith({
+      ownerId: "global",
+      variantId: "variant-1",
+      channel: "main",
+      order: 0,
+      payload: "normalized user text",
       payloadFormat: "markdown",
+      schemaId: undefined,
+      label: undefined,
+      visibility: { ui: "always", prompt: true },
+      ui: { rendererId: "markdown" },
+      prompt: { serializerId: "asText" },
+      lifespan: "infinite",
+      createdTurn: 3,
+      source: "agent",
+      agentId: undefined,
+      model: undefined,
+      requestId: undefined,
+      replacesPartId: "part-1",
+      tags: ["canonicalization"],
     });
-    expect(result).toEqual({ previousText: "original user text" });
+    expect(result).toEqual({
+      previousText: "original user text",
+      replacedPartId: "part-1",
+      canonicalPartId: "part-2",
+      userEntryId: "entry-1",
+    });
+  });
+
+  test("throws when part context does not match user target", async () => {
+    mocks.getPartWithVariantContextById.mockResolvedValueOnce({
+      ownerId: "global",
+      variantId: "variant-1",
+      entryId: "entry-other",
+      part: {
+        partId: "part-1",
+        channel: "main",
+        order: 0,
+        payload: "original user text",
+        payloadFormat: "markdown",
+        visibility: { ui: "always", prompt: true },
+        ui: { rendererId: "markdown" },
+        prompt: { serializerId: "asText" },
+        lifespan: "infinite",
+        createdTurn: 3,
+        source: "user",
+      },
+    });
+
+    await expect(
+      persistUserTurnText({
+        target: {
+          mode: "entry_parts",
+          userEntryId: "entry-1",
+          userMainPartId: "part-1",
+        },
+        text: "normalized user text",
+      })
+    ).rejects.toThrow(/entry mismatch/);
+    expect(mocks.createPart).not.toHaveBeenCalled();
   });
 });

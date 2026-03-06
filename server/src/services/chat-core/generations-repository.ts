@@ -1,12 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import {
   safeJsonParse,
   safeJsonStringify,
   safeJsonStringifyForLog,
 } from "../../chat-core/json";
-import { initDb } from "../../db/client";
+import { type DbExecutor, initDb } from "../../db/client";
 import { llmGenerations } from "../../db/schema";
 
 export type GenerationStatus = "streaming" | "done" | "aborted" | "error";
@@ -126,21 +126,34 @@ export async function getActiveGenerationForChatBranch(params: {
   return rows[0] ? rowToDto(rows[0]) : null;
 }
 
-export async function finishGeneration(params: {
+type FinishGenerationParams = {
   id: string;
   status: GenerationStatus;
   error?: string | null;
-}): Promise<void> {
-  const db = await initDb();
-  const finishedAt = new Date();
-  await db
-    .update(llmGenerations)
-    .set({
-      status: params.status,
-      finishedAt,
-      error: params.error ?? null,
-    })
-    .where(eq(llmGenerations.id, params.id));
+  executor?: DbExecutor;
+};
+
+export function finishGeneration(params: FinishGenerationParams & { executor: DbExecutor }): void;
+export function finishGeneration(params: FinishGenerationParams): Promise<void>;
+export function finishGeneration(params: FinishGenerationParams): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    const finishedAt = new Date();
+    db
+      .update(llmGenerations)
+      .set({
+        status: params.status,
+        finishedAt,
+        error: params.error ?? null,
+      })
+      .where(eq(llmGenerations.id, params.id))
+      .run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
+  }
+
+  return initDb().then((db) => run(db));
 }
 
 export async function updateGenerationPromptData(params: {
@@ -173,36 +186,54 @@ export async function getGenerationByIdWithDebug(
   return rows[0] ? rowToWithDebugDto(rows[0]) : null;
 }
 
-export async function updateGenerationRunReports(params: {
+type UpdateGenerationRunReportsParams = {
   id: string;
   phaseReport?: unknown | null;
   commitReport?: unknown | null;
-}): Promise<void> {
-  const db = await initDb();
-  const set: Partial<typeof llmGenerations.$inferInsert> = {};
+  executor?: DbExecutor;
+};
 
-  if (typeof params.phaseReport !== "undefined") {
-    set.phaseReportJson =
-      params.phaseReport === null
-        ? null
-        : safeJsonStringifyForLog(params.phaseReport, {
-            maxChars: 120_000,
-            fallback: "[]",
-          });
+export function updateGenerationRunReports(
+  params: UpdateGenerationRunReportsParams & { executor: DbExecutor }
+): void;
+export function updateGenerationRunReports(
+  params: UpdateGenerationRunReportsParams
+): Promise<void>;
+export function updateGenerationRunReports(
+  params: UpdateGenerationRunReportsParams
+): Promise<void> | void {
+  const run = (db: DbExecutor): void => {
+    const set: Partial<typeof llmGenerations.$inferInsert> = {};
+
+    if (typeof params.phaseReport !== "undefined") {
+      set.phaseReportJson =
+        params.phaseReport === null
+          ? null
+          : safeJsonStringifyForLog(params.phaseReport, {
+              maxChars: 120_000,
+              fallback: "[]",
+            });
+    }
+
+    if (typeof params.commitReport !== "undefined") {
+      set.commitReportJson =
+        params.commitReport === null
+          ? null
+          : safeJsonStringifyForLog(params.commitReport, {
+              maxChars: 120_000,
+              fallback: "[]",
+            });
+    }
+
+    if (Object.keys(set).length === 0) return;
+    db.update(llmGenerations).set(set).where(eq(llmGenerations.id, params.id)).run();
+  };
+
+  if (params.executor) {
+    return run(params.executor);
   }
 
-  if (typeof params.commitReport !== "undefined") {
-    set.commitReportJson =
-      params.commitReport === null
-        ? null
-        : safeJsonStringifyForLog(params.commitReport, {
-            maxChars: 120_000,
-            fallback: "[]",
-          });
-  }
-
-  if (Object.keys(set).length === 0) return;
-  await db.update(llmGenerations).set(set).where(eq(llmGenerations.id, params.id));
+  return initDb().then((db) => run(db));
 }
 
 export async function updateGenerationDebugJson(params: {

@@ -1,4 +1,4 @@
-import { Group, Stack } from '@mantine/core';
+import { Group, Stack, Text } from '@mantine/core';
 import React, { useMemo } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -90,6 +90,25 @@ export const ExecutionSection: React.FC<Props> = ({ index }) => {
 					}}
 				/>
 			</Group>
+
+			<Group grow wrap="wrap">
+				<FormNumberInput
+					name={`operations.${index}.config.activation.everyNTurns`}
+					label={t('operationProfiles.sectionsLabels.activationEveryNTurns')}
+					infoTip={t('operationProfiles.tooltips.activationEveryNTurns')}
+					numberInputProps={{ min: 0 }}
+				/>
+				<FormNumberInput
+					name={`operations.${index}.config.activation.everyNContextTokens`}
+					label={t('operationProfiles.sectionsLabels.activationEveryNContextTokens')}
+					infoTip={t('operationProfiles.tooltips.activationEveryNContextTokens')}
+					numberInputProps={{ min: 0, step: 100 }}
+				/>
+			</Group>
+
+			<Text size="xs" c="dimmed">
+				{t('operationProfiles.execution.activationRule')}
+			</Text>
 		</Stack>
 	);
 };

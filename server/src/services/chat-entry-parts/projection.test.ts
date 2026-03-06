@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPromptProjection, getUiProjection } from "./projection";
+import { getPromptProjection, getPromptProjectionWithEntryIds, getUiProjection } from "./projection";
 import { serializePart } from "./prompt-serializers";
 
 import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
@@ -103,6 +103,23 @@ describe("chat-entry-parts projection", () => {
     expect(visible.map((p) => p.partId)).toEqual(["r2"]);
   });
 
+  it("ignores soft-deleted replacers when choosing active projection", () => {
+    const entry = mkEntry({ entryId: "e1", role: "assistant" });
+    const orig = mkPart({ partId: "orig", channel: "main", order: 0, payload: "A", createdTurn: 0 });
+    const repl = mkPart({
+      partId: "repl",
+      channel: "main",
+      order: 0,
+      payload: "B",
+      replacesPartId: "orig",
+      createdTurn: 2,
+      softDeleted: true,
+    });
+    const variant = mkVariant({ variantId: "v1", entryId: "e1", parts: [orig, repl] });
+    const visible = getUiProjection(entry, variant, 10, { debugEnabled: false });
+    expect(visible.map((p) => p.partId)).toEqual(["orig"]);
+  });
+
   it("includes only prompt-visible parts in prompt projection", () => {
     const entry = mkEntry({ entryId: "e1", role: "user" });
     const variant = mkVariant({
@@ -135,6 +152,51 @@ describe("chat-entry-parts projection", () => {
     expect(msgs).toEqual([{ role: "user", content: "hello" }]);
   });
 
+  it("returns entry ids for prompt-visible messages", () => {
+    const userEntry = mkEntry({ entryId: "e-user", role: "user" });
+    const assistantEntry = mkEntry({ entryId: "e-assistant", role: "assistant", createdAt: userEntry.createdAt + 1 });
+    const userVariant = mkVariant({
+      variantId: "v-user",
+      entryId: "e-user",
+      parts: [
+        mkPart({
+          partId: "user-main",
+          channel: "main",
+          order: 0,
+          payload: "hello",
+          visibility: { ui: "always", prompt: true },
+        }),
+      ],
+    });
+    const assistantVariant = mkVariant({
+      variantId: "v-assistant",
+      entryId: "e-assistant",
+      parts: [
+        mkPart({
+          partId: "assistant-main",
+          channel: "main",
+          order: 0,
+          payload: "hi",
+          visibility: { ui: "always", prompt: true },
+        }),
+      ],
+    });
+
+    const projected = getPromptProjectionWithEntryIds({
+      entries: [
+        { entry: userEntry, variant: userVariant },
+        { entry: assistantEntry, variant: assistantVariant },
+      ],
+      currentTurn: 0,
+      serializePart,
+    });
+
+    expect(projected).toEqual([
+      { entryId: "e-user", role: "user", content: "hello" },
+      { entryId: "e-assistant", role: "assistant", content: "hi" },
+    ]);
+  });
+
   it("excludes entries marked as excludedFromPrompt from prompt projection", () => {
     const entry = mkEntry({
       entryId: "e1",
@@ -162,6 +224,79 @@ describe("chat-entry-parts projection", () => {
     });
 
     expect(msgs).toEqual([]);
+  });
+
+  it("excludes entries marked as excludedFromPrompt from projection with entry ids", () => {
+    const entry = mkEntry({
+      entryId: "e1",
+      role: "assistant",
+      meta: { excludedFromPrompt: true },
+    });
+    const variant = mkVariant({
+      variantId: "v1",
+      entryId: "e1",
+      parts: [
+        mkPart({
+          partId: "main",
+          channel: "main",
+          order: 0,
+          payload: "hidden",
+          visibility: { ui: "always", prompt: true },
+        }),
+      ],
+    });
+
+    const projected = getPromptProjectionWithEntryIds({
+      entries: [{ entry, variant }],
+      currentTurn: 0,
+      serializePart,
+    });
+
+    expect(projected).toEqual([]);
+  });
+
+  it("applies replacement and ttl filters in projection with entry ids", () => {
+    const entry = mkEntry({ entryId: "e1", role: "assistant" });
+    const variant = mkVariant({
+      variantId: "v1",
+      entryId: "e1",
+      parts: [
+        mkPart({
+          partId: "old-main",
+          channel: "main",
+          order: 0,
+          payload: "old",
+          createdTurn: 1,
+          visibility: { ui: "always", prompt: true },
+        }),
+        mkPart({
+          partId: "new-main",
+          channel: "main",
+          order: 0,
+          payload: "new",
+          createdTurn: 2,
+          replacesPartId: "old-main",
+          visibility: { ui: "always", prompt: true },
+        }),
+        mkPart({
+          partId: "ttl-expired",
+          channel: "aux",
+          order: 10,
+          payload: "expired",
+          createdTurn: 0,
+          lifespan: { turns: 1 },
+          visibility: { ui: "always", prompt: true },
+        }),
+      ],
+    });
+
+    const projected = getPromptProjectionWithEntryIds({
+      entries: [{ entry, variant }],
+      currentTurn: 5,
+      serializePart,
+    });
+
+    expect(projected).toEqual([{ entryId: "e1", role: "assistant", content: "new" }]);
   });
 });
 

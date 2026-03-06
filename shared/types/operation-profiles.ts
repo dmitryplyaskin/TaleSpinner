@@ -97,15 +97,27 @@ export type OperationTemplateParams = {
 
 export type LlmOperationRetryOn = "timeout" | "provider_error" | "rate_limit";
 export type LlmJsonParseMode = "raw" | "markdown_code_block" | "custom_regex";
+export type LlmOperationReasoningEffort = "low" | "medium" | "high";
+
+export type LlmOperationReasoning = {
+  enabled?: boolean;
+  effort?: LlmOperationReasoningEffort;
+  maxTokens?: number;
+  exclude?: boolean;
+};
 
 export type LlmOperationSamplers = {
   temperature?: number;
   topP?: number;
   topK?: number;
+  minP?: number;
+  topA?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
+  repetitionPenalty?: number;
   seed?: number;
   maxTokens?: number;
+  reasoning?: LlmOperationReasoning;
 };
 
 export type LlmOperationRetry = {
@@ -144,11 +156,17 @@ export type OperationOtherKindParams<TParams extends Record<string, unknown> = R
 
 export type OperationParams = OperationTemplateParams | OperationOtherKindParams;
 
+export type OperationActivationConfig = {
+  everyNTurns?: number;
+  everyNContextTokens?: number;
+};
+
 export type OperationConfig<TParams extends OperationParams = OperationParams> = {
   enabled: boolean;
   required: boolean;
   hooks: OperationHook[];
   triggers?: OperationTrigger[];
+  activation?: OperationActivationConfig;
   order: number;
   dependsOn?: string[]; // list of opId
   params: TParams;
@@ -184,6 +202,42 @@ export type NonTemplateOperationInProfile =
 
 export type OperationInProfile = TemplateOperationInProfile | NonTemplateOperationInProfile;
 
+export type OperationBlock = {
+  blockId: string; // UUID
+  ownerId: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  version: number;
+  operations: OperationInProfile[];
+  meta: unknown | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type OperationBlockUpsertInput = {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  operations: OperationInProfile[];
+  meta?: unknown;
+};
+
+export type OperationBlockExport = {
+  blockId?: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  operations: OperationInProfile[];
+  meta?: unknown;
+};
+
+export type OperationProfileBlockRef = {
+  blockId: string; // UUID
+  enabled: boolean;
+  order: number;
+};
+
 export type OperationProfile = {
   profileId: string; // UUID
   ownerId: string;
@@ -193,7 +247,12 @@ export type OperationProfile = {
   executionMode: OperationExecutionMode;
   operationProfileSessionId: string; // UUID (resettable)
   version: number;
-  operations: OperationInProfile[];
+  /**
+   * Runtime-only flattened operations snapshot.
+   * Persisted profile data uses `blockRefs`.
+   */
+  operations?: OperationInProfile[];
+  blockRefs: OperationProfileBlockRef[];
   meta: unknown | null;
   createdAt: Date;
   updatedAt: Date;
@@ -205,11 +264,29 @@ export type OperationProfileUpsertInput = {
   enabled: boolean;
   executionMode: OperationExecutionMode;
   operationProfileSessionId: string;
-  operations: OperationInProfile[];
+  blockRefs: OperationProfileBlockRef[];
   meta?: unknown;
 };
 
-export type OperationProfileExport = {
+export type OperationProfileBundleProfile = {
+  profileId?: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  executionMode: OperationExecutionMode;
+  operationProfileSessionId: string;
+  blockRefs: OperationProfileBlockRef[];
+  meta?: unknown;
+};
+
+export type OperationProfileExportV2 = {
+  type: "operation_profile_bundle";
+  version: 2;
+  profile: OperationProfileBundleProfile;
+  blocks: OperationBlockExport[];
+};
+
+export type OperationProfileLegacyExportV1 = {
   // `profileId` is intentionally optional on import.
   profileId?: string;
   name: string;
@@ -220,6 +297,8 @@ export type OperationProfileExport = {
   operations: OperationInProfile[];
   meta?: unknown;
 };
+
+export type OperationProfileExport = OperationProfileExportV2;
 
 export type OperationProfileSettings = {
   activeProfileId: string | null;

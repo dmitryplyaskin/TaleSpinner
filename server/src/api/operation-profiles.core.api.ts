@@ -5,7 +5,22 @@ import { asyncHandler } from "@core/middleware/async-handler";
 import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 
+import { exportOperationProfileBundle } from "../application/operations/use-cases/export-operation-profile";
+import { importOperationProfiles } from "../application/operations/use-cases/import-operation-profiles";
+import { setActiveOperationProfileWithValidation } from "../application/operations/use-cases/set-active-operation-profile";
 import { idSchema, jsonValueSchema, ownerIdSchema } from "../chat-core/schemas";
+import { getRequestOwnerId } from "../core/request-context/request-context";
+import {
+  createOperationBlock,
+  getOperationBlockById,
+  listOperationBlocks,
+  resolveImportedOperationBlockName,
+} from "../services/operations/operation-blocks-repository";
+import {
+  getOperationProfileSettings,
+  setActiveOperationProfile,
+} from "../services/operations/operation-profile-settings-repository";
+import { validateOperationProfileImport } from "../services/operations/operation-profile-validator";
 import {
   createOperationProfile,
   deleteOperationProfile,
@@ -13,11 +28,6 @@ import {
   listOperationProfiles,
   updateOperationProfile,
 } from "../services/operations/operation-profiles-repository";
-import {
-  getOperationProfileSettings,
-  setActiveOperationProfile,
-} from "../services/operations/operation-profile-settings-repository";
-import { validateOperationProfileImport } from "../services/operations/operation-profile-validator";
 
 const router = express.Router();
 
@@ -33,10 +43,20 @@ const updateBodySchema = z.object({
   patch: jsonValueSchema,
 });
 
+function resolveImportedProfileName(input: string, existingNames: string[]): string {
+  const base = input.trim() || "Imported profile";
+  if (!existingNames.includes(base)) return base;
+  for (let idx = 2; idx <= 9999; idx += 1) {
+    const candidate = `${base} (imported ${idx})`;
+    if (!existingNames.includes(candidate)) return candidate;
+  }
+  return `${base} (imported ${Date.now()})`;
+}
+
 router.get(
   "/operation-profiles",
-  asyncHandler(async () => {
-    const items = await listOperationProfiles({ ownerId: "global" });
+  asyncHandler(async (req: Request) => {
+    const items = await listOperationProfiles({ ownerId: getRequestOwnerId(req) });
     return { data: items };
   })
 );
@@ -46,7 +66,7 @@ router.post(
   validate({ body: createBodySchema }),
   asyncHandler(async (req: Request) => {
     const created = await createOperationProfile({
-      ownerId: req.body.ownerId,
+      ownerId: getRequestOwnerId(req, req.body.ownerId),
       input: req.body.input,
     });
     return { data: created };
@@ -72,16 +92,9 @@ router.put(
   validate({ body: setActiveBodySchema }),
   asyncHandler(async (req: Request) => {
     const body = setActiveBodySchema.parse(req.body);
-    if (body.activeProfileId !== null) {
-      const exists = await getOperationProfileById(body.activeProfileId);
-      if (!exists) {
-        throw new HttpError(404, "OperationProfile не найден", "NOT_FOUND");
-      }
-    }
-    const updated = await setActiveOperationProfile({
-      activeProfileId: body.activeProfileId,
-    });
-    return { data: updated };
+    return {
+      data: await setActiveOperationProfileWithValidation(body.activeProfileId),
+    };
   })
 );
 
@@ -102,7 +115,7 @@ router.put(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const updated = await updateOperationProfile({
-      ownerId: req.body.ownerId,
+      ownerId: getRequestOwnerId(req, req.body.ownerId),
       profileId: params.id,
       patch: req.body.patch,
     });
@@ -118,7 +131,7 @@ router.delete(
     const params = req.params as unknown as { id: string };
     const exists = await getOperationProfileById(params.id);
     if (!exists) throw new HttpError(404, "OperationProfile не найден", "NOT_FOUND");
-    await deleteOperationProfile({ ownerId: "global", profileId: params.id });
+    await deleteOperationProfile({ ownerId: getRequestOwnerId(req), profileId: params.id });
     return { data: { id: params.id } };
   })
 );
@@ -130,20 +143,7 @@ router.get(
   validate({ params: idParamsSchema }),
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
-    const item = await getOperationProfileById(params.id);
-    if (!item) throw new HttpError(404, "OperationProfile не найден", "NOT_FOUND");
-    return {
-      data: {
-        profileId: item.profileId,
-        name: item.name,
-        description: item.description,
-        enabled: item.enabled,
-        executionMode: item.executionMode,
-        operationProfileSessionId: item.operationProfileSessionId,
-        operations: item.operations,
-        meta: item.meta ?? undefined,
-      },
-    };
+    return { data: await exportOperationProfileBundle(params.id) };
   })
 );
 
@@ -156,21 +156,15 @@ router.post(
   "/operation-profiles/import",
   validate({ body: importBodySchema }),
   asyncHandler(async (req: Request) => {
-    const ownerId = req.body.ownerId ?? "global";
     const rawItems: unknown[] = Array.isArray(req.body.items)
       ? (req.body.items as unknown[])
       : [req.body.items as unknown];
-
-    const created = [];
-    for (const raw of rawItems) {
-      const validated = validateOperationProfileImport(raw);
-      const profile = await createOperationProfile({
-        ownerId,
-        input: validated,
-      });
-      created.push(profile);
-    }
-    return { data: { created } };
+    return {
+      data: await importOperationProfiles({
+        ownerId: getRequestOwnerId(req, req.body.ownerId),
+        items: rawItems,
+      }),
+    };
   })
 );
 

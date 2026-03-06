@@ -33,6 +33,7 @@
   --ts-message-user-border: rgba(22, 88, 108, 0.28);
   --ts-message-assistant-name: #185f70;
   --ts-message-user-name: #0e4f62;
+  --ts-message-token-color: #ffffff;
   --ts-chat-avatar-preview-bg: rgba(250, 252, 253, 0.86);
   --ts-sidebar-card-bg: rgba(255, 255, 255, 0.92);
   --ts-sidebar-card-hover-border: rgba(18, 77, 95, 0.34);
@@ -95,6 +96,7 @@
   --ts-message-user-border: rgba(112, 164, 191, 0.34);
   --ts-message-assistant-name: #b6d9ea;
   --ts-message-user-name: #9fd0e6;
+  --ts-message-token-color: #ffffff;
   --ts-chat-avatar-preview-bg: rgba(22, 26, 32, 0.9);
   --ts-sidebar-card-bg: rgba(26, 31, 37, 0.92);
   --ts-sidebar-card-hover-border: rgba(104, 160, 189, 0.36);
@@ -152,7 +154,6 @@ a {
   color: inherit;
 }
 
-.mantine-Modal-content,
 .mantine-Drawer-content {
   background: var(--ts-surface);
 }
@@ -278,7 +279,7 @@ a {
   min-height: 0;
   overflow-y: auto;
   border: 1px solid var(--ts-border-soft);
-  border-radius: 18px;
+  border-radius: 0;
   background: linear-gradient(180deg, var(--ts-chat-scroll-bg-top), var(--ts-chat-scroll-bg-bottom));
   backdrop-filter: blur(5px);
   box-shadow: var(--ts-shadow-strong);
@@ -298,14 +299,24 @@ a {
 }
 
 .ts-chat-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
   padding: 12px 2px 4px;
 }
 
 .ts-chat-composer-wrap {
   position: sticky;
   bottom: 6px;
+  margin-top: auto;
   z-index: 4;
   padding-top: 14px;
+}
+
+.ts-chat-unseen-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
 }
 
 .ts-bulk-delete-toolbar {
@@ -339,7 +350,9 @@ a {
 }
 
 .ts-message-avatar--user {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  flex-direction: column;
+  align-items: center;
 }
 
 .ts-message-bulk-checkbox-wrap {
@@ -351,6 +364,20 @@ a {
 
 .ts-message-avatar-clickable {
   cursor: zoom-in;
+}
+
+.ts-message-avatar-tokens {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ts-message-token-color);
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .ts-message-card {
@@ -392,6 +419,12 @@ a {
 
 .ts-message-meta {
   opacity: 0.72;
+}
+
+.ts-message-mobile-tokens {
+  display: none;
+  opacity: 0.85;
+  color: var(--ts-message-token-color);
 }
 
 .ts-message-body {
@@ -688,6 +721,10 @@ a {
   .ts-message-avatar,
   .ts-message-avatar-spacer {
     display: none;
+  }
+
+  .ts-message-mobile-tokens {
+    display: block;
   }
 
   .ts-chat-header {

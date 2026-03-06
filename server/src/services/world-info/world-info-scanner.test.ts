@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { DEFAULT_WORLD_INFO_ENTRY, buildDefaultWorldInfoSettings } from "./world-info-defaults";
 import { scanWorldInfoEntries } from "./world-info-scanner";
+
 import type { PreparedWorldInfoEntry, WorldInfoSettingsDto } from "./world-info-types";
 
 function settings(patch: Partial<WorldInfoSettingsDto> = {}): WorldInfoSettingsDto {

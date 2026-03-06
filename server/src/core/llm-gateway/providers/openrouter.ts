@@ -1,10 +1,11 @@
+import { OpenAiCompatibleProvider } from "./openai-compatible";
+
 import type {
   LlmGatewayProviderRequest,
   LlmGatewayResult,
   LlmGatewayStreamEvent,
   LlmProviderAdapter,
 } from "../types";
-import { OpenAiCompatibleProvider } from "./openai-compatible";
 
 export class OpenRouterProvider implements LlmProviderAdapter {
   readonly id = "openrouter";

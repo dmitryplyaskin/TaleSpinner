@@ -1,14 +1,14 @@
-import { buildPromptDraft } from "../../chat-core/prompt-draft-builder";
 import {
   getTsInstructionMeta,
   resolveStAdvancedInstructionRuntime,
 } from "../../chat-core/instruction-st-preset";
+import { pickInstructionForChat } from "../../chat-core/instructions-repository";
+import { buildPromptDraft } from "../../chat-core/prompt-draft-builder";
 import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../../chat-core/prompt-template-context";
 import { renderLiquidTemplate } from "../../chat-core/prompt-template-renderer";
-import { pickInstructionForChat } from "../../chat-core/instructions-repository";
 
 import type {
   InstructionResolvedWorldInfo,

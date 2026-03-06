@@ -15,7 +15,7 @@ import {
 import {
   getProviderConfig,
   getRuntime,
-  getTokenPlaintext,
+  getTokenPlaintextResult,
   listProviders,
   listTokens,
   touchTokenLastUsed,
@@ -24,6 +24,7 @@ import {
 } from "./llm-repository";
 
 import type { GenerateMessage } from "@shared/types/generate";
+import type { LlmProviderConnectionCheckResult } from "@shared/types/llm";
 
 export async function getRuntimeOrThrow(
   scope: LlmScope,
@@ -105,6 +106,22 @@ function buildTokenAttemptOrder(params: {
   return ordered;
 }
 
+function describeTokenLookupFailure(params: {
+  tokenId: string;
+  activeTokenId: string | null;
+  result: Awaited<ReturnType<typeof getTokenPlaintextResult>>;
+}): string {
+  if (params.result.status === "decrypt_failed") {
+    return params.activeTokenId === params.tokenId
+      ? "Active token cannot be decrypted with current TOKENS_MASTER_KEY"
+      : `Token cannot be decrypted with current TOKENS_MASTER_KEY: ${params.tokenId}`;
+  }
+
+  return params.activeTokenId === params.tokenId
+    ? "Active token not found"
+    : `Token not found: ${params.tokenId}`;
+}
+
 async function fetchModelsWithRetry(
   url: string,
   headers: Record<string, string>
@@ -129,6 +146,137 @@ async function fetchModelsWithRetry(
   }
 
   throw lastError;
+}
+
+function buildConnectionCheckResult(
+  params: LlmProviderConnectionCheckResult
+): LlmProviderConnectionCheckResult {
+  return params;
+}
+
+function readProviderErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === "number" && Number.isFinite(response.status)
+    ? response.status
+    : null;
+}
+
+function readProviderErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && code.trim().length > 0 ? code : null;
+}
+
+function readProviderErrorMessage(error: unknown): string | null {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  if (!error || typeof error !== "object") return null;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && message.trim().length > 0 ? message : null;
+}
+
+function buildProviderConnectivityFailure(params: {
+  providerId: LlmProviderId;
+  checkedUrl: string | null;
+  resolvedBaseUrl: string | null;
+  issueCode: LlmProviderConnectionCheckResult["issueCode"];
+  message: string;
+  hints?: string[];
+  statusCode?: number | null;
+}): LlmProviderConnectionCheckResult {
+  return buildConnectionCheckResult({
+    ok: false,
+    providerId: params.providerId,
+    issueCode: params.issueCode,
+    message: params.message,
+    hints: params.hints ?? [],
+    checkedUrl: params.checkedUrl,
+    resolvedBaseUrl: params.resolvedBaseUrl,
+    statusCode: params.statusCode ?? null,
+    modelCount: 0,
+  });
+}
+
+function describeProviderConnectivityError(params: {
+  providerId: LlmProviderId;
+  checkedUrl: string;
+  resolvedBaseUrl: string | null;
+  error: unknown;
+}): LlmProviderConnectionCheckResult {
+  const statusCode = readProviderErrorStatus(params.error);
+  const errorCode = readProviderErrorCode(params.error);
+  const rawMessage = readProviderErrorMessage(params.error);
+
+  if (statusCode === 401 || statusCode === 403) {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: params.checkedUrl,
+      resolvedBaseUrl: params.resolvedBaseUrl,
+      issueCode: "AUTH_ERROR",
+      statusCode,
+      message:
+        "Provider rejected the selected token while requesting the models endpoint.",
+      hints: [
+        "Check that the selected token belongs to this provider and is still valid.",
+        "If you use a custom OpenAI-compatible backend, verify the backend expects Bearer auth.",
+      ],
+    });
+  }
+
+  if (statusCode === 404) {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: params.checkedUrl,
+      resolvedBaseUrl: params.resolvedBaseUrl,
+      issueCode: "ENDPOINT_NOT_FOUND",
+      statusCode,
+      message:
+        "Models endpoint was not found. Check Base URL and ensure it points to the API root.",
+      hints: [
+        "For OpenAI-compatible backends the Base URL usually ends with /v1.",
+        "The provider must expose GET /models on that base URL.",
+      ],
+    });
+  }
+
+  if (
+    errorCode === "ECONNREFUSED" ||
+    errorCode === "ENOTFOUND" ||
+    errorCode === "ECONNABORTED" ||
+    errorCode === "ETIMEDOUT"
+  ) {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: params.checkedUrl,
+      resolvedBaseUrl: params.resolvedBaseUrl,
+      issueCode: "NETWORK_ERROR",
+      message:
+        rawMessage ??
+        "Could not reach the provider models endpoint with the current Base URL.",
+      hints: [
+        "Check Base URL, port, and that the provider server is running.",
+        "If you use a custom OpenAI-compatible backend, the Base URL usually ends with /v1.",
+      ],
+    });
+  }
+
+  return buildProviderConnectivityFailure({
+    providerId: params.providerId,
+    checkedUrl: params.checkedUrl,
+    resolvedBaseUrl: params.resolvedBaseUrl,
+    issueCode: "PROVIDER_ERROR",
+    statusCode,
+    message:
+      rawMessage ??
+      (statusCode
+        ? `Provider request failed with HTTP ${statusCode}.`
+        : "Provider request failed."),
+    hints: statusCode
+      ? [`Provider returned HTTP ${statusCode} while requesting /models.`]
+      : [],
+  });
 }
 
 async function touchTokenLastUsedThrottled(tokenId: string): Promise<void> {
@@ -158,10 +306,11 @@ export async function getModels(params: {
     return [];
   }
 
-  const token = await getTokenPlaintext(tokenId);
-  if (!token) {
+  const tokenResult = await getTokenPlaintextResult(tokenId);
+  if (tokenResult.status !== "ok") {
     return [];
   }
+  const token = tokenResult.plaintext;
 
   const config = await getProviderConfig(params.providerId);
   try {
@@ -200,6 +349,162 @@ export async function getModels(params: {
   }
 }
 
+export async function checkProviderConnection(params: {
+  providerId: LlmProviderId;
+  scope: LlmScope;
+  scopeId: string;
+  tokenId?: string | null;
+  configOverride?: unknown;
+}): Promise<LlmProviderConnectionCheckResult> {
+  const runtime = await getRuntime(params.scope, params.scopeId);
+  const tokenId = params.tokenId ?? runtime.activeTokenId;
+
+  if (!tokenId) {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: null,
+      resolvedBaseUrl: null,
+      issueCode: "TOKEN_MISSING",
+      message: "Select a token before checking provider connectivity.",
+      hints: ["Open token manager or choose an existing token in the provider runtime section."],
+    });
+  }
+
+  const tokenResult = await getTokenPlaintextResult(tokenId);
+  if (tokenResult.status === "decrypt_failed") {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: null,
+      resolvedBaseUrl: null,
+      issueCode: "TOKEN_DECRYPT_FAILED",
+      message:
+        "Selected token cannot be decrypted with the current TOKENS_MASTER_KEY.",
+      hints: ["Re-save the token with the current backend key or restore the original TOKENS_MASTER_KEY."],
+    });
+  }
+
+  if (tokenResult.status !== "ok") {
+    return buildProviderConnectivityFailure({
+      providerId: params.providerId,
+      checkedUrl: null,
+      resolvedBaseUrl: null,
+      issueCode: "TOKEN_NOT_FOUND",
+      message: "Selected token was not found.",
+      hints: ["Pick another token or recreate the missing token in token manager."],
+    });
+  }
+
+  const rawConfig =
+    typeof params.configOverride === "undefined"
+      ? (await getProviderConfig(params.providerId)).config
+      : params.configOverride;
+
+  let checkedUrl: string | null = null;
+  let resolvedBaseUrl: string | null = null;
+  let headers: Record<string, string>;
+
+  if (params.providerId === "openrouter") {
+    const parsed = openRouterConfigSchema.safeParse(rawConfig ?? {});
+    if (!parsed.success) {
+      return buildProviderConnectivityFailure({
+        providerId: params.providerId,
+        checkedUrl: null,
+        resolvedBaseUrl: "https://openrouter.ai/api/v1",
+        issueCode: "CONFIG_INVALID",
+        message: "OpenRouter provider config is invalid.",
+      });
+    }
+    resolvedBaseUrl = "https://openrouter.ai/api/v1";
+    checkedUrl = `${resolvedBaseUrl}/models`;
+    headers = {
+      "HTTP-Referer": "http://localhost:5000",
+      "X-Title": "TaleSpinner",
+      Authorization: `Bearer ${tokenResult.plaintext}`,
+    };
+  } else {
+    const parsed = openAiCompatibleConfigSchema.safeParse(rawConfig ?? {});
+    if (!parsed.success) {
+      return buildProviderConnectivityFailure({
+        providerId: params.providerId,
+        checkedUrl: null,
+        resolvedBaseUrl: null,
+        issueCode: "BASE_URL_MISSING",
+        message: "Base URL is required for the OpenAI-compatible provider.",
+        hints: [
+          "Use the API root of your provider, for example http://localhost:1234/v1.",
+          "Do not paste /chat/completions or another leaf endpoint into Base URL.",
+        ],
+      });
+    }
+
+    const providerSpec = resolveGatewayProviderSpec({
+      providerId: params.providerId,
+      token: tokenResult.plaintext,
+      providerConfig: parsed.data,
+    });
+
+    resolvedBaseUrl = providerSpec.baseUrl ?? null;
+    if (!resolvedBaseUrl) {
+      return buildProviderConnectivityFailure({
+        providerId: params.providerId,
+        checkedUrl: null,
+        resolvedBaseUrl: null,
+        issueCode: "BASE_URL_MISSING",
+        message: "Base URL is required for the OpenAI-compatible provider.",
+        hints: [
+          "Use the API root of your provider, for example http://localhost:1234/v1.",
+          "Do not paste /chat/completions or another leaf endpoint into Base URL.",
+        ],
+      });
+    }
+    checkedUrl = `${resolvedBaseUrl}/models`;
+    headers = {
+      Authorization: `Bearer ${tokenResult.plaintext}`,
+    };
+  }
+
+  try {
+    const response = await axios.get(checkedUrl, {
+      headers,
+      timeout: MODELS_REQUEST_TIMEOUT_MS,
+    });
+    const rawModels = Array.isArray(response.data?.data)
+      ? (response.data.data as Array<{ id?: unknown; name?: unknown }>)
+      : [];
+    const modelCount = rawModels.filter(
+      (item) => typeof item?.id === "string" && item.id.length > 0
+    ).length;
+
+    return buildConnectionCheckResult({
+      ok: true,
+      providerId: params.providerId,
+      issueCode: null,
+      message:
+        modelCount > 0
+          ? `Provider connection is working. Models endpoint returned ${modelCount} models.`
+          : "Provider connection is working, but the models endpoint returned an empty list.",
+      hints:
+        modelCount > 0
+          ? []
+          : ["The provider responded successfully, but no models were returned for this token."],
+      checkedUrl,
+      resolvedBaseUrl,
+      statusCode:
+        typeof response.status === "number" && Number.isFinite(response.status)
+          ? response.status
+          : null,
+      modelCount,
+    });
+  } catch (error) {
+    return describeProviderConnectivityError({
+      providerId: params.providerId,
+      checkedUrl,
+      resolvedBaseUrl,
+      error,
+    });
+  }
+}
+
 export async function* streamGlobalChat(params: {
   messages: GenerateMessage[];
   settings: Record<string, unknown>;
@@ -233,14 +538,16 @@ export async function* streamGlobalChat(params: {
     if (abortSignal?.aborted) return;
 
     const tokenId = attemptOrder[index];
-    const token = await getTokenPlaintext(tokenId);
-    if (!token) {
-      lastError =
-        runtime.activeTokenId === tokenId
-          ? "Active token not found"
-          : `Token not found: ${tokenId}`;
+    const tokenResult = await getTokenPlaintextResult(tokenId);
+    if (tokenResult.status !== "ok") {
+      lastError = describeTokenLookupFailure({
+        tokenId,
+        activeTokenId: runtime.activeTokenId,
+        result: tokenResult,
+      });
       continue;
     }
+    const token = tokenResult.plaintext;
 
     await touchTokenLastUsedThrottled(tokenId);
 
