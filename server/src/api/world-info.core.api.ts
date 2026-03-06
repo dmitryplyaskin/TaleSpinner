@@ -6,7 +6,10 @@ import { asyncHandler } from "@core/middleware/async-handler";
 import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 
+import { replaceWorldInfoBindingsWithValidation } from "../application/world-info/use-cases/replace-world-info-bindings";
+import { resolveWorldInfoForChat } from "../application/world-info/use-cases/resolve-world-info-for-chat";
 import { idSchema, ownerIdSchema } from "../chat-core/schemas";
+import { getRequestOwnerId } from "../core/request-context/request-context";
 import { getChatById } from "../services/chat-core/chats-repository";
 import { listProjectedPromptMessages } from "../services/chat-entry-parts/prompt-history";
 import {
@@ -228,7 +231,7 @@ router.delete(
   validate({ params: z.object({ id: idSchema }) }),
   asyncHandler(async (req: Request) => {
     const id = String((req.params as { id: string }).id);
-    const ok = await softDeleteWorldInfoBook({ id, ownerId: "global" });
+    const ok = await softDeleteWorldInfoBook({ id, ownerId: getRequestOwnerId(req) });
     if (!ok) throw new HttpError(404, "WorldInfo book not found", "NOT_FOUND");
     return { data: { id } };
   })
@@ -359,23 +362,15 @@ router.put(
   validate({ body: replaceBindingsBodySchema }),
   asyncHandler(async (req: Request) => {
     const body = replaceBindingsBodySchema.parse(req.body);
-    if (body.scope !== "global" && !body.scopeId) {
-      throw new HttpError(400, "scopeId is required for non-global scope", "VALIDATION_ERROR");
-    }
-    const books = await getWorldInfoBooksByIds({
-      ownerId: body.ownerId ?? "global",
-      ids: body.items.map((item) => item.bookId),
-    });
-    if (books.length !== body.items.length) {
-      throw new HttpError(400, "Some bookIds are missing or deleted", "VALIDATION_ERROR");
-    }
-    const bindings = await replaceWorldInfoBindings({
-      ownerId: body.ownerId,
-      scope: body.scope,
-      scopeId: body.scopeId,
-      items: body.items,
-    });
-    return { data: bindings };
+    return {
+      data: await replaceWorldInfoBindingsWithValidation({
+        ownerId: getRequestOwnerId(req, body.ownerId),
+        requestedOwnerId: body.ownerId,
+        scope: body.scope,
+        scopeId: body.scopeId,
+        items: body.items,
+      }),
+    };
   })
 );
 
@@ -384,30 +379,17 @@ router.post(
   validate({ body: resolveBodySchema }),
   asyncHandler(async (req: Request) => {
     const body = resolveBodySchema.parse(req.body);
-    const chat = await getChatById(body.chatId);
-    if (!chat) throw new HttpError(404, "Chat not found", "NOT_FOUND");
-    const branchId = body.branchId ?? chat.activeBranchId;
-    if (!branchId) throw new HttpError(400, "branchId is required", "VALIDATION_ERROR");
-
-    const projected = await listProjectedPromptMessages({
-      chatId: body.chatId,
-      branchId,
-      limit: body.historyLimit,
-    });
-    const history: Array<{ role: string; content: string }> = projected.messages;
-
-    const resolved = await resolveWorldInfoRuntimeForChat({
-      ownerId: body.ownerId ?? "global",
-      chatId: body.chatId,
-      branchId,
-      entityProfileId: body.entityProfileId ?? chat.entityProfileId,
-      trigger: body.trigger,
-      history,
-      scanSeed: `${body.chatId}:${branchId}:${body.trigger}:${Date.now()}`,
-      dryRun: body.dryRun,
-    });
-
-    return { data: resolved };
+    return {
+      data: await resolveWorldInfoForChat({
+        ownerId: getRequestOwnerId(req, body.ownerId),
+        chatId: body.chatId,
+        branchId: body.branchId,
+        entityProfileId: body.entityProfileId,
+        trigger: body.trigger,
+        historyLimit: body.historyLimit,
+        dryRun: body.dryRun,
+      }),
+    };
   })
 );
 

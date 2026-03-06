@@ -1,23 +1,33 @@
-import crypto from "crypto";
-
-import { unregisterGeneration, registerGeneration } from "../chat-core/generation-runtime";
-import {
-  updateGenerationDebugJson,
-  updateGenerationPromptData,
-} from "../chat-core/generations-repository";
-
 import { ProfileSessionArtifactStore } from "./artifacts/profile-session-artifact-store";
 import { RunArtifactStore } from "./artifacts/run-artifact-store";
+import { defaultGenerationControlPort } from "./control/generation-control-port";
 import { isChatGenerationDebugEnabled } from "./debug";
 import { runMainLlmPhase } from "./main-llm/run-main-llm-phase";
-import { commitEffectsPhase } from "./operations/commit-effects-phase";
 import {
   normalizeOperationActivationConfig,
   resolveOperationActivationState,
 } from "./operations/operation-activation-intervals";
-import { executeOperationsPhase } from "./operations/execute-operations-phase";
-import { finalizeRun } from "./persist/finalize-run";
+import { runOperationHookPhase } from "./orchestration/run-operation-hook-phase";
+import { RunEventStream } from "./orchestration/run-event-stream";
+import {
+  buildRunDebugStateSnapshot,
+  buildRunResult,
+  cloneLlmMessages,
+  clonePromptDraftMessages,
+  createInitialRunState,
+  markRunPhase,
+  mergeArtifacts,
+} from "./orchestration/run-state-helpers";
+import { defaultGenerationPersistencePort } from "./persist/generation-persistence-port";
 import { resolveRunContext } from "./prepare/resolve-run-context";
+import {
+  buildPromptDiagnosticsDebugJson,
+  buildRedactedSnapshot,
+  draftToLlmMessages,
+  hashPromptMessages,
+  normalizeLlmMessagesForDebug,
+  sumContextTokensByMessages,
+} from "./prompt/generation-debug-payload";
 import { buildBasePrompt } from "./prompt/build-base-prompt";
 import {
   ChatRuntimeStateRepository,
@@ -25,254 +35,10 @@ import {
   type ChatRuntimeStateScope,
 } from "./runtime/chat-runtime-state-repository";
 import { loadOrBootstrapRuntimeState } from "./runtime/operation-runtime-state";
+import { structuredLogger } from "../../core/logging/structured-logger";
 
-import type {
-  ArtifactValue,
-  OperationSkipDetails,
-  PromptDraftMessage,
-  PromptSnapshotV1,
-  RunEvent,
-  RunDebugStateSnapshotStage,
-  RunRequest,
-  RunResult,
-  RunState,
-  TurnUserCanonicalizationRecord,
-} from "./contracts";
-import type { GenerateMessage } from "@shared/types/generate";
+import type { OperationSkipDetails, RunEvent, RunRequest, RunState } from "./contracts";
 import type { OperationInProfile } from "@shared/types/operation-profiles";
-
-type PromptDiagnosticsSectionTokens = {
-  systemInstruction: number;
-  chatHistory: number;
-  worldInfoBefore: number;
-  worldInfoAfter: number;
-  worldInfoDepth: number;
-  worldInfoOutlets: number;
-  worldInfoAN: number;
-  worldInfoEM: number;
-};
-
-type PromptDiagnosticsDebugJson = {
-  estimator: "chars_div4";
-  prompt: {
-    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-    approxTokens: {
-      total: number;
-      byRole: { system: number; user: number; assistant: number };
-      sections: PromptDiagnosticsSectionTokens;
-    };
-  };
-  worldInfo: {
-    activatedCount: number;
-    warnings: string[];
-    entries: Array<{
-      hash: string;
-      bookId: string;
-      bookName: string;
-      uid: number;
-      comment: string;
-      content: string;
-      matchedKeys: string[];
-      reasons: string[];
-    }>;
-  };
-  operations: {
-    turnUserCanonicalization: TurnUserCanonicalizationRecord[];
-  };
-};
-
-type MessageNormalizationDebugFeature = {
-  enabled: boolean;
-  mergeSystem?: boolean;
-  mergeConsecutiveAssistant?: boolean;
-  separator?: string;
-};
-
-function draftToLlmMessages(draft: PromptDraftMessage[]): GenerateMessage[] {
-  return draft
-    .map((m) => ({ role: m.role as GenerateMessage["role"], content: m.content.trim() }))
-    .filter((m) => m.content.length > 0);
-}
-
-function hashPromptMessages(messages: GenerateMessage[]): string {
-  return crypto.createHash("sha256").update(JSON.stringify(messages)).digest("hex");
-}
-
-function buildRedactedSnapshot(
-  messages: GenerateMessage[],
-  params: {
-    historyLimit: number;
-    historyReturnedCount: number;
-    worldInfoMeta?: PromptSnapshotV1["meta"]["worldInfo"];
-  }
-): PromptSnapshotV1 {
-  const MAX_MSG_CHARS = 4_000;
-  const MAX_TOTAL_CHARS = 50_000;
-  let total = 0;
-  let truncated = false;
-  const snapshotMessages: PromptSnapshotV1["messages"] = [];
-
-  for (const m of messages) {
-    let content = m.content ?? "";
-    if (content.length > MAX_MSG_CHARS) {
-      content = `${content.slice(0, MAX_MSG_CHARS)}…`;
-      truncated = true;
-    }
-    if (total + content.length > MAX_TOTAL_CHARS) {
-      const remaining = Math.max(0, MAX_TOTAL_CHARS - total);
-      content = remaining > 0 ? `${content.slice(0, remaining)}…` : "…";
-      truncated = true;
-    }
-    total += content.length;
-    snapshotMessages.push({ role: m.role, content });
-    if (total >= MAX_TOTAL_CHARS) break;
-  }
-
-  return {
-    v: 1,
-    messages: snapshotMessages,
-    truncated,
-    meta: {
-      historyLimit: params.historyLimit,
-      historyReturnedCount: params.historyReturnedCount,
-      worldInfo: params.worldInfoMeta,
-    },
-  };
-}
-
-function mergeArtifacts(
-  persisted: RunState["persistedArtifactsSnapshot"],
-  runOnly: RunState["runArtifacts"]
-): Record<string, { value: string; history: string[] }> {
-  return Object.fromEntries(
-    Object.entries({ ...persisted, ...runOnly }).map(([tag, value]) => [
-      tag,
-      { value: value.value, history: [...value.history] },
-    ])
-  );
-}
-
-function mergeArtifactsForDebug(
-  persisted: RunState["persistedArtifactsSnapshot"],
-  runOnly: RunState["runArtifacts"]
-): Record<string, ArtifactValue> {
-  const merged: Record<string, ArtifactValue> = {};
-  for (const [tag, value] of Object.entries(persisted)) {
-    merged[tag] = {
-      usage: value.usage,
-      semantics: value.semantics,
-      persistence: value.persistence,
-      value: value.value,
-      history: [...value.history],
-    };
-  }
-  for (const [tag, value] of Object.entries(runOnly)) {
-    merged[tag] = {
-      usage: value.usage,
-      semantics: value.semantics,
-      persistence: value.persistence,
-      value: value.value,
-      history: [...value.history],
-    };
-  }
-  return merged;
-}
-
-function clonePromptDraftMessages(messages: PromptDraftMessage[]): PromptDraftMessage[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
-}
-
-function cloneLlmMessages(messages: GenerateMessage[]): GenerateMessage[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
-}
-
-function mergeContentsForDebug(items: string[], sep: string): string {
-  return items.map((s) => String(s ?? "").trim()).filter(Boolean).join(sep);
-}
-
-function mergeSystemMessagesForDebug(messages: GenerateMessage[], sep: string): GenerateMessage[] {
-  const systemParts: string[] = [];
-  const rest: GenerateMessage[] = [];
-
-  for (const message of messages) {
-    if (message.role === "system") {
-      systemParts.push(message.content);
-      continue;
-    }
-    rest.push({ role: message.role, content: message.content });
-  }
-
-  const merged = mergeContentsForDebug(systemParts, sep);
-  if (!merged) return rest;
-  return [{ role: "system", content: merged }, ...rest];
-}
-
-function mergeConsecutiveAssistantForDebug(
-  messages: GenerateMessage[],
-  sep: string
-): GenerateMessage[] {
-  const out: GenerateMessage[] = [];
-
-  for (const message of messages) {
-    const prev = out[out.length - 1];
-    if (prev && prev.role === "assistant" && message.role === "assistant") {
-      out[out.length - 1] = {
-        role: "assistant",
-        content: mergeContentsForDebug([prev.content, message.content], sep),
-      };
-      continue;
-    }
-    out.push({ role: message.role, content: message.content });
-  }
-
-  return out;
-}
-
-function normalizeLlmMessagesForDebug(
-  messages: GenerateMessage[],
-  feature: MessageNormalizationDebugFeature | undefined
-): GenerateMessage[] {
-  const enabled = feature?.enabled !== false;
-  if (!enabled) {
-    return cloneLlmMessages(messages);
-  }
-
-  const mergeSystem = feature?.mergeSystem ?? true;
-  const mergeConsecutiveAssistant = feature?.mergeConsecutiveAssistant ?? false;
-  const separator = feature?.separator ?? "\n\n";
-
-  let normalized = cloneLlmMessages(messages);
-  if (mergeSystem) {
-    normalized = mergeSystemMessagesForDebug(normalized, separator);
-  }
-  if (mergeConsecutiveAssistant) {
-    normalized = mergeConsecutiveAssistantForDebug(normalized, separator);
-  }
-  return normalized;
-}
-
-function approxTokensByChars(chars: number): number {
-  if (!Number.isFinite(chars)) return 0;
-  const normalized = Math.max(0, Math.floor(chars));
-  if (normalized === 0) return 0;
-  return Math.ceil(normalized / 4);
-}
-
-function approxTokensByText(text: string): number {
-  return approxTokensByChars(String(text ?? "").length);
-}
-
-function sumTextLengths(values: string[]): number {
-  return values.reduce((acc, value) => acc + String(value ?? "").length, 0);
-}
-
-function sumContextTokensByMessages(messages: PromptDraftMessage[]): number {
-  const chars = messages.reduce((acc, message) => {
-    if (message.role !== "user" && message.role !== "assistant") return acc;
-    return acc + String(message.content ?? "").length;
-  }, 0);
-  return approxTokensByChars(chars);
-}
 
 function supportsCurrentTrigger(op: OperationInProfile, trigger: "generate" | "regenerate"): boolean {
   const triggers = op.config.triggers ?? ["generate", "regenerate"];
@@ -351,191 +117,57 @@ async function resolveOperationActivationDecisions(params: {
   return { activationSkippedByOpId, nextByOpId, debugSnapshot };
 }
 
-function buildPromptDiagnosticsDebugJson(params: {
-  llmMessages: GenerateMessage[];
-  systemPrompt: string;
-  templateHistoryMessages: Array<{ role: string; content: string }>;
-  worldInfoDiagnostics: Awaited<ReturnType<typeof buildBasePrompt>>["worldInfoDiagnostics"];
-  turnUserCanonicalization: TurnUserCanonicalizationRecord[];
-}): PromptDiagnosticsDebugJson {
-  const byRole = params.llmMessages.reduce(
-    (acc, message) => {
-      const tokens = approxTokensByText(message.content);
-      if (message.role === "system") acc.system += tokens;
-      if (message.role === "user") acc.user += tokens;
-      if (message.role === "assistant") acc.assistant += tokens;
-      return acc;
-    },
-    { system: 0, user: 0, assistant: 0 }
-  );
-  const total = byRole.system + byRole.user + byRole.assistant;
-
-  const worldInfoDepthChars = params.worldInfoDiagnostics.depthEntries.reduce(
-    (acc, item) => acc + String(item.content ?? "").length,
-    0
-  );
-  const worldInfoOutletChars = Object.values(
-    params.worldInfoDiagnostics.outletEntries
-  ).reduce((acc, entries) => acc + sumTextLengths(entries), 0);
-  const worldInfoAnChars =
-    sumTextLengths(params.worldInfoDiagnostics.anTop) +
-    sumTextLengths(params.worldInfoDiagnostics.anBottom);
-  const worldInfoEmChars =
-    sumTextLengths(params.worldInfoDiagnostics.emTop) +
-    sumTextLengths(params.worldInfoDiagnostics.emBottom);
-  const chatHistoryChars = params.templateHistoryMessages.reduce(
-    (acc, item) => acc + String(item.content ?? "").length,
-    0
-  );
-
-  const sections: PromptDiagnosticsSectionTokens = {
-    systemInstruction: approxTokensByText(params.systemPrompt),
-    chatHistory: approxTokensByChars(chatHistoryChars),
-    worldInfoBefore: approxTokensByText(params.worldInfoDiagnostics.worldInfoBefore),
-    worldInfoAfter: approxTokensByText(params.worldInfoDiagnostics.worldInfoAfter),
-    worldInfoDepth: approxTokensByChars(worldInfoDepthChars),
-    worldInfoOutlets: approxTokensByChars(worldInfoOutletChars),
-    worldInfoAN: approxTokensByChars(worldInfoAnChars),
-    worldInfoEM: approxTokensByChars(worldInfoEmChars),
-  };
-
-  return {
-    estimator: "chars_div4",
-    prompt: {
-      messages: cloneLlmMessages(params.llmMessages),
-      approxTokens: {
-        total,
-        byRole,
-        sections,
-      },
-    },
-    worldInfo: {
-      activatedCount: params.worldInfoDiagnostics.activatedCount,
-      warnings: [...params.worldInfoDiagnostics.warnings],
-      entries: params.worldInfoDiagnostics.activatedEntries.map((entry) => ({
-        hash: entry.hash,
-        bookId: entry.bookId,
-        bookName: entry.bookName,
-        uid: entry.uid,
-        comment: entry.comment,
-        content: entry.content,
-        matchedKeys: [...entry.matchedKeys],
-        reasons: [...entry.reasons],
-      })),
-    },
-    operations: {
-      turnUserCanonicalization: params.turnUserCanonicalization.map((record) => ({
-        ...record,
-      })),
-    },
-  };
-}
-
 export async function* runChatGenerationV3(
   request: RunRequest
 ): AsyncGenerator<RunEvent> {
   const abortController = request.abortController ?? new AbortController();
-  const pendingEvents: RunEvent[] = [];
-  const waiters: Array<() => void> = [];
-  let seq = 0;
-  let runId = "";
+  const eventStream = new RunEventStream();
   let context: Awaited<ReturnType<typeof resolveRunContext>>["context"] | null = null;
   let runState: RunState | null = null;
   let finalized = false;
+  let controlLease: Awaited<
+    ReturnType<(typeof defaultGenerationControlPort)["acquire"]>
+  > | null = null;
   const debugEnabled = isChatGenerationDebugEnabled(request.settings);
-
-  const notifyWaiters = (): void => {
-    if (waiters.length === 0) return;
-    const queued = waiters.splice(0, waiters.length);
-    for (const wake of queued) wake();
+  const emit = (type: RunEvent["type"], data: unknown): void => {
+    eventStream.emit(type, data);
   };
-
-  const waitForSignal = (): Promise<void> =>
-    new Promise((resolve) => {
-      waiters.push(resolve);
-    });
-
-  const emit = (type: RunEvent["type"], data: any): void => {
-    if (!runId) return;
-    pendingEvents.push({
-      runId,
-      seq: ++seq,
-      type,
-      data,
-    } as RunEvent);
-    notifyWaiters();
+  const streamEventsWhile = <T>(work: Promise<T>): AsyncGenerator<RunEvent, T> =>
+    eventStream.streamEventsWhile(work);
+  const markPhase = (
+    phase: RunState["phaseReports"][number]["phase"],
+    status: "done" | "failed" | "aborted",
+    startedAt: number,
+    message?: string
+  ): void => {
+    markRunPhase(runState, phase, status, startedAt, message);
   };
-
-  const flushEvents = function* (): Generator<RunEvent> {
-    while (pendingEvents.length > 0) {
-      const evt = pendingEvents.shift();
-      if (!evt) continue;
-      yield evt;
-    }
-  };
-
-  const streamEventsWhile = async function* <T>(
-    work: Promise<T>
-  ): AsyncGenerator<RunEvent, T> {
-    let settled = false;
-    let result: T | undefined;
-    let failure: unknown;
-
-    work.then(
-      (value) => {
-        result = value;
-        settled = true;
-        notifyWaiters();
-      },
-      (error) => {
-        failure = error;
-        settled = true;
-        notifyWaiters();
-      }
-    );
-
-    while (!settled || pendingEvents.length > 0) {
-      if (pendingEvents.length > 0) {
-        yield* flushEvents();
-        continue;
-      }
-      await waitForSignal();
-    }
-
-    if (failure) throw failure;
-    return result as T;
-  };
-
-  const markPhase = (phase: RunState["phaseReports"][number]["phase"], status: "done" | "failed" | "aborted", startedAt: number, message?: string): void => {
-    if (!runState) return;
-    runState.phaseReports.push({
-      phase,
-      status,
-      startedAt,
-      finishedAt: Date.now(),
-      message,
-    });
-  };
-
-  const emitStateSnapshot = (stage: RunDebugStateSnapshotStage): void => {
+  const emitStateSnapshot = (
+    stage: "post_build_base_prompt" | "post_commit_before" | "post_main_llm" | "post_commit_after"
+  ): void => {
     if (!debugEnabled || !runState) return;
-    emit("run.debug.state_snapshot", {
-      stage,
-      basePromptDraft: clonePromptDraftMessages(runState.basePromptDraft),
-      effectivePromptDraft: clonePromptDraftMessages(runState.effectivePromptDraft),
-      assistantText: runState.assistantText,
-      assistantReasoningText: runState.assistantReasoningText,
-      artifacts: mergeArtifactsForDebug(runState.persistedArtifactsSnapshot, runState.runArtifacts),
-    });
+    emit("run.debug.state_snapshot", buildRunDebugStateSnapshot(runState, stage));
   };
 
   try {
     const prepareStartedAt = Date.now();
     const resolved = await resolveRunContext({ request });
     context = resolved.context;
-    runId = context.runId;
-
-    registerGeneration(context.generationId, abortController);
+    eventStream.setRunId(context.runId);
+    controlLease = await defaultGenerationControlPort.acquire({
+      generationId: context.generationId,
+      runInstanceId: context.runId,
+      abortController,
+    });
+    structuredLogger.info("generation.started", {
+      event: "generation.started",
+      requestId: request.requestId ?? null,
+      generationId: context.generationId,
+      runId: context.runId,
+      chatId: context.chatId,
+      branchId: context.branchId,
+      profileId: context.profileSnapshot?.profileId ?? null,
+    });
     emit("run.started", {
       generationId: context.generationId,
       trigger: context.trigger,
@@ -549,31 +181,10 @@ export async function* runChatGenerationV3(
           })
         : {};
 
-    runState = {
-      basePromptDraft: [],
-      effectivePromptDraft: [],
-      llmMessages: [],
-      assistantText: "",
-      assistantReasoningText: "",
-      runArtifacts: {},
-      persistedArtifactsSnapshot,
-      operationResultsByHook: {
-        before_main_llm: [],
-        after_main_llm: [],
-      },
-      commitReportsByHook: {},
-      turnUserCanonicalizationHistory: [],
-      phaseReports: [],
-      promptHash: null,
-      promptSnapshot: null,
-      finishedStatus: null,
-      failedType: null,
-      errorMessage: null,
-    };
+    runState = createInitialRunState(persistedArtifactsSnapshot);
     markPhase("prepare_run_context", "done", prepareStartedAt);
-    yield* flushEvents();
+    yield* eventStream.flushEvents();
 
-    // build_base_prompt
     emit("run.phase_changed", { phase: "build_base_prompt" });
     const buildStartedAt = Date.now();
     const basePrompt = await buildBasePrompt({
@@ -590,7 +201,7 @@ export async function* runChatGenerationV3(
     runState.effectivePromptDraft = basePrompt.prompt.draftMessages.map((m) => ({ ...m }));
     emitStateSnapshot("post_build_base_prompt");
     markPhase("build_base_prompt", "done", buildStartedAt);
-    yield* flushEvents();
+    yield* eventStream.flushEvents();
 
     const profileOperations = context.profileSnapshot?.operations ?? [];
     let runtimeScope: ChatRuntimeStateScope | null = null;
@@ -647,66 +258,38 @@ export async function* runChatGenerationV3(
       ...(request.settings ?? {}),
     };
 
-    // execute_before_operations
-    emit("run.phase_changed", { phase: "execute_before_operations" });
-    const execBeforeStartedAt = Date.now();
-    runState.operationResultsByHook.before_main_llm = yield* streamEventsWhile(
-      executeOperationsPhase({
-        runId: context.runId,
-        hook: "before_main_llm",
-        trigger: context.trigger,
-        operations: profileOperations,
-        activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
-        executionMode,
-        baseMessages: runState.effectivePromptDraft,
-        baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
-        assistantText: runState.assistantText,
-        templateContext: basePrompt.templateContext,
-        abortSignal: abortController.signal,
-        onOperationStarted: (data) => emit("operation.started", data),
-        onOperationFinished: (data) => emit("operation.finished", data),
-        onTemplateDebug: debugEnabled
-          ? (data) => emit("operation.debug.template", data)
-          : undefined,
-      })
-    );
-    markPhase("execute_before_operations", "done", execBeforeStartedAt);
-    yield* flushEvents();
+    const commitBefore = yield* runOperationHookPhase({
+      hook: "before_main_llm",
+      runId: context.runId,
+      trigger: context.trigger,
+      operations: profileOperations,
+      activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
+      executionMode,
+      baseMessages: runState.effectivePromptDraft,
+      baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
+      assistantText: runState.assistantText,
+      templateContext: basePrompt.templateContext,
+      abortSignal: abortController.signal,
+      runState,
+      runArtifactStore,
+      ownerId: context.ownerId,
+      chatId: context.chatId,
+      branchId: context.branchId,
+      profile: resolved.profile,
+      sessionKey: context.sessionKey,
+      userTurnTarget: request.userTurnTarget,
+      debugEnabled,
+      emit,
+      streamEventsWhile,
+      markPhase,
+      executePhaseName: "execute_before_operations",
+      commitPhaseName: "commit_before_effects",
+      requiredCommitErrorMessage: "required before commit failed",
+      stateSnapshotStage: "post_commit_before",
+      emitStateSnapshot,
+    });
+    yield* eventStream.flushEvents();
 
-    // commit_before_effects
-    emit("run.phase_changed", { phase: "commit_before_effects" });
-    const commitBeforeStartedAt = Date.now();
-    const commitBefore = yield* streamEventsWhile(
-      commitEffectsPhase({
-        hook: "before_main_llm",
-        ownerId: context.ownerId,
-        chatId: context.chatId,
-        branchId: context.branchId,
-        profile: resolved.profile,
-        sessionKey: context.sessionKey,
-        runState,
-        runArtifactStore,
-        userTurnTarget: request.userTurnTarget,
-        onUserTurnCanonicalized: (data) => {
-          emit("turn.user.canonicalized", data);
-          if (debugEnabled) {
-            emit("run.debug.turn_user_canonicalization", data);
-          }
-        },
-        onCommitEvent: (evt) => emit(evt.type, evt.data),
-      })
-    );
-    runState.commitReportsByHook.before_main_llm = commitBefore.report;
-    emitStateSnapshot("post_commit_before");
-    markPhase(
-      "commit_before_effects",
-      commitBefore.requiredError ? "failed" : "done",
-      commitBeforeStartedAt,
-      commitBefore.requiredError ? "required before commit failed" : undefined
-    );
-    yield* flushEvents();
-
-    // before barrier
     emit("run.phase_changed", { phase: "before_barrier" });
     const barrierStartedAt = Date.now();
     const requiredBeforeNotDone = runState.operationResultsByHook.before_main_llm.filter(
@@ -728,7 +311,7 @@ export async function* runChatGenerationV3(
     } else {
       markPhase("before_barrier", "done", barrierStartedAt);
     }
-    yield* flushEvents();
+    yield* eventStream.flushEvents();
 
     runState.llmMessages = draftToLlmMessages(runState.effectivePromptDraft);
     runState.promptHash = hashPromptMessages(runState.llmMessages);
@@ -738,8 +321,8 @@ export async function* runChatGenerationV3(
       worldInfoMeta: basePrompt.prompt.promptSnapshot.meta.worldInfo,
     });
 
-    await updateGenerationPromptData({
-      id: context.generationId,
+    await defaultGenerationPersistencePort.persistPromptData({
+      generationId: context.generationId,
       promptHash: runState.promptHash,
       promptSnapshot: runState.promptSnapshot,
     });
@@ -750,8 +333,8 @@ export async function* runChatGenerationV3(
       worldInfoDiagnostics: basePrompt.worldInfoDiagnostics,
       turnUserCanonicalization: runState.turnUserCanonicalizationHistory,
     });
-    await updateGenerationDebugJson({
-      id: context.generationId,
+    await defaultGenerationPersistencePort.persistDebugData({
+      generationId: context.generationId,
       debug: promptDiagnosticsDebug,
     });
 
@@ -770,8 +353,6 @@ export async function* runChatGenerationV3(
     }
 
     if (!beforeBarrierFailed) {
-
-      // main llm
       emit("run.phase_changed", { phase: "run_main_llm" });
       emit("main_llm.started", {
         model: context.runtimeInfo.model,
@@ -803,7 +384,7 @@ export async function* runChatGenerationV3(
         main.message
       );
       emitStateSnapshot("post_main_llm");
-      yield* flushEvents();
+      yield* eventStream.flushEvents();
 
       if (main.status === "aborted") {
         runState.finishedStatus = "aborted";
@@ -812,63 +393,43 @@ export async function* runChatGenerationV3(
         runState.failedType = "main_llm";
         runState.errorMessage = main.message ?? "Main LLM failed";
       } else {
-        // execute_after_operations
-        emit("run.phase_changed", { phase: "execute_after_operations" });
-        const executeAfterStartedAt = Date.now();
         const afterBaseMessages = [
           ...runState.effectivePromptDraft.map((m) => ({ ...m })),
           { role: "assistant" as const, content: runState.assistantText },
         ];
-        runState.operationResultsByHook.after_main_llm = yield* streamEventsWhile(
-          executeOperationsPhase({
-            runId: context.runId,
-            hook: "after_main_llm",
-            trigger: context.trigger,
-            operations: profileOperations,
-            activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
-            executionMode,
-            baseMessages: afterBaseMessages,
-            baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
-            assistantText: runState.assistantText,
-            templateContext: basePrompt.templateContext,
-            abortSignal: abortController.signal,
-            onOperationStarted: (data) => emit("operation.started", data),
-            onOperationFinished: (data) => emit("operation.finished", data),
-            onTemplateDebug: debugEnabled
-              ? (data) => emit("operation.debug.template", data)
-              : undefined,
-          })
-        );
-        markPhase("execute_after_operations", "done", executeAfterStartedAt);
-        yield* flushEvents();
-
-        // commit_after_effects
-        emit("run.phase_changed", { phase: "commit_after_effects" });
-        const commitAfterStartedAt = Date.now();
-        const commitAfter = yield* streamEventsWhile(
-          commitEffectsPhase({
-            hook: "after_main_llm",
-            ownerId: context.ownerId,
-            chatId: context.chatId,
-            branchId: context.branchId,
-            profile: resolved.profile,
-            sessionKey: context.sessionKey,
-            runState,
-            runArtifactStore,
-            userTurnTarget: request.userTurnTarget,
-            onUserTurnCanonicalized: (data) => {
-              emit("turn.user.canonicalized", data);
-              if (debugEnabled) {
-                emit("run.debug.turn_user_canonicalization", data);
-              }
-            },
-            onCommitEvent: (evt) => emit(evt.type, evt.data),
-          })
-        );
-        runState.commitReportsByHook.after_main_llm = commitAfter.report;
-        emitStateSnapshot("post_commit_after");
-        await updateGenerationDebugJson({
-          id: context.generationId,
+        const commitAfter = yield* runOperationHookPhase({
+          hook: "after_main_llm",
+          runId: context.runId,
+          trigger: context.trigger,
+          operations: profileOperations,
+          activationSkippedByOpId: activationDecisions.activationSkippedByOpId,
+          executionMode,
+          baseMessages: afterBaseMessages,
+          baseArtifacts: mergeArtifacts(runState.persistedArtifactsSnapshot, runState.runArtifacts),
+          assistantText: runState.assistantText,
+          templateContext: basePrompt.templateContext,
+          abortSignal: abortController.signal,
+          runState,
+          runArtifactStore,
+          ownerId: context.ownerId,
+          chatId: context.chatId,
+          branchId: context.branchId,
+          profile: resolved.profile,
+          sessionKey: context.sessionKey,
+          userTurnTarget: request.userTurnTarget,
+          debugEnabled,
+          emit,
+          streamEventsWhile,
+          markPhase,
+          executePhaseName: "execute_after_operations",
+          commitPhaseName: "commit_after_effects",
+          requiredCommitErrorMessage: "required after commit failed",
+          stateSnapshotStage: "post_commit_after",
+          emitStateSnapshot,
+        });
+        yield* eventStream.flushEvents();
+        await defaultGenerationPersistencePort.persistDebugData({
+          generationId: context.generationId,
           debug: buildPromptDiagnosticsDebugJson({
             llmMessages: runState.llmMessages,
             systemPrompt: basePrompt.prompt.systemPrompt,
@@ -877,13 +438,6 @@ export async function* runChatGenerationV3(
             turnUserCanonicalization: runState.turnUserCanonicalizationHistory,
           }),
         });
-        markPhase(
-          "commit_after_effects",
-          commitAfter.requiredError ? "failed" : "done",
-          commitAfterStartedAt,
-          commitAfter.requiredError ? "required after commit failed" : undefined
-        );
-        yield* flushEvents();
 
         const requiredAfterNotDone = runState.operationResultsByHook.after_main_llm.filter(
           (item) =>
@@ -915,27 +469,27 @@ export async function* runChatGenerationV3(
           : "failed",
       finalizeStartedAt
     );
-    const result: RunResult = {
-      runId: context.runId,
-      generationId: context.generationId,
-      status: runState.finishedStatus ?? "error",
-      failedType: runState.failedType,
-      phaseReports: runState.phaseReports,
-      commitReportsByHook: runState.commitReportsByHook,
-      promptHash: runState.promptHash,
-      promptSnapshot: runState.promptSnapshot,
-      assistantText: runState.assistantText,
-      errorMessage: runState.errorMessage,
-    };
-    await finalizeRun({ context, result });
+    const result = buildRunResult({ context, runState });
+    await defaultGenerationPersistencePort.finalize({ context, result });
     finalized = true;
+    structuredLogger.info("generation.finished", {
+      event: "generation.finished",
+      requestId: request.requestId ?? null,
+      generationId: context.generationId,
+      runId: context.runId,
+      chatId: context.chatId,
+      branchId: context.branchId,
+      profileId: context.profileSnapshot?.profileId ?? null,
+      status: result.status,
+      failedType: result.failedType,
+    });
     emit("run.finished", {
       generationId: context.generationId,
       status: result.status,
       failedType: result.failedType,
       message: result.errorMessage ?? undefined,
     });
-    yield* flushEvents();
+    yield* eventStream.flushEvents();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (runState) {
@@ -943,31 +497,30 @@ export async function* runChatGenerationV3(
       runState.errorMessage = message;
     }
     if (context && runState && !finalized) {
-      const result: RunResult = {
-        runId: context.runId,
-        generationId: context.generationId,
-        status: runState.finishedStatus ?? "error",
-        failedType: runState.failedType,
-        phaseReports: runState.phaseReports,
-        commitReportsByHook: runState.commitReportsByHook,
-        promptHash: runState.promptHash,
-        promptSnapshot: runState.promptSnapshot,
-        assistantText: runState.assistantText,
-        errorMessage: message,
-      };
-      await finalizeRun({ context, result });
+      const result = buildRunResult({ context, runState });
+      await defaultGenerationPersistencePort.finalize({ context, result });
       finalized = true;
+      structuredLogger.error("generation.finished_with_error", {
+        event: "generation.finished_with_error",
+        requestId: request.requestId ?? null,
+        generationId: context.generationId,
+        runId: context.runId,
+        chatId: context.chatId,
+        branchId: context.branchId,
+        profileId: context.profileSnapshot?.profileId ?? null,
+        status: result.status,
+        failedType: result.failedType,
+        errorMessage: message,
+      });
       emit("run.finished", {
         generationId: context.generationId,
         status: result.status,
         failedType: result.failedType,
         message,
       });
-      yield* flushEvents();
+      yield* eventStream.flushEvents();
     }
   } finally {
-    if (context) {
-      unregisterGeneration(context.generationId);
-    }
+    await controlLease?.release({ status: runState?.finishedStatus ?? null });
   }
 }

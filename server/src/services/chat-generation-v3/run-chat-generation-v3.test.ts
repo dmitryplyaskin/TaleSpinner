@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   executeOperationsPhase: vi.fn(),
   commitEffectsPhase: vi.fn(),
   runMainLlmPhase: vi.fn(),
+  generationControlAcquire: vi.fn(),
   finalizeRun: vi.fn(),
   updateGenerationPromptData: vi.fn(),
   updateGenerationDebugJson: vi.fn(),
@@ -31,6 +32,12 @@ vi.mock("./operations/commit-effects-phase", () => ({
 
 vi.mock("./main-llm/run-main-llm-phase", () => ({
   runMainLlmPhase: mocks.runMainLlmPhase,
+}));
+
+vi.mock("./control/generation-control-port", () => ({
+  defaultGenerationControlPort: {
+    acquire: mocks.generationControlAcquire,
+  },
 }));
 
 vi.mock("./persist/finalize-run", () => ({
@@ -175,6 +182,10 @@ beforeEach(() => {
     payload,
     updatedAt: new Date("2026-02-01T00:00:01.000Z"),
   }));
+  mocks.generationControlAcquire.mockResolvedValue({
+    heartbeat: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  });
 });
 
 describe("runChatGenerationV3", () => {

@@ -5,7 +5,10 @@ import { asyncHandler } from "@core/middleware/async-handler";
 import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 
+import { deleteOperationBlockWithValidation } from "../application/operations/use-cases/delete-operation-block";
+import { importOperationBlocks } from "../application/operations/use-cases/import-operation-blocks";
 import { idSchema, jsonValueSchema, ownerIdSchema } from "../chat-core/schemas";
+import { getRequestOwnerId } from "../core/request-context/request-context";
 import { validateOperationBlockImport } from "../services/operations/operation-block-validator";
 import {
   createOperationBlock,
@@ -33,8 +36,8 @@ const updateBodySchema = z.object({
 
 router.get(
   "/operation-blocks",
-  asyncHandler(async () => {
-    const items = await listOperationBlocks({ ownerId: "global" });
+  asyncHandler(async (req: Request) => {
+    const items = await listOperationBlocks({ ownerId: getRequestOwnerId(req) });
     return { data: items };
   })
 );
@@ -44,7 +47,7 @@ router.post(
   validate({ body: createBodySchema }),
   asyncHandler(async (req: Request) => {
     const created = await createOperationBlock({
-      ownerId: req.body.ownerId,
+      ownerId: getRequestOwnerId(req, req.body.ownerId),
       input: req.body.input,
     });
     return { data: created };
@@ -68,7 +71,7 @@ router.put(
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
     const updated = await updateOperationBlock({
-      ownerId: req.body.ownerId,
+      ownerId: getRequestOwnerId(req, req.body.ownerId),
       blockId: params.id,
       patch: req.body.patch,
     });
@@ -82,20 +85,12 @@ router.delete(
   validate({ params: idParamsSchema }),
   asyncHandler(async (req: Request) => {
     const params = req.params as unknown as { id: string };
-    const exists = await getOperationBlockById(params.id);
-    if (!exists) throw new HttpError(404, "OperationBlock не найден", "NOT_FOUND");
-
-    const profiles = await listOperationProfiles({ ownerId: "global" });
-    const linked = profiles.find((profile) => profile.blockRefs.some((ref) => ref.blockId === params.id));
-    if (linked) {
-      throw new HttpError(400, "OperationBlock is used by profile", "VALIDATION_ERROR", {
+    return {
+      data: await deleteOperationBlockWithValidation({
+        ownerId: getRequestOwnerId(req),
         blockId: params.id,
-        profileId: linked.profileId,
-      });
-    }
-
-    await deleteOperationBlock({ ownerId: "global", blockId: params.id });
-    return { data: { id: params.id } };
+      }),
+    };
   })
 );
 
@@ -128,30 +123,15 @@ router.post(
   "/operation-blocks/import",
   validate({ body: importBodySchema }),
   asyncHandler(async (req: Request) => {
-    const ownerId = req.body.ownerId ?? "global";
     const rawItems: unknown[] = Array.isArray(req.body.items)
       ? (req.body.items as unknown[])
       : [req.body.items as unknown];
-
-    const existing = await listOperationBlocks({ ownerId });
-    const names = new Set(existing.map((item) => item.name));
-
-    const created = [];
-    for (const raw of rawItems) {
-      const validated = validateOperationBlockImport(raw);
-      const safeName = resolveImportedOperationBlockName(validated.name, Array.from(names));
-      names.add(safeName);
-      const block = await createOperationBlock({
-        ownerId,
-        input: {
-          ...validated,
-          name: safeName,
-          meta: validated.meta,
-        },
-      });
-      created.push(block);
-    }
-    return { data: { created } };
+    return {
+      data: await importOperationBlocks({
+        ownerId: getRequestOwnerId(req, req.body.ownerId),
+        items: rawItems,
+      }),
+    };
   })
 );
 

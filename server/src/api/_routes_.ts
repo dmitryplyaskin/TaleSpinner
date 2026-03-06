@@ -1,17 +1,22 @@
+import appSettingsRoutes from "./app-settings.api";
 import chatEntriesRoutes from "./chat-entries.api";
 import chatCoreRoutes from "./chats.core.api";
 import entityProfilesCoreRoutes from "./entity-profiles.core.api";
 import entityProfilesImportRoutes from "./entity-profiles.import.api";
 import fileRoutes from "./files/routes";
+import generateRoutes from "./generate.api";
 import generationsCoreRoutes from "./generations.core.api";
 import instructionsCoreRoutes from "./instructions.core.api";
 import llmPresetsRoutes from "./llm-presets.api";
 import llmRoutes from "./llm.api";
+import modelsRoutes from "./models.api";
 import operationBlocksCoreRoutes from "./operation-blocks.core.api";
 import operationProfilesCoreRoutes from "./operation-profiles.core.api";
 import ragChromaRoutes from "./rag-chroma.api";
 import ragRoutes from "./rag.api";
 import samplersRoutes from "./samplers.api";
+import settingsRoutes from "./settings.api";
+import sidebarsRoutes from "./sidebars.api";
 import uiThemeCoreRoutes from "./ui-theme.core.api";
 import userPersonsCoreRoutes from "./user-persons.core.api";
 import worldInfoCoreRoutes from "./world-info.core.api";
@@ -27,6 +32,11 @@ export const routes = [
   userPersonsCoreRoutes,
   samplersRoutes,
   llmRoutes,
+  modelsRoutes,
+  settingsRoutes,
+  appSettingsRoutes,
+  generateRoutes,
+  sidebarsRoutes,
   ragRoutes,
   ragChromaRoutes,
   llmPresetsRoutes,

@@ -165,6 +165,7 @@ export async function createEntryAndStartGeneration(
       assistantReasoningPartId: staged.assistantReasoningPartId,
     },
     request: {
+      requestId: params.body.requestId,
       ownerId,
       chatId: params.chatId,
       branchId,

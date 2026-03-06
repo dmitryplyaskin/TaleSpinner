@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { renderGreetingTemplateSinglePass } from "./entity-profiles.core.api";
+import { renderGreetingTemplateSinglePass } from "../application/entity-profiles/greeting-template";
 
 describe("renderGreetingTemplateSinglePass", () => {
   const context = {

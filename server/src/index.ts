@@ -1,4 +1,5 @@
 import { loadBackendEnvOnce } from "./config/load-backend-env";
+import { structuredLogger } from "./core/logging/structured-logger";
 
 loadBackendEnvOnce();
 
@@ -28,10 +29,16 @@ async function main(): Promise<void> {
   const { startAppServer } = await import("./app");
   const port = resolvePort(process.env.PORT);
   await startAppServer({ port });
-  console.log(`Server is running on port ${port}`);
+  structuredLogger.info("server.started", {
+    event: "server.started",
+    port,
+  });
 }
 
 main().catch((error) => {
-  console.error("Server bootstrap failed:", error);
+  structuredLogger.error("server.bootstrap_failed", {
+    event: "server.bootstrap_failed",
+    error: error instanceof Error ? error.message : String(error),
+  });
   process.exitCode = 1;
 });

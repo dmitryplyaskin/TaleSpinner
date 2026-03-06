@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";

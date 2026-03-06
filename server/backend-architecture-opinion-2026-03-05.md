@@ -712,3 +712,57 @@ This becomes more valuable now that the application layer is cleaner and the rem
 5. Design request context + tenant model.
 6. Tighten typed JSON/domain contracts.
 7. Improve observability across the new boundaries.
+
+## Final backend refactor completion status (2026-03-06)
+
+The backend refactor described by this note is now complete for the intended architecture scope.
+
+This final completion slice added and finished the remaining work that was still listed after Phase 1.3:
+
+- `runChatGenerationV3` was reduced from a monolithic owner of persistence/control side effects into an orchestration facade over explicit collaborators:
+  - generation persistence port
+  - generation control port
+  - run-event stream helper
+  - run-state / lifecycle helpers
+  - extracted operation-hook orchestration
+  - prompt/debug payload helper module
+- generation control is no longer defined only by process-local memory:
+  - a durable `generation_runtime_control` table was added
+  - abort/requested state, heartbeat, and lease expiry now have a DB-backed source of truth
+  - the in-memory abort-controller registry remains only as a same-process fast path
+- generation finalization and related persistence now have explicit transaction boundaries where needed.
+- the remaining orchestration-heavy route logic was moved out of the targeted API modules into application-layer use cases.
+- the legacy `server/src/routes/*.ts` modules are now mounted through the same `server/src/api/**` registration path as the rest of the backend.
+- `app.ts` now acts as a composition root only:
+  - middleware
+  - static serving
+  - unified API registry
+  - error handling
+  - delegated bootstrap
+- request context and ownership fallback are now explicit backend concerns instead of route-local conventions:
+  - request ID
+  - normalized owner scope
+  - actor placeholder
+  - tenant placeholder
+- the highest-value JSON boundaries were tightened for prompt/debug payload handling.
+- structured lifecycle logging was added for:
+  - bootstrap
+  - request start/finish/error
+  - generation start/finish
+  - generation abort control
+
+What this means:
+
+- the old "remaining backend refactor work" listed above is now resolved as implementation work, not only as recommendation;
+- the backend no longer has the same architectural hotspot concentration it had in `chat-entries.api.ts`, `runChatGenerationV3`, or mixed `app.ts` wiring;
+- the remaining future work is now product evolution or further hardening, not unfinished migration debt from this refactor.
+
+Final validation that was run after the completion slice:
+
+- `yarn typecheck:server`
+- `yarn --cwd server test --maxWorkers=2`
+- `yarn --cwd server test:e2e:smoke`
+
+Practical note:
+
+- the full server test run was executed with constrained worker count to avoid the previously observed `vitest`/`tinypool` memory pressure in this environment; the suite passed cleanly in that mode.

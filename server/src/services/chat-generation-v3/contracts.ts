@@ -49,6 +49,7 @@ export type UserTurnTarget =
   };
 
 export type RunRequest = {
+  requestId?: string;
   ownerId?: string;
   chatId: string;
   branchId: string;

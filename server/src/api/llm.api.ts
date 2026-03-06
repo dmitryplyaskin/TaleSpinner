@@ -4,6 +4,7 @@ import { z } from "zod";
 import { asyncHandler } from "@core/middleware/async-handler";
 import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
+import { updateLlmRuntime } from "../application/llm/use-cases/update-llm-runtime";
 import {
   llmProviderDefinitions,
   openAiCompatibleConfigSchema,
@@ -82,76 +83,15 @@ router.patch(
   validate({ body: runtimePatchSchema }),
   asyncHandler(async (req: Request) => {
     const body = req.body as z.infer<typeof runtimePatchSchema>;
-    const scope = body.scope;
-    const scopeId = body.scopeId;
-
-    const current = await getRuntime(scope, scopeId);
-    const nextProviderId = body.activeProviderId as LlmProviderId;
-
-    // If provider changes, persist current selection as "last used" for that provider,
-    // then restore last selection for the next provider (unless explicitly overridden).
-    if (current.activeProviderId !== nextProviderId) {
-      await upsertRuntimeProviderState({
-        scope,
-        scopeId,
-        providerId: current.activeProviderId,
-        lastTokenId: current.activeTokenId,
-        lastModel: current.activeModel,
-      });
-    }
-
-    let nextTokenId: string | null =
-      body.activeTokenId !== undefined ? body.activeTokenId ?? null : null;
-    let nextModel: string | null =
-      body.activeModel !== undefined ? body.activeModel ?? null : null;
-
-    if (current.activeProviderId !== nextProviderId) {
-      const restored = await getRuntimeProviderState({
-        scope,
-        scopeId,
-        providerId: nextProviderId,
-      });
-      if (body.activeTokenId === undefined) {
-        nextTokenId = restored.lastTokenId;
-      }
-      if (body.activeModel === undefined) {
-        nextModel = restored.lastModel;
-      }
-    } else {
-      // Same provider: keep current values if they were not included in patch.
-      if (body.activeTokenId === undefined) {
-        nextTokenId = current.activeTokenId;
-      }
-      if (body.activeModel === undefined) {
-        nextModel = current.activeModel;
-      }
-    }
-
-    const runtime = await upsertRuntime({
-      scope,
-      scopeId,
-      activeProviderId: nextProviderId,
-      activeTokenId: nextTokenId,
-      activeModel: nextModel,
-    });
-
-    // Always persist latest selection for the active provider too.
-    await upsertRuntimeProviderState({
-      scope,
-      scopeId,
-      providerId: runtime.activeProviderId,
-      lastTokenId: runtime.activeTokenId,
-      lastModel: runtime.activeModel,
-    });
-
-    let activeTokenHint: string | null = null;
-    if (runtime.activeTokenId) {
-      const tokens = await listTokens(runtime.activeProviderId);
-      activeTokenHint =
-        tokens.find((t) => t.id === runtime.activeTokenId)?.tokenHint ?? null;
-    }
-
-    return { data: { ...runtime, activeTokenHint } };
+    return {
+      data: await updateLlmRuntime({
+        scope: body.scope,
+        scopeId: body.scopeId,
+        activeProviderId: body.activeProviderId as LlmProviderId,
+        activeTokenId: body.activeTokenId,
+        activeModel: body.activeModel,
+      }),
+    };
   })
 );
 

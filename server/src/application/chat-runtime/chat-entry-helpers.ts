@@ -1,6 +1,7 @@
 import { HttpError } from "@core/middleware/error-handler";
 
 import { getUiProjection } from "../../services/chat-entry-parts/projection";
+import { normalizePromptDiagnosticsDebugJson } from "../../services/chat-generation-v3/prompt/generation-debug-payload";
 import { renderLiquidTemplate } from "../../services/chat-core/prompt-template-renderer";
 
 import type { GenerationWithDebugDto } from "../../services/chat-core/generations-repository";
@@ -60,45 +61,6 @@ type PromptDiagnosticsSectionTokens = {
   worldInfoOutlets: number;
   worldInfoAN: number;
   worldInfoEM: number;
-};
-
-type PromptDiagnosticsDebugJson = {
-  estimator: "chars_div4";
-  prompt: {
-    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-    approxTokens: {
-      total: number;
-      byRole: { system: number; user: number; assistant: number };
-      sections: PromptDiagnosticsSectionTokens;
-    };
-  };
-  worldInfo?: {
-    activatedCount: number;
-    warnings: string[];
-    entries: Array<{
-      hash: string;
-      bookId: string;
-      bookName: string;
-      uid: number;
-      comment: string;
-      content: string;
-      matchedKeys: string[];
-      reasons: string[];
-    }>;
-  };
-  operations?: {
-    turnUserCanonicalization?: Array<{
-      hook: "before_main_llm" | "after_main_llm";
-      opId: string;
-      userEntryId: string;
-      userMainPartId: string;
-      replacedPartId?: string;
-      canonicalPartId?: string;
-      beforeText: string;
-      afterText: string;
-      committedAt: string;
-    }>;
-  };
 };
 
 export type PromptDiagnosticsResponse = {
@@ -319,9 +281,7 @@ export function buildPromptDiagnosticsFromDebug(params: {
   entryId: string;
   variantId: string;
 }): PromptDiagnosticsResponse | null {
-  const debug = isRecord(params.generation.debug)
-    ? (params.generation.debug as PromptDiagnosticsDebugJson)
-    : null;
+  const debug = normalizePromptDiagnosticsDebugJson(params.generation.debug);
   if (!debug || !isRecord(debug.prompt)) return null;
 
   const messages = normalizePromptMessages(debug.prompt.messages);
@@ -478,9 +438,7 @@ export function emptyLatestWorldInfoActivationsResponse(): LatestWorldInfoActiva
 export function buildLatestWorldInfoActivationsFromGeneration(
   generation: GenerationWithDebugDto
 ): LatestWorldInfoActivationsResponse | null {
-  const debug = isRecord(generation.debug)
-    ? (generation.debug as PromptDiagnosticsDebugJson)
-    : null;
+  const debug = normalizePromptDiagnosticsDebugJson(generation.debug);
   const worldInfo = debug && isRecord(debug.worldInfo) ? debug.worldInfo : null;
   if (!worldInfo) return null;
 

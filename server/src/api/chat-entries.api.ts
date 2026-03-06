@@ -23,7 +23,7 @@ import { selectEntryVariant } from "../application/chat-runtime/use-cases/select
 import { setEntryPromptVisibility } from "../application/chat-runtime/use-cases/set-entry-prompt-visibility";
 import { undoPartCanonicalization } from "../application/chat-runtime/use-cases/undo-part-canonicalization";
 import { chatIdParamsSchema } from "../chat-core/schemas";
-import { abortGeneration } from "../services/chat-core/generation-runtime";
+import { GenerationControlService } from "../services/chat-core/generation-control-service";
 import {
   getEntryById,
   softDeleteEntry,
@@ -73,7 +73,7 @@ async function proxyRunEventsToSse(params: {
       params.onGenerationId(generationId);
       if (params.reqClosed()) {
         params.abortController.abort();
-        abortGeneration(generationId);
+        void GenerationControlService.requestAbort(generationId);
       }
       params.sse.send("llm.stream.meta", { ...params.envBase, generationId });
     }
@@ -156,7 +156,7 @@ async function streamGenerationSession(params: {
     reqClosed = true;
     if (shouldAbortOnClose) {
       runAbortController.abort();
-      if (generationId) abortGeneration(generationId);
+      if (generationId) void GenerationControlService.requestAbort(generationId);
     }
     sse.close();
   });
@@ -166,7 +166,7 @@ async function streamGenerationSession(params: {
     shouldAbortOnClose = true;
     if (reqClosed) {
       runAbortController.abort();
-      if (generationId) abortGeneration(generationId);
+      if (generationId) void GenerationControlService.requestAbort(generationId);
     }
 
     await proxyRunEventsToSse({

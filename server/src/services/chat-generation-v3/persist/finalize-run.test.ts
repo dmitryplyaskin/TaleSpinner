@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   updateGenerationRunReports: vi.fn(),
   finishGeneration: vi.fn(),
+  withDbTransaction: vi.fn(),
 }));
 
 vi.mock("../../chat-core/generations-repository", () => ({
   updateGenerationRunReports: mocks.updateGenerationRunReports,
   finishGeneration: mocks.finishGeneration,
+}));
+
+vi.mock("../../../db/client", () => ({
+  withDbTransaction: mocks.withDbTransaction,
 }));
 
 import { finalizeRun } from "./finalize-run";
@@ -66,6 +71,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.updateGenerationRunReports.mockResolvedValue(undefined);
   mocks.finishGeneration.mockResolvedValue(undefined);
+  mocks.withDbTransaction.mockImplementation(async (callback: (tx: { id: string }) => unknown) => {
+    return callback({ id: "tx-1" });
+  });
 });
 
 describe("finalizeRun", () => {
@@ -75,16 +83,22 @@ describe("finalizeRun", () => {
 
     await finalizeRun({ context, result });
 
-    expect(mocks.updateGenerationRunReports).toHaveBeenCalledWith({
-      id: "gen-1",
-      phaseReport: result.phaseReports,
-      commitReport: result.commitReportsByHook,
-    });
-    expect(mocks.finishGeneration).toHaveBeenCalledWith({
-      id: "gen-1",
-      status: "done",
-      error: null,
-    });
+    expect(mocks.updateGenerationRunReports).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "gen-1",
+        phaseReport: result.phaseReports,
+        commitReport: result.commitReportsByHook,
+        executor: { id: "tx-1" },
+      })
+    );
+    expect(mocks.finishGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "gen-1",
+        status: "done",
+        error: null,
+        executor: { id: "tx-1" },
+      })
+    );
   });
 
   test("maps aborted run status to aborted generation status", async () => {
@@ -93,11 +107,14 @@ describe("finalizeRun", () => {
       result: makeResult("aborted"),
     });
 
-    expect(mocks.finishGeneration).toHaveBeenCalledWith({
-      id: "gen-1",
-      status: "aborted",
-      error: null,
-    });
+    expect(mocks.finishGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "gen-1",
+        status: "aborted",
+        error: null,
+        executor: { id: "tx-1" },
+      })
+    );
   });
 
   test("maps failed run status to error generation status and forwards error", async () => {
@@ -106,11 +123,14 @@ describe("finalizeRun", () => {
       result: makeResult("failed", "before barrier failed"),
     });
 
-    expect(mocks.finishGeneration).toHaveBeenCalledWith({
-      id: "gen-1",
-      status: "error",
-      error: "before barrier failed",
-    });
+    expect(mocks.finishGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "gen-1",
+        status: "error",
+        error: "before barrier failed",
+        executor: { id: "tx-1" },
+      })
+    );
   });
 
   test("maps error run status to error generation status and forwards error", async () => {
@@ -119,10 +139,13 @@ describe("finalizeRun", () => {
       result: makeResult("error", "unexpected"),
     });
 
-    expect(mocks.finishGeneration).toHaveBeenCalledWith({
-      id: "gen-1",
-      status: "error",
-      error: "unexpected",
-    });
+    expect(mocks.finishGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "gen-1",
+        status: "error",
+        error: "unexpected",
+        executor: { id: "tx-1" },
+      })
+    );
   });
 });

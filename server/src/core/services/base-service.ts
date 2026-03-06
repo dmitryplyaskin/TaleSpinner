@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { HttpError } from "@core/middleware/error-handler";
 import { type BaseEntity, type Logger, type ServiceOptions } from "@core/types/common";

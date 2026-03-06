@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 
 import sharp from "sharp";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "node:crypto";
 
 import { resolveSafePath } from "@core/files/safe-path";
 import { type AsyncRequestHandler } from "@core/middleware/async-handler";
