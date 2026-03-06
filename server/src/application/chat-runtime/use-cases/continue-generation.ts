@@ -10,7 +10,10 @@ import {
 import { createPart } from "../../../services/chat-entry-parts/parts-repository";
 import { withDbTransaction } from "../../../db/client";
 
-import { createAssistantReasoningPart, linkVariantToGeneration } from "../chat-generation-helpers";
+import {
+  createAssistantReasoningPart,
+  finalizeChatGenerationArtifacts,
+} from "../chat-generation-helpers";
 import { resolveContinueUserTurnTarget } from "../chat-entry-helpers";
 import { buildChatGenerationSession } from "../generation-session";
 
@@ -128,10 +131,9 @@ export async function continueGeneration(
       },
     },
     afterRun: async ({ generationId }) => {
-      if (!generationId) return;
-      await linkVariantToGeneration({
-        variantId: staged.assistantVariantId,
+      await finalizeChatGenerationArtifacts({
         generationId,
+        assistantVariantId: staged.assistantVariantId,
       });
     },
   });

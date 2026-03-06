@@ -137,6 +137,23 @@ export async function cleanupEmptyGenerationVariants(entryId: string): Promise<v
   }
 }
 
+export async function finalizeChatGenerationArtifacts(params: {
+  generationId: string | null;
+  assistantVariantId: string;
+  cleanupEntryId?: string;
+}): Promise<void> {
+  if (params.generationId) {
+    await linkVariantToGeneration({
+      variantId: params.assistantVariantId,
+      generationId: params.generationId,
+    });
+  }
+
+  if (params.cleanupEntryId) {
+    await cleanupEmptyGenerationVariants(params.cleanupEntryId);
+  }
+}
+
 export function createDetachedGenerationVariant(params: {
   ownerId: string;
   entryId: string;

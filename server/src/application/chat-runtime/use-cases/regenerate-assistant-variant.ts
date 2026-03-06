@@ -11,10 +11,9 @@ import { selectActiveVariant } from "../../../services/chat-entry-parts/variants
 import { withDbTransaction } from "../../../db/client";
 
 import {
-  cleanupEmptyGenerationVariants,
   createAssistantReasoningPart,
   createDetachedGenerationVariant,
-  linkVariantToGeneration,
+  finalizeChatGenerationArtifacts,
   resolveRegenerateUserTurnTarget,
 } from "../chat-generation-helpers";
 import { buildChatGenerationSession } from "../generation-session";
@@ -128,13 +127,11 @@ export async function regenerateAssistantVariant(
       userTurnTarget,
     },
     afterRun: async ({ generationId }) => {
-      if (generationId) {
-        await linkVariantToGeneration({
-          variantId: staged.assistantVariantId,
-          generationId,
-        });
-      }
-      await cleanupEmptyGenerationVariants(entry.entryId);
+      await finalizeChatGenerationArtifacts({
+        generationId,
+        assistantVariantId: staged.assistantVariantId,
+        cleanupEntryId: entry.entryId,
+      });
     },
   });
 }
