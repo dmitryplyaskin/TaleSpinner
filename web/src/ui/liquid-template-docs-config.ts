@@ -16,6 +16,11 @@ export type MacroDoc = {
 	descriptionKey: string;
 };
 
+export type MethodDoc = {
+	token: string;
+	descriptionKey: string;
+};
+
 export type ExampleDoc = {
 	titleKey: string;
 	template: string;
@@ -25,6 +30,7 @@ export type LiquidDocsModel = {
 	titleKey: string;
 	usageKey: string;
 	variables: VariableDoc[];
+	methods: MethodDoc[];
 	macros: MacroDoc[];
 	examples: ExampleDoc[];
 };
@@ -74,11 +80,37 @@ const COMMON_MACROS: MacroDoc[] = [
 	{ token: '{{random::A::B::C}}', descriptionKey: 'dialogs.liquidDocs.macros.random' },
 ];
 
+const COMMON_METHODS: MethodDoc[] = [
+	{ token: '{{recentMessages(3)}}', descriptionKey: 'dialogs.liquidDocs.methods.recentMessages' },
+	{ token: '{{recentMessagesText(3)}}', descriptionKey: 'dialogs.liquidDocs.methods.recentMessagesText' },
+	{
+		token: '{{recentMessagesByContextTokens(256)}}',
+		descriptionKey: 'dialogs.liquidDocs.methods.recentMessagesByContextTokens',
+	},
+	{
+		token: '{{recentMessagesByContextTokensText(256)}}',
+		descriptionKey: 'dialogs.liquidDocs.methods.recentMessagesByContextTokensText',
+	},
+];
+
+const MESSAGE_HELPER_EXAMPLES: ExampleDoc[] = [
+	{
+		titleKey: 'dialogs.liquidDocs.examples.recentMessagesCount.title',
+		template:
+			'{% assign recent = recentMessages(3) %}\nRecent count: {{recent | size}}\n{% for msg in recent %}{{msg.role}}: {{msg.content}}\n{% endfor %}',
+	},
+	{
+		titleKey: 'dialogs.liquidDocs.examples.recentMessagesTokens.title',
+		template: 'Recent text by token budget:\n{{recentMessagesByContextTokensText(256)}}',
+	},
+];
+
 export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel> = {
 	instruction: {
 		titleKey: 'dialogs.liquidDocs.contexts.instruction.title',
 		usageKey: 'dialogs.liquidDocs.contexts.instruction.usage',
 		variables: BASE_VARIABLES,
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -90,12 +122,14 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.instructionOutlet.title',
 				template: "Memory:\n{{outlet::default}}\nTone: {{random::calm::tense::neutral}}",
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 	operation_template: {
 		titleKey: 'dialogs.liquidDocs.contexts.operationTemplate.title',
 		usageKey: 'dialogs.liquidDocs.contexts.operationTemplate.usage',
 		variables: [...BASE_VARIABLES, ...OPERATION_VARIABLES],
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -106,12 +140,14 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.operationTemplatePromptTime.title',
 				template: 'Inject after user:\nCharacter={{char.name}}\nPersona={{user.name}}',
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 	operation_llm: {
 		titleKey: 'dialogs.liquidDocs.contexts.operationLlm.title',
 		usageKey: 'dialogs.liquidDocs.contexts.operationLlm.usage',
 		variables: [...BASE_VARIABLES, ...OPERATION_VARIABLES],
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -122,12 +158,14 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.operationLlmPrompt.title',
 				template: 'User asks for next step.\nLast messages count: {{messages | size}}',
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 	entity_profile: {
 		titleKey: 'dialogs.liquidDocs.contexts.entityProfile.title',
 		usageKey: 'dialogs.liquidDocs.contexts.entityProfile.usage',
 		variables: BASE_VARIABLES,
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -138,12 +176,14 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.entityProfileIndirect.title',
 				template: '{{description}}\n{{scenario}}',
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 	world_info_entry: {
 		titleKey: 'dialogs.liquidDocs.contexts.worldInfoEntry.title',
 		usageKey: 'dialogs.liquidDocs.contexts.worldInfoEntry.usage',
 		variables: BASE_VARIABLES,
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -154,12 +194,14 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.worldInfoEntryOutlet.title',
 				template: 'Outlet merge:\n{{outlet::default}}\n{{trim}}\n{{wiAfter}}',
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 	chat_manual_edit: {
 		titleKey: 'dialogs.liquidDocs.contexts.chatManualEdit.title',
 		usageKey: 'dialogs.liquidDocs.contexts.chatManualEdit.usage',
 		variables: BASE_VARIABLES,
+		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
 		examples: [
 			{
@@ -170,6 +212,7 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 				titleKey: 'dialogs.liquidDocs.examples.chatManualEditHistory.title',
 				template: 'History items: {{messages | size}}\n{{random::short::detailed}} reply.',
 			},
+			...MESSAGE_HELPER_EXAMPLES,
 		],
 	},
 };

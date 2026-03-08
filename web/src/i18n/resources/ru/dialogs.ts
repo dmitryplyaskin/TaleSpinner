@@ -9,9 +9,12 @@
 			},
 			liquidDocs: {
 				open: 'Открыть документацию Liquid',
+				searchPlaceholder: 'Поиск по токенам, описаниям и примерам',
+				noSearchResults: 'По вашему запросу ничего не найдено',
 				sections: {
 					usage: 'Где используется',
 					variables: 'Переменные',
+					methods: 'Методы',
 					macros: 'Макросы',
 					examples: 'Примеры',
 				},
@@ -77,6 +80,16 @@
 					art: 'Map артефактов операций по тегам.',
 					artValue: 'Значение артефакта по тегу, например art.note.value.',
 				},
+				methods: {
+					recentMessages:
+						'Возвращает массив последних N сообщений диалога с ролями user/assistant в хронологическом порядке.',
+					recentMessagesText:
+						'Возвращает последние N сообщений диалога как текст в формате `role: content`, разделенный переводами строк.',
+					recentMessagesByContextTokens:
+						'Возвращает массив последних сообщений user/assistant, пока их примерный размер не достигнет tokenLimit. Подсчет токенов приблизительный и использует текущую эвристику приложения `ceil(chars / 4)` с округлением вверх по последнему сообщению.',
+					recentMessagesByContextTokensText:
+						'То же, что recentMessagesByContextTokens(tokenLimit), но в виде текста `role: content` с переводами строк. Подсчет токенов приблизительный и использует текущую эвристику приложения `ceil(chars / 4)`.',
+				},
 				macros: {
 					trim: 'Удаляет лишние пустые строки вокруг позиции макроса.',
 					outlet: 'Короткая форма доступа к outlet по ключу.',
@@ -118,6 +131,12 @@
 					},
 					chatManualEditHistory: {
 						title: 'Шаблон с учетом истории при ручном редактировании',
+					},
+					recentMessagesCount: {
+						title: 'Методы последних сообщений по количеству',
+					},
+					recentMessagesTokens: {
+						title: 'Методы последних сообщений по токен-бюджету',
 					},
 				},
 			},

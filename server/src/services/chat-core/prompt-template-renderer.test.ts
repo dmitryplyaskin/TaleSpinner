@@ -22,6 +22,7 @@ describe("prompt-template-renderer", () => {
     expect(() => validateLiquidTemplate("Hello {{ user.name }}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{outlet::default}}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{random::A::B}}")).not.toThrow();
+    expect(() => validateLiquidTemplate("{{ recentMessages(2) | size }}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{ broken ")).toThrow();
   });
 
@@ -163,5 +164,88 @@ describe("prompt-template-renderer", () => {
     });
 
     expect(rendered).toBe("Bad={{random::   }}");
+  });
+
+  test("renders recentMessages(count) after preprocessing and keeps chronological order", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText:
+        "{% assign msgs = recentMessages(3) %}{% for m in msgs %}[{{m.role}}={{m.content}}]{% endfor %}",
+      context: {
+        ...makeContext(),
+        messages: [
+          { role: "system", content: "S0" },
+          { role: "assistant", content: "A1" },
+          { role: "user", content: "U1" },
+          { role: "assistant", content: "A2" },
+          { role: "user", content: "U2" },
+        ],
+      },
+    });
+
+    expect(rendered).toBe("[user=U1][assistant=A2][user=U2]");
+  });
+
+  test("recentMessagesText(count) formats conversational messages as role-prefixed lines", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText: "{{ recentMessagesText(2) }}",
+      context: {
+        ...makeContext(),
+        messages: [
+          { role: "assistant", content: "A1" },
+          { role: "system", content: "S0" },
+          { role: "user", content: "U1" },
+          { role: "assistant", content: "A2" },
+        ],
+      },
+    });
+
+    expect(rendered).toBe("user: U1\nassistant: A2");
+  });
+
+  test("recentMessagesByContextTokens(tokenLimit) uses chars-per-4 heuristic and rounds upward", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText:
+        "{% assign msgs = recentMessagesByContextTokens(4) %}{% for m in msgs %}[{{m.role}}={{m.content}}]{% endfor %}",
+      context: {
+        ...makeContext(),
+        messages: [
+          { role: "user", content: "12345678" },
+          { role: "assistant", content: "123456789012" },
+          { role: "user", content: "1234" },
+        ],
+      },
+    });
+
+    expect(rendered).toBe("[assistant=123456789012][user=1234]");
+  });
+
+  test("recentMessagesByContextTokensText(tokenLimit) includes the overflowing message and excludes system", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText: "{{ recentMessagesByContextTokensText(3) }}",
+      context: {
+        ...makeContext(),
+        messages: [
+          { role: "user", content: "12345678901234567890" },
+          { role: "system", content: "ignored" },
+          { role: "assistant", content: "12345678" },
+          { role: "user", content: "1234" },
+        ],
+      },
+    });
+
+    expect(rendered).toBe("assistant: 12345678\nuser: 1234");
+  });
+
+  test("recent message helpers return empty values for invalid or non-positive args", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText:
+        "A={{ recentMessages(0) | size }}|B={{ recentMessagesText(-1) }}|C={{ recentMessagesByContextTokens() | size }}|D={{ recentMessagesByContextTokensText('bad') }}",
+      context: {
+        ...makeContext(),
+        messages: [{ role: "user", content: "U1" }],
+      },
+    });
+
+    expect(rendered).toBe("A=0|B=|C=0|D=");
   });
 });

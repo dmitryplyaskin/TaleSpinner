@@ -9,9 +9,12 @@
 			},
 			liquidDocs: {
 				open: 'Open Liquid docs',
+				searchPlaceholder: 'Search tokens, descriptions, and examples',
+				noSearchResults: 'No Liquid docs entries match your search',
 				sections: {
 					usage: 'Usage',
 					variables: 'Variables',
+					methods: 'Methods',
 					macros: 'Macros',
 					examples: 'Examples',
 				},
@@ -77,6 +80,16 @@
 					art: 'Operation artifacts map by tag.',
 					artValue: 'Artifact value by tag, for example art.note.value.',
 				},
+				methods: {
+					recentMessages:
+						'Returns the last N conversational messages with user/assistant roles in chronological order.',
+					recentMessagesText:
+						'Returns the last N conversational messages as text in `role: content` format separated by newlines.',
+					recentMessagesByContextTokens:
+						'Returns the last user/assistant messages until their approximate size reaches tokenLimit. Token counting is approximate and uses the current app heuristic `ceil(chars / 4)` while rounding upward on the last included message.',
+					recentMessagesByContextTokensText:
+						'Same as recentMessagesByContextTokens(tokenLimit), but formatted as newline-separated `role: content` text. Token counting is approximate and uses the current app heuristic `ceil(chars / 4)`.',
+				},
 				macros: {
 					trim: 'Removes surrounding blank lines around macro location.',
 					outlet: 'Shortcut to outlet map lookup by key.',
@@ -118,6 +131,12 @@
 					},
 					chatManualEditHistory: {
 						title: 'Manual edit history-aware template',
+					},
+					recentMessagesCount: {
+						title: 'Recent message helpers by count',
+					},
+					recentMessagesTokens: {
+						title: 'Recent message helpers by token budget',
 					},
 				},
 			},
