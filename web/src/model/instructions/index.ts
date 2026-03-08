@@ -14,6 +14,13 @@ import { $currentChat, setChatInstructionRequested, setOpenedChat } from '../cha
 import type { InstructionDto } from '../../api/instructions';
 import type { InstructionMeta } from '@shared/types/instructions';
 
+export type InstructionEditorDraft = {
+	sourceInstructionId: string;
+	name: string;
+	templateText: string;
+	meta?: InstructionMeta;
+};
+
 function isInstructionDto(value: unknown): value is InstructionDto {
 	if (!value || typeof value !== 'object') return false;
 	const item = value as Record<string, unknown>;
@@ -55,6 +62,7 @@ export const $selectedInstruction = combine($instructions, $selectedInstructionI
 });
 
 export const instructionSelected = createEvent<string>();
+export const instructionEditorDraftChanged = createEvent<InstructionEditorDraft | null>();
 
 const refreshRequested = createEvent();
 
@@ -148,6 +156,10 @@ export const updateInstructionFx = createEffect(
 );
 
 export const deleteInstructionFx = createEffect(async (params: { id: string }) => deleteInstruction(params.id));
+
+export const $instructionEditorDraft = createStore<InstructionEditorDraft | null>(null)
+	.on(instructionEditorDraftChanged, (_, draft) => draft)
+	.reset(setSelectedInstructionId, deleteInstructionFx.doneData);
 
 export const createInstructionRequested = createEvent();
 export const duplicateInstructionRequested = createEvent<{ id: string }>();

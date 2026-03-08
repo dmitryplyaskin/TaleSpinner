@@ -13,6 +13,7 @@ describe("app settings route schema", () => {
       language: "en",
       openLastChat: true,
       autoSelectCurrentPersona: false,
+      bindChatCompletionPresetToConnection: true,
     });
 
     expect(parsed.success).toBe(true);

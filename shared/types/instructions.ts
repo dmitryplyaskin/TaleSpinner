@@ -8,6 +8,7 @@ export type StPrompt = {
   role?: StPromptRole;
   content?: string;
   system_prompt?: boolean;
+  marker?: boolean;
 };
 
 export type StPromptOrderEntry = {

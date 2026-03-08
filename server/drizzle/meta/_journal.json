@@ -169,6 +169,13 @@
       "when": 1772790000000,
       "tag": "0027_generation_runtime_control",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1773012000000,
+      "tag": "0028_ui_app_settings_bind_chat_completion",
+      "breakpoints": true
     }
   ]
 }

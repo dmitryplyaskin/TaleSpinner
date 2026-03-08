@@ -1,21 +1,23 @@
-import { Badge, Button, Checkbox, Group, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { Accordion, Alert, Badge, Button, Collapse, Group, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuArrowDown, LuArrowUp, LuPlus, LuTrash2 } from 'react-icons/lu';
+import { LuArrowDown, LuArrowUp, LuChevronDown, LuChevronRight, LuPlus, LuTrash2 } from 'react-icons/lu';
 
 import { $currentBranchId, $currentChat, $currentEntityProfile } from '@model/chat-core';
 import {
 	$selectedInstruction,
-	updateInstructionRequested,
+	instructionEditorDraftChanged,
 } from '@model/instructions';
 import {
+	createTsInstructionMeta,
+	getStPromptDefinition,
+	getStPromptSourceLabel,
 	getTsInstructionMeta,
+	isSystemMarkerPrompt,
 	resolvePreferredPromptOrder,
-	withTsInstructionMeta,
 } from '@model/instructions/st-preset';
-import { FormInput } from '@ui/form-components';
 import { LiquidDocsButton } from '@ui/liquid-template-docs';
 
 import { prerenderInstruction } from '../../../api/instructions';
@@ -74,6 +76,8 @@ function createDefaultAdvancedConfig(templateText: string): StAdvancedConfig {
 
 function normalizePromptForEdit(prompt: StPrompt | undefined, identifier: string): StPrompt {
 	if (prompt) return { ...prompt };
+	const definition = getStPromptDefinition(identifier);
+	if (definition) return { ...definition };
 	return {
 		identifier,
 		name: identifier,
@@ -90,6 +94,7 @@ export const InstructionEditor = () => {
 	const [isAdvancedMode, setIsAdvancedMode] = useState(false);
 	const [stAdvanced, setStAdvanced] = useState<StAdvancedConfig | null>(null);
 	const [newPromptIdentifier, setNewPromptIdentifier] = useState<string | null>(null);
+	const [collapsedPromptById, setCollapsedPromptById] = useState<Record<string, boolean>>({});
 
 	const [preview, setPreview] = useState<string>('');
 	const [previewError, setPreviewError] = useState<string | null>(null);
@@ -102,6 +107,8 @@ export const InstructionEditor = () => {
 		},
 	});
 	const { reset } = methods;
+	const watchedName = methods.watch('name');
+	const watchedTemplateText = methods.watch('templateText');
 	const lastResetInstructionIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -125,9 +132,28 @@ export const InstructionEditor = () => {
 		setIsAdvancedMode(mode === 'st_advanced');
 		setStAdvanced(advancedConfig);
 		setNewPromptIdentifier(null);
+		setCollapsedPromptById({});
 		setPreview('');
 		setPreviewError(null);
 	}, [reset, tpl?.id, tpl?.meta, tpl?.name, tpl?.templateText]);
+
+	useEffect(() => {
+		if (!tpl) {
+			instructionEditorDraftChanged(null);
+			return;
+		}
+		const ensuredAdvanced = stAdvanced ?? createDefaultAdvancedConfig(watchedTemplateText);
+		instructionEditorDraftChanged({
+			sourceInstructionId: tpl.id,
+			name: watchedName,
+			templateText: watchedTemplateText,
+			meta: createTsInstructionMeta({
+				meta: tpl.meta,
+				mode: isAdvancedMode ? 'st_advanced' : 'basic',
+				stAdvanced: ensuredAdvanced,
+			}),
+		});
+	}, [isAdvancedMode, stAdvanced, tpl, watchedName, watchedTemplateText]);
 
 	const preferredOrder = useMemo(() => {
 		if (!stAdvanced) return null;
@@ -157,6 +183,19 @@ export const InstructionEditor = () => {
 	}, [stAdvanced]);
 
 	if (!tpl) return null;
+
+	const isPromptCollapsed = (identifier: string, isMarkerPrompt: boolean): boolean => {
+		const value = collapsedPromptById[identifier];
+		if (typeof value === 'boolean') return value;
+		return isMarkerPrompt;
+	};
+
+	const togglePromptCollapsed = (identifier: string, isMarkerPrompt: boolean) => {
+		setCollapsedPromptById((current) => ({
+			...current,
+			[identifier]: !isPromptCollapsed(identifier, isMarkerPrompt),
+		}));
+	};
 
 	const updatePreferredOrder = (updater: (order: Array<{ identifier: string; enabled: boolean }>) => Array<{ identifier: string; enabled: boolean }>) => {
 		setStAdvanced((current) => {
@@ -270,23 +309,6 @@ export const InstructionEditor = () => {
 		});
 	};
 
-	const onSubmit = (data: FormValues) => {
-		const ensuredAdvanced = stAdvanced ?? createDefaultAdvancedConfig(data.templateText);
-		updateInstructionRequested({
-			id: tpl.id,
-			name: data.name,
-			templateText: data.templateText,
-			meta: withTsInstructionMeta({
-				meta: tpl.meta,
-				tsInstruction: {
-					version: 1,
-					mode: isAdvancedMode ? 'st_advanced' : 'basic',
-					stAdvanced: ensuredAdvanced,
-				},
-			}),
-		});
-	};
-
 	const onPrerender = async () => {
 		setPreviewLoading(true);
 		setPreviewError(null);
@@ -310,8 +332,6 @@ export const InstructionEditor = () => {
 	return (
 		<FormProvider {...methods}>
 			<Stack gap="md" mt="md">
-				<FormInput name="name" label={t('instructions.fields.name')} placeholder={t('instructions.placeholders.name')} />
-
 				<Switch
 					label={t('instructions.fields.advancedMode')}
 					checked={isAdvancedMode}
@@ -328,7 +348,7 @@ export const InstructionEditor = () => {
 								</Group>
 							}
 							description={t('instructions.fields.templateTextDescription')}
-							value={methods.watch('templateText')}
+							value={watchedTemplateText}
 							onChange={(e) => methods.setValue('templateText', e.currentTarget.value, { shouldDirty: true })}
 							minRows={14}
 							autosize
@@ -360,7 +380,7 @@ export const InstructionEditor = () => {
 						<Text fw={600}>{t('instructions.fields.fallbackTemplateText')}</Text>
 						<Textarea
 							description={t('instructions.fields.fallbackTemplateTextDescription')}
-							value={methods.watch('templateText')}
+							value={watchedTemplateText}
 							onChange={(e) => methods.setValue('templateText', e.currentTarget.value, { shouldDirty: true })}
 							minRows={5}
 							autosize
@@ -397,11 +417,12 @@ export const InstructionEditor = () => {
 											if (current.prompts.some((item) => item.identifier === newPromptIdentifier)) {
 												return current;
 											}
+											const definition = getStPromptDefinition(newPromptIdentifier);
 											return {
 												...current,
 												prompts: [
 													...current.prompts,
-													{
+													definition ?? {
 														identifier: newPromptIdentifier,
 														name: newPromptIdentifier,
 														role: 'system',
@@ -422,12 +443,24 @@ export const InstructionEditor = () => {
 						{preferredOrder.order.map((entry, index) => {
 							const prompt = normalizePromptForEdit(promptMap.get(entry.identifier), entry.identifier);
 							const unsupported = !KNOWN_PROMPT_IDENTIFIERS.includes(entry.identifier);
+							const isMarkerPrompt = isSystemMarkerPrompt(prompt);
+							const sourceLabel = getStPromptSourceLabel(entry.identifier);
+							const isCollapsed = isPromptCollapsed(entry.identifier, isMarkerPrompt);
 
 							return (
 								<Stack key={`${entry.identifier}_${index}`} gap={6} p="xs" style={{ border: '1px solid var(--mantine-color-gray-3)', borderRadius: 8 }}>
 									<Group justify="space-between" align="center">
 										<Group gap="xs" align="center">
-											<Checkbox
+											<Button
+												size="compact-sm"
+												variant="subtle"
+												px={4}
+												onClick={() => togglePromptCollapsed(entry.identifier, isMarkerPrompt)}
+												aria-label={isCollapsed ? 'Expand block' : 'Collapse block'}
+											>
+												{isCollapsed ? <LuChevronRight size={16} /> : <LuChevronDown size={16} />}
+											</Button>
+											<Switch
 												checked={entry.enabled}
 												onChange={(event) => {
 													const enabled = event.currentTarget.checked;
@@ -438,6 +471,7 @@ export const InstructionEditor = () => {
 													);
 												}}
 												label={entry.identifier}
+												size="sm"
 											/>
 											{unsupported && <Badge color="orange" variant="light">{t('instructions.fields.unsupportedBlock')}</Badge>}
 										</Group>
@@ -479,6 +513,7 @@ export const InstructionEditor = () => {
 												variant="subtle"
 												color="red"
 												leftSection={<LuTrash2 size={14} />}
+												disabled={isMarkerPrompt}
 												onClick={() => {
 													updatePreferredOrder((order) => order.filter((_, itemIndex) => itemIndex !== index));
 												}}
@@ -488,14 +523,31 @@ export const InstructionEditor = () => {
 										</Group>
 									</Group>
 
-									<Textarea
-										value={prompt.content ?? ''}
-										onChange={(event) => setPromptContent(entry.identifier, event.currentTarget.value)}
-										placeholder={t('instructions.placeholders.promptBlockContent')}
-										minRows={4}
-										autosize
-										styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
-									/>
+									<Collapse in={!isCollapsed}>
+										<Stack gap={6}>
+											{isMarkerPrompt ? (
+												<Alert color="blue" variant="light" title={t('instructions.fields.systemBlockTitle')}>
+													<Stack gap={4}>
+														<Text size="sm">{t('instructions.fields.systemBlockDescription')}</Text>
+														{sourceLabel ? (
+															<Text size="sm">
+																{t('instructions.fields.systemBlockSource')}: {sourceLabel}
+															</Text>
+														) : null}
+													</Stack>
+												</Alert>
+											) : (
+												<Textarea
+													value={prompt.content ?? ''}
+													onChange={(event) => setPromptContent(entry.identifier, event.currentTarget.value)}
+													placeholder={t('instructions.placeholders.promptBlockContent')}
+													minRows={4}
+													autosize
+													styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
+												/>
+											)}
+										</Stack>
+									</Collapse>
 								</Stack>
 							);
 						})}
@@ -624,14 +676,23 @@ export const InstructionEditor = () => {
 								readOnly
 							/>
 						</Group>
-						<Textarea
-							label={t('instructions.fields.rawPreset')}
-							value={rawPresetJson}
-							readOnly
-							minRows={6}
-							autosize
-							styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
-						/>
+						<Accordion variant="separated">
+							<Accordion.Item value="details">
+								<Accordion.Control>{t('instructions.fields.details')}</Accordion.Control>
+								<Accordion.Panel>
+									<Stack gap="sm">
+										<Textarea
+											label={t('instructions.fields.rawPreset')}
+											value={rawPresetJson}
+											readOnly
+											minRows={6}
+											autosize
+											styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
+										/>
+									</Stack>
+								</Accordion.Panel>
+							</Accordion.Item>
+						</Accordion>
 					</Stack>
 				)}
 
@@ -641,7 +702,6 @@ export const InstructionEditor = () => {
 							{t('instructions.actions.prerender')}
 						</Button>
 					)}
-					<Button onClick={methods.handleSubmit(onSubmit)}>{t('common.save')}</Button>
 				</Group>
 			</Stack>
 		</FormProvider>

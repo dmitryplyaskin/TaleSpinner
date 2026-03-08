@@ -27,6 +27,7 @@ const defaultAppSettings: AppSettings = {
 	language: 'ru',
 	openLastChat: false,
 	autoSelectCurrentPersona: false,
+	bindChatCompletionPresetToConnection: false,
 };
 
 // Store

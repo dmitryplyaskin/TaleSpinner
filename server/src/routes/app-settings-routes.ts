@@ -14,6 +14,7 @@ export const appSettingsPatchSchema = z
     language: z.enum(["ru", "en"]).optional(),
     openLastChat: z.boolean().optional(),
     autoSelectCurrentPersona: z.boolean().optional(),
+    bindChatCompletionPresetToConnection: z.boolean().optional(),
   })
   .strict();
 

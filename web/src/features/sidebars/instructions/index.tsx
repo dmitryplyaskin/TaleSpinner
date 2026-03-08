@@ -1,26 +1,38 @@
-import { Group, Select, Stack } from '@mantine/core';
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useUnit } from 'effector-react';
-import { useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuDownload, LuPlus, LuTrash2, LuUpload } from 'react-icons/lu';
-
 import {
+	LuDownload,
+	LuFilePlus2,
+	LuLink2,
+	LuLink2Off,
+	LuPencil,
+	LuSave,
+	LuTrash2,
+	LuUpload,
+} from 'react-icons/lu';
+
+import { getRuntime, patchRuntime } from '../../../api/llm';
+import { $appSettings, updateAppSettings } from '@model/app-settings';
+import {
+	$instructionEditorDraft,
 	$instructions,
 	$selectedInstructionId,
-	createInstructionRequested,
-	deleteInstructionRequested,
-	duplicateInstructionRequested,
-	importInstructionRequested,
+	createInstructionFx,
+	deleteInstructionFx,
 	instructionSelected,
+	updateInstructionFx,
 } from '@model/instructions';
 import {
 	buildStPresetFromAdvanced,
+	createBestEffortLlmBindingPlan,
 	createStAdvancedConfigFromPreset,
+	createTsInstructionMeta,
 	detectStChatCompletionPreset,
 	deriveInstructionTemplateText,
 	getTsInstructionMeta,
 	hasSensitivePresetFields,
-	withTsInstructionMeta,
 } from '@model/instructions/st-preset';
 import { Drawer } from '@ui/drawer';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
@@ -28,8 +40,22 @@ import { toaster } from '@ui/toaster';
 
 import { InstructionEditor } from './instruction-editor';
 
+import type { InstructionDto } from '../../../api/instructions';
 import type { InstructionMeta } from '@shared/types/instructions';
 
+type NameDialogMode = 'rename' | 'saveAs';
+
+type NameDialogState = {
+	mode: NameDialogMode;
+	value: string;
+	title: string;
+	submitLabel: string;
+};
+
+type PendingSensitiveImport = {
+	fileName: string;
+	json: Record<string, unknown>;
+};
 
 function downloadJson(params: { fileName: string; data: unknown }): void {
 	const blob = new Blob([JSON.stringify(params.data, null, 2)], { type: 'application/json' });
@@ -53,50 +79,272 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function createInstructionPayloadFromDraft(params: {
+	name: string;
+	templateText: string;
+	meta?: InstructionMeta;
+}) {
+	return {
+		name: params.name.trim(),
+		templateText: params.templateText,
+		meta: params.meta,
+	};
+}
+
+function resolveCopyName(originalName: string, usedNames: Set<string>): string {
+	const firstCopy = `${originalName} (copy)`;
+	if (!usedNames.has(firstCopy)) return firstCopy;
+	let index = 2;
+	while (usedNames.has(`${originalName} (copy ${index})`)) {
+		index += 1;
+	}
+	return `${originalName} (copy ${index})`;
+}
+
+function resolveUniqueName(name: string, usedNames: Set<string>): string {
+	const trimmed = name.trim();
+	if (!usedNames.has(trimmed)) return trimmed;
+	return resolveCopyName(trimmed, usedNames);
+}
+
+function areInstructionValuesEqual(
+	selectedInstruction: InstructionDto | null,
+	draft: { sourceInstructionId: string; name: string; templateText: string; meta?: InstructionMeta } | null,
+): boolean {
+	if (!selectedInstruction || !draft) return true;
+	if (draft.sourceInstructionId !== selectedInstruction.id) return false;
+	return (
+		draft.name === selectedInstruction.name &&
+		draft.templateText === selectedInstruction.templateText &&
+		JSON.stringify(draft.meta ?? null) === JSON.stringify(selectedInstruction.meta ?? null)
+	);
+}
+
 export const InstructionsSidebar = () => {
 	const { t } = useTranslation();
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [items, selectedId] = useUnit([$instructions, $selectedInstructionId]);
-	const onImport = useUnit(importInstructionRequested);
+	const [items, selectedId, draft, appSettings, onCreateInstruction, onUpdateInstruction, onDeleteInstruction] = useUnit([
+		$instructions,
+		$selectedInstructionId,
+		$instructionEditorDraft,
+		$appSettings,
+		createInstructionFx,
+		updateInstructionFx,
+		deleteInstructionFx,
+	]);
 
+	const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
+	const [deleteOpened, setDeleteOpened] = useState(false);
+	const [discardOpened, setDiscardOpened] = useState(false);
+	const [pendingSelectionId, setPendingSelectionId] = useState<string | null>(null);
+	const [pendingSensitiveImport, setPendingSensitiveImport] = useState<PendingSensitiveImport | null>(null);
+
+	const selectedInstruction = items.find((item) => item.id === selectedId) ?? null;
+	const selectedValue = selectedInstruction?.id ?? null;
+	const usedNames = useMemo(() => new Set(items.map((item) => item.name)), [items]);
 	const options = items
 		.filter((item) => typeof item.id === 'string' && item.id.trim().length > 0)
 		.map((item) => ({ value: item.id, label: item.name || item.id }));
-	const selectedInstruction = items.find((item) => item.id === selectedId) ?? null;
-	const selectedValue = options.some((item) => item.value === selectedId) ? selectedId : null;
 
-	const doExport = () => {
-		if (!selectedInstruction) {
+	const currentValues = useMemo(() => {
+		if (draft && selectedInstruction && draft.sourceInstructionId === selectedInstruction.id) {
+			return {
+				name: draft.name,
+				templateText: draft.templateText,
+				meta: draft.meta,
+			};
+		}
+
+		if (selectedInstruction) {
+			return {
+				name: selectedInstruction.name,
+				templateText: selectedInstruction.templateText,
+				meta: selectedInstruction.meta ?? undefined,
+			};
+		}
+
+		return null;
+	}, [draft, selectedInstruction]);
+
+	const hasUnsavedChanges = useMemo(
+		() => !areInstructionValuesEqual(selectedInstruction, draft),
+		[selectedInstruction, draft],
+	);
+
+	const selectedTsInstruction = getTsInstructionMeta(currentValues?.meta);
+	const selectedStAdvanced =
+		selectedTsInstruction?.mode === 'st_advanced' ? selectedTsInstruction.stAdvanced : null;
+
+	const applyBestEffortBinding = async (instruction: InstructionDto) => {
+		if (!appSettings.bindChatCompletionPresetToConnection) return;
+
+		const tsInstruction = getTsInstructionMeta(instruction.meta);
+		const stAdvanced = tsInstruction?.mode === 'st_advanced' ? tsInstruction.stAdvanced : null;
+		if (!stAdvanced) return;
+
+		const plan = createBestEffortLlmBindingPlan(stAdvanced);
+		try {
+			if (plan.runtimePatch?.activeProviderId || typeof plan.runtimePatch?.activeModel !== 'undefined') {
+				const currentRuntime = await getRuntime({ scope: 'global', scopeId: 'global' });
+				await patchRuntime({
+					scope: 'global',
+					scopeId: 'global',
+					activeProviderId: plan.runtimePatch.activeProviderId ?? currentRuntime.activeProviderId,
+					activeTokenId: currentRuntime.activeTokenId,
+					activeModel:
+						typeof plan.runtimePatch.activeModel === 'undefined'
+							? currentRuntime.activeModel
+							: plan.runtimePatch.activeModel,
+				});
+			}
+		} catch (error) {
+			toaster.warning({
+				title: t('instructions.toasts.bindWarningTitle'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+
+		if (plan.warnings.length > 0) {
+			toaster.warning({
+				title: t('instructions.toasts.bindWarningTitle'),
+				description: plan.warnings.join(' '),
+			});
+		}
+	};
+
+	const applySelection = async (nextId: string) => {
+		instructionSelected(nextId);
+		const nextInstruction = items.find((item) => item.id === nextId);
+		if (nextInstruction) {
+			await applyBestEffortBinding(nextInstruction);
+		}
+	};
+
+	const promptForRename = () => {
+		if (!currentValues) return;
+		setNameDialog({
+			mode: 'rename',
+			value: currentValues.name,
+			title: t('instructions.dialogs.renameTitle'),
+			submitLabel: t('instructions.actions.rename'),
+		});
+	};
+
+	const promptForSaveAs = () => {
+		const fallbackName = currentValues?.name?.trim() ? `${currentValues.name} copy` : t('instructions.defaults.newPreset');
+		setNameDialog({
+			mode: 'saveAs',
+			value: fallbackName,
+			title: t('instructions.dialogs.saveAsTitle'),
+			submitLabel: t('instructions.actions.saveAs'),
+		});
+	};
+
+	const handleNameDialogSubmit = async () => {
+		if (!nameDialog || !currentValues || !selectedInstruction) return;
+		const nextName = nameDialog.value.trim();
+		if (!nextName) return;
+		const resolvedName =
+			nameDialog.mode === 'rename'
+				? nextName
+				: resolveUniqueName(nextName, usedNames);
+
+		try {
+			if (nameDialog.mode === 'rename') {
+				await onUpdateInstruction({
+					id: selectedInstruction.id,
+					...createInstructionPayloadFromDraft({
+						name: resolvedName,
+						templateText: currentValues.templateText,
+						meta: currentValues.meta,
+					}),
+				});
+				toaster.success({ title: t('instructions.toasts.savedTitle'), description: resolvedName });
+			} else {
+				const created = await onCreateInstruction(
+					createInstructionPayloadFromDraft({
+						name: resolvedName,
+						templateText: currentValues.templateText,
+						meta: currentValues.meta,
+					}),
+				);
+				await applyBestEffortBinding(created);
+				toaster.success({ title: t('instructions.toasts.createdTitle'), description: created.name });
+			}
+			setNameDialog(null);
+		} catch {
+			// global effect watchers already show the error toast
+		}
+	};
+
+	const handleUpdateCurrent = async () => {
+		if (!currentValues || !selectedInstruction) return;
+		try {
+			await onUpdateInstruction({
+				id: selectedInstruction.id,
+				...createInstructionPayloadFromDraft(currentValues),
+			});
+			toaster.success({ title: t('instructions.toasts.savedTitle'), description: currentValues.name });
+		} catch {
+			// handled by model watcher
+		}
+	};
+
+	const handleDelete = async () => {
+		if (!selectedInstruction) return;
+		try {
+			await onDeleteInstruction({ id: selectedInstruction.id });
+			setDeleteOpened(false);
+		} catch {
+			// handled by model watcher
+		}
+	};
+
+	const handleExport = () => {
+		if (!currentValues) {
 			toaster.error({ title: t('instructions.toasts.exportNotPossibleTitle'), description: t('instructions.toasts.selectForExport') });
 			return;
 		}
 
-		const tsInstruction = getTsInstructionMeta(selectedInstruction.meta);
+		const tsInstruction = getTsInstructionMeta(currentValues.meta);
 		const stAdvanced = tsInstruction?.mode === 'st_advanced' ? tsInstruction.stAdvanced : null;
-		const exportStCompatible = Boolean(stAdvanced) && window.confirm(t('instructions.confirm.exportStPreset'));
-
-		if (exportStCompatible && stAdvanced) {
-			const preset = buildStPresetFromAdvanced(stAdvanced);
-			downloadJson({
-				fileName: `${selectedInstruction.name}.json`,
-				data: preset,
-			});
+		if (!stAdvanced) {
+			toaster.error({ title: t('instructions.toasts.exportNotPossibleTitle'), description: t('instructions.toasts.stPresetOnlyExport') });
 			return;
 		}
 
 		downloadJson({
-			fileName: `instruction-${selectedInstruction.name}.json`,
-			data: {
-				type: 'talespinner.instruction',
-				version: 1,
-				instruction: {
-					name: selectedInstruction.name,
-					engine: selectedInstruction.engine,
-					templateText: selectedInstruction.templateText,
-					meta: selectedInstruction.meta ?? null,
-				},
-			},
+			fileName: `${currentValues.name}.json`,
+			data: buildStPresetFromAdvanced(stAdvanced),
 		});
+	};
+
+	const importStPreset = (fileName: string, json: Record<string, unknown>, sensitiveImportMode: 'remove' | 'keep') => {
+		const stAdvanced = createStAdvancedConfigFromPreset({
+			preset: json,
+			fileName,
+			sensitiveImportMode,
+		});
+		const templateText = deriveInstructionTemplateText(stAdvanced);
+		void onCreateInstruction({
+			name: resolveUniqueName(
+				getBasename(fileName).trim() || t('instructions.defaults.importedInstruction'),
+				usedNames,
+			),
+			templateText,
+			meta: createTsInstructionMeta({
+				meta: null,
+				mode: 'st_advanced',
+				stAdvanced,
+			}),
+		})
+			.then((created) => {
+				void applyBestEffortBinding(created);
+				toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: created.name });
+			})
+			.catch(() => {
+				// handled by model watcher
+			});
 	};
 
 	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +356,6 @@ export const InstructionsSidebar = () => {
 			try {
 				const content = String(readEvent.target?.result ?? '');
 				const json = JSON.parse(content) as unknown;
-				const fileName = getBasename(file.name).trim() || t('instructions.defaults.importedInstruction');
 
 				if (
 					isRecord(json) &&
@@ -117,10 +364,7 @@ export const InstructionsSidebar = () => {
 				) {
 					const name = typeof json.instruction.name === 'string' ? json.instruction.name : t('instructions.defaults.importedInstruction');
 					const templateText = typeof json.instruction.templateText === 'string' ? json.instruction.templateText : '';
-					const meta =
-						isRecord(json.instruction.meta)
-							? (json.instruction.meta as InstructionMeta)
-							: undefined;
+					const meta = isRecord(json.instruction.meta) ? (json.instruction.meta as InstructionMeta) : undefined;
 
 					if (!templateText.trim()) {
 						toaster.error({
@@ -130,44 +374,21 @@ export const InstructionsSidebar = () => {
 						return;
 					}
 
-					onImport({ name, templateText, meta });
-					toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: name });
+					void onCreateInstruction({ name, templateText, meta })
+						.then((created) => toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: created.name }))
+						.catch(() => {
+							// handled by model watcher
+						});
 					return;
 				}
 
 				if (detectStChatCompletionPreset(json)) {
-					let sensitiveImportMode: 'remove' | 'keep' = 'keep';
 					if (hasSensitivePresetFields(json)) {
-						const removeSensitive = window.confirm(t('instructions.confirm.sensitiveRemove'));
-						if (removeSensitive) {
-							sensitiveImportMode = 'remove';
-						} else {
-							const importAsIs = window.confirm(t('instructions.confirm.sensitiveImportAsIs'));
-							if (!importAsIs) return;
-						}
+						setPendingSensitiveImport({ fileName: file.name, json });
+						return;
 					}
 
-					const stAdvanced = createStAdvancedConfigFromPreset({
-						preset: json,
-						fileName: file.name,
-						sensitiveImportMode,
-					});
-					const templateText = deriveInstructionTemplateText(stAdvanced);
-					const meta = withTsInstructionMeta({
-						meta: null,
-						tsInstruction: {
-							version: 1,
-							mode: 'st_advanced',
-							stAdvanced,
-						},
-					});
-
-					onImport({
-						name: fileName,
-						templateText,
-						meta,
-					});
-					toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: fileName });
+					importStPreset(file.name, json, 'keep');
 					return;
 				}
 
@@ -190,66 +411,215 @@ export const InstructionsSidebar = () => {
 	return (
 		<Drawer name="instructions" title={t('instructions.title')}>
 			<Stack gap="md">
-				<input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={handleFileChange} />
+				<input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json,.settings" onChange={handleFileChange} />
 
-				<Group gap="sm" wrap="nowrap" className="ts-sidebar-toolbar">
-					<Select
-						data={options}
-						value={selectedValue}
-						onChange={(id) => {
-							if (!id) return;
-							instructionSelected(id);
-						}}
-						placeholder={t('instructions.placeholders.selectInstruction')}
-						comboboxProps={{ withinPortal: false }}
-						className="ts-sidebar-toolbar__main"
-					/>
+				<Modal
+					opened={nameDialog !== null}
+					onClose={() => setNameDialog(null)}
+					title={nameDialog?.title ?? ''}
+					centered
+				>
+					<Stack gap="md">
+						<TextInput
+							label={t('instructions.fields.name')}
+							value={nameDialog?.value ?? ''}
+							onChange={(event) =>
+								setNameDialog((current) =>
+									current ? { ...current, value: event.currentTarget.value } : current,
+								)
+							}
+							placeholder={t('instructions.placeholders.name')}
+							autoFocus
+						/>
+						<Group justify="flex-end">
+							<Button variant="default" onClick={() => setNameDialog(null)}>
+								{t('common.cancel')}
+							</Button>
+							<Button onClick={() => void handleNameDialogSubmit()}>{nameDialog?.submitLabel}</Button>
+						</Group>
+					</Stack>
+				</Modal>
 
-					<Group gap="xs" wrap="nowrap" className="ts-sidebar-toolbar__actions">
-						<IconButtonWithTooltip
-							tooltip={t('common.create')}
-							icon={<LuPlus />}
-							aria-label={t('common.create')}
-							onClick={() => createInstructionRequested()}
-						/>
-						<IconButtonWithTooltip
-							tooltip={t('common.duplicate')}
-							icon={<LuCopy />}
-							aria-label={t('common.duplicate')}
-							disabled={!selectedId}
-							onClick={() => {
-								if (!selectedId) return;
-								duplicateInstructionRequested({ id: selectedId });
-							}}
-						/>
-						<IconButtonWithTooltip
-							tooltip={t('common.import')}
-							icon={<LuUpload />}
-							aria-label={t('common.import')}
-							onClick={() => fileInputRef.current?.click()}
-						/>
-						<IconButtonWithTooltip
-							tooltip={t('common.export')}
-							icon={<LuDownload />}
-							aria-label={t('common.export')}
-							disabled={!selectedId}
-							onClick={doExport}
-						/>
-						<IconButtonWithTooltip
-							tooltip={t('common.delete')}
-							icon={<LuTrash2 />}
-							aria-label={t('common.delete')}
-							color="red"
-							variant="outline"
-							disabled={!selectedId}
-							onClick={() => {
-								if (!selectedId) return;
-								if (!window.confirm(t('instructions.confirm.deleteInstruction'))) return;
-								deleteInstructionRequested({ id: selectedId });
-							}}
-						/>
+				<Modal opened={deleteOpened} onClose={() => setDeleteOpened(false)} title={t('instructions.dialogs.deleteTitle')} centered>
+					<Stack gap="md">
+						<Text>{t('instructions.confirm.deleteInstruction')}</Text>
+						<Group justify="flex-end">
+							<Button variant="default" onClick={() => setDeleteOpened(false)}>
+								{t('common.cancel')}
+							</Button>
+							<Button color="red" onClick={() => void handleDelete()}>
+								{t('common.delete')}
+							</Button>
+						</Group>
+					</Stack>
+				</Modal>
+
+				<Modal
+					opened={discardOpened}
+					onClose={() => {
+						setDiscardOpened(false);
+						setPendingSelectionId(null);
+					}}
+					title={t('instructions.dialogs.discardTitle')}
+					centered
+				>
+					<Stack gap="md">
+						<Text>{t('instructions.confirm.discardChanges')}</Text>
+						<Group justify="flex-end">
+							<Button
+								variant="default"
+								onClick={() => {
+									setDiscardOpened(false);
+									setPendingSelectionId(null);
+								}}
+							>
+								{t('common.cancel')}
+							</Button>
+							<Button
+								color="yellow"
+								onClick={() => {
+									const nextId = pendingSelectionId;
+									setDiscardOpened(false);
+									setPendingSelectionId(null);
+									if (nextId) void applySelection(nextId);
+								}}
+							>
+								{t('instructions.actions.discardAndSwitch')}
+							</Button>
+						</Group>
+					</Stack>
+				</Modal>
+
+				<Modal
+					opened={pendingSensitiveImport !== null}
+					onClose={() => setPendingSensitiveImport(null)}
+					title={t('instructions.dialogs.sensitiveImportTitle')}
+					centered
+				>
+					<Stack gap="md">
+						<Text>{t('instructions.confirm.sensitiveImportChoice')}</Text>
+						<Group justify="flex-end">
+							<Button variant="default" onClick={() => setPendingSensitiveImport(null)}>
+								{t('common.cancel')}
+							</Button>
+							<Button
+								variant="default"
+								onClick={() => {
+									if (!pendingSensitiveImport) return;
+									importStPreset(pendingSensitiveImport.fileName, pendingSensitiveImport.json, 'remove');
+									setPendingSensitiveImport(null);
+								}}
+							>
+								{t('instructions.actions.importWithoutSensitive')}
+							</Button>
+							<Button
+								onClick={() => {
+									if (!pendingSensitiveImport) return;
+									importStPreset(pendingSensitiveImport.fileName, pendingSensitiveImport.json, 'keep');
+									setPendingSensitiveImport(null);
+								}}
+							>
+								{t('instructions.actions.importAsIs')}
+							</Button>
+						</Group>
+					</Stack>
+				</Modal>
+
+				<Stack gap="xs">
+					<Group justify="space-between" wrap="nowrap">
+						<Text fw={700}>{t('instructions.presets.title')}</Text>
+						<Group gap="xs" wrap="nowrap">
+							<IconButtonWithTooltip
+								tooltip={
+									appSettings.bindChatCompletionPresetToConnection
+										? t('instructions.presets.actions.unbind')
+										: t('instructions.presets.actions.bind')
+								}
+								icon={
+									appSettings.bindChatCompletionPresetToConnection ? (
+										<LuLink2 size={16} />
+									) : (
+										<LuLink2Off size={16} />
+									)
+								}
+								aria-label={t('instructions.presets.actions.bind')}
+								variant={appSettings.bindChatCompletionPresetToConnection ? 'solid' : 'subtle'}
+								onClick={() =>
+									updateAppSettings({
+										bindChatCompletionPresetToConnection: !appSettings.bindChatCompletionPresetToConnection,
+									})
+								}
+							/>
+							<IconButtonWithTooltip
+								tooltip={t('instructions.presets.actions.import')}
+								icon={<LuUpload size={16} />}
+								aria-label={t('instructions.presets.actions.import')}
+								onClick={() => fileInputRef.current?.click()}
+							/>
+							<IconButtonWithTooltip
+								tooltip={t('instructions.presets.actions.export')}
+								icon={<LuDownload size={16} />}
+								aria-label={t('instructions.presets.actions.export')}
+								disabled={!selectedStAdvanced}
+								onClick={handleExport}
+							/>
+							<IconButtonWithTooltip
+								tooltip={t('instructions.presets.actions.delete')}
+								icon={<LuTrash2 size={16} />}
+								aria-label={t('instructions.presets.actions.delete')}
+								color="red"
+								variant="outline"
+								disabled={!selectedInstruction}
+								onClick={() => setDeleteOpened(true)}
+							/>
+						</Group>
 					</Group>
-				</Group>
+
+					<Group gap="sm" wrap="nowrap" align="flex-end">
+						<Select
+							data={options}
+							value={selectedValue}
+							onChange={(id) => {
+								if (!id || id === selectedValue) return;
+								if (hasUnsavedChanges) {
+									setPendingSelectionId(id);
+									setDiscardOpened(true);
+									return;
+								}
+								void applySelection(id);
+							}}
+							placeholder={t('instructions.placeholders.selectInstruction')}
+							comboboxProps={{ withinPortal: false }}
+							className="ts-sidebar-toolbar__main"
+							style={{ flex: 1 }}
+						/>
+
+						<Group gap="xs" wrap="nowrap">
+							<IconButtonWithTooltip
+								tooltip={t('instructions.actions.updateCurrent')}
+								icon={<LuSave size={16} />}
+								aria-label={t('instructions.actions.updateCurrent')}
+								variant="solid"
+								disabled={!selectedInstruction || !hasUnsavedChanges}
+								onClick={() => void handleUpdateCurrent()}
+							/>
+							<IconButtonWithTooltip
+								tooltip={t('instructions.actions.rename')}
+								icon={<LuPencil size={16} />}
+								aria-label={t('instructions.actions.rename')}
+								disabled={!selectedInstruction}
+								onClick={promptForRename}
+							/>
+							<IconButtonWithTooltip
+								tooltip={t('instructions.actions.saveAs')}
+								icon={<LuFilePlus2 size={16} />}
+								aria-label={t('instructions.actions.saveAs')}
+								disabled={!currentValues}
+								onClick={promptForSaveAs}
+							/>
+						</Group>
+					</Group>
+				</Stack>
 
 				<InstructionEditor />
 			</Stack>

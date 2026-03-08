@@ -15,6 +15,7 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
   language: "ru",
   openLastChat: false,
   autoSelectCurrentPersona: false,
+  bindChatCompletionPresetToConnection: false,
 };
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -52,6 +53,10 @@ export function normalizeLegacyAppSettings(input: unknown): AppSettings {
     if (typeof item.autoSelectCurrentPersona === "boolean") {
       result.autoSelectCurrentPersona = item.autoSelectCurrentPersona;
     }
+    if (typeof item.bindChatCompletionPresetToConnection === "boolean") {
+      result.bindChatCompletionPresetToConnection =
+        item.bindChatCompletionPresetToConnection;
+    }
   }
 
   return result;
@@ -71,6 +76,10 @@ export function mergeAppSettings(
       typeof patch.autoSelectCurrentPersona === "boolean"
         ? patch.autoSelectCurrentPersona
         : current.autoSelectCurrentPersona,
+    bindChatCompletionPresetToConnection:
+      typeof patch.bindChatCompletionPresetToConnection === "boolean"
+        ? patch.bindChatCompletionPresetToConnection
+        : current.bindChatCompletionPresetToConnection,
   };
 }
 
@@ -79,6 +88,8 @@ function rowToDto(row: typeof uiAppSettings.$inferSelect): AppSettings {
     language: row.language,
     openLastChat: row.openLastChat,
     autoSelectCurrentPersona: row.autoSelectCurrentPersona,
+    bindChatCompletionPresetToConnection:
+      row.bindChatCompletionPresetToConnection,
   };
 }
 
@@ -102,6 +113,8 @@ async function insertInitialSettings(settings: AppSettings): Promise<void> {
       language: settings.language,
       openLastChat: settings.openLastChat,
       autoSelectCurrentPersona: settings.autoSelectCurrentPersona,
+      bindChatCompletionPresetToConnection:
+        settings.bindChatCompletionPresetToConnection,
       createdAt: now,
       updatedAt: now,
     })
@@ -111,6 +124,8 @@ async function insertInitialSettings(settings: AppSettings): Promise<void> {
         language: settings.language,
         openLastChat: settings.openLastChat,
         autoSelectCurrentPersona: settings.autoSelectCurrentPersona,
+        bindChatCompletionPresetToConnection:
+          settings.bindChatCompletionPresetToConnection,
         updatedAt: now,
       },
     });
@@ -148,6 +163,8 @@ export async function updateAppSettings(
       language: next.language,
       openLastChat: next.openLastChat,
       autoSelectCurrentPersona: next.autoSelectCurrentPersona,
+      bindChatCompletionPresetToConnection:
+        next.bindChatCompletionPresetToConnection,
       createdAt: now,
       updatedAt: now,
     })
@@ -157,6 +174,8 @@ export async function updateAppSettings(
         language: next.language,
         openLastChat: next.openLastChat,
         autoSelectCurrentPersona: next.autoSelectCurrentPersona,
+        bindChatCompletionPresetToConnection:
+          next.bindChatCompletionPresetToConnection,
         updatedAt: now,
       },
     });
