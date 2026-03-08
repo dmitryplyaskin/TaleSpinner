@@ -27,8 +27,6 @@ export type ExampleDoc = {
 };
 
 export type LiquidDocsModel = {
-	titleKey: string;
-	usageKey: string;
 	variables: VariableDoc[];
 	methods: MethodDoc[];
 	macros: MacroDoc[];
@@ -107,8 +105,6 @@ const MESSAGE_HELPER_EXAMPLES: ExampleDoc[] = [
 
 export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel> = {
 	instruction: {
-		titleKey: 'dialogs.liquidDocs.contexts.instruction.title',
-		usageKey: 'dialogs.liquidDocs.contexts.instruction.usage',
 		variables: BASE_VARIABLES,
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
@@ -126,8 +122,6 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 		],
 	},
 	operation_template: {
-		titleKey: 'dialogs.liquidDocs.contexts.operationTemplate.title',
-		usageKey: 'dialogs.liquidDocs.contexts.operationTemplate.usage',
 		variables: [...BASE_VARIABLES, ...OPERATION_VARIABLES],
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
@@ -144,8 +138,6 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 		],
 	},
 	operation_llm: {
-		titleKey: 'dialogs.liquidDocs.contexts.operationLlm.title',
-		usageKey: 'dialogs.liquidDocs.contexts.operationLlm.usage',
 		variables: [...BASE_VARIABLES, ...OPERATION_VARIABLES],
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
@@ -162,8 +154,6 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 		],
 	},
 	entity_profile: {
-		titleKey: 'dialogs.liquidDocs.contexts.entityProfile.title',
-		usageKey: 'dialogs.liquidDocs.contexts.entityProfile.usage',
 		variables: BASE_VARIABLES,
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
@@ -180,8 +170,6 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 		],
 	},
 	world_info_entry: {
-		titleKey: 'dialogs.liquidDocs.contexts.worldInfoEntry.title',
-		usageKey: 'dialogs.liquidDocs.contexts.worldInfoEntry.usage',
 		variables: BASE_VARIABLES,
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,
@@ -198,8 +186,6 @@ export const LIQUID_DOCS_BY_CONTEXT: Record<LiquidDocsContextId, LiquidDocsModel
 		],
 	},
 	chat_manual_edit: {
-		titleKey: 'dialogs.liquidDocs.contexts.chatManualEdit.title',
-		usageKey: 'dialogs.liquidDocs.contexts.chatManualEdit.usage',
 		variables: BASE_VARIABLES,
 		methods: COMMON_METHODS,
 		macros: COMMON_MACROS,

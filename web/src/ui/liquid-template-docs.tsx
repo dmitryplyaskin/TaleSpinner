@@ -31,10 +31,6 @@ export const LiquidDocsDialog: React.FC<LiquidDocsDialogProps> = ({ context, ope
 	}, [open]);
 
 	const normalizedQuery = search.trim().toLocaleLowerCase();
-	const usageMatches =
-		normalizedQuery.length === 0 ||
-		matchesSearch(t(model.titleKey), normalizedQuery) ||
-		matchesSearch(t(model.usageKey), normalizedQuery);
 	const filteredVariables =
 		normalizedQuery.length === 0
 			? model.variables
@@ -68,7 +64,6 @@ export const LiquidDocsDialog: React.FC<LiquidDocsDialogProps> = ({ context, ope
 						matchesSearch(item.template, normalizedQuery)
 			  );
 	const hasResults =
-		usageMatches ||
 		filteredVariables.length > 0 ||
 		filteredMethods.length > 0 ||
 		filteredMacros.length > 0 ||
@@ -78,7 +73,7 @@ export const LiquidDocsDialog: React.FC<LiquidDocsDialogProps> = ({ context, ope
 		<Dialog
 			open={open}
 			onOpenChange={onOpenChange}
-			title={t(model.titleKey)}
+			title={t('dialogs.liquidDocs.title')}
 			size="xl"
 			zIndex={Z_INDEX.overlay.modalChild}
 			footer={
@@ -98,17 +93,6 @@ export const LiquidDocsDialog: React.FC<LiquidDocsDialogProps> = ({ context, ope
 					<Text size="sm" c="dimmed">
 						{t('dialogs.liquidDocs.noSearchResults')}
 					</Text>
-				) : null}
-
-				{usageMatches ? (
-					<Stack gap={4}>
-						<Text size="sm" fw={600}>
-							{t('dialogs.liquidDocs.sections.usage')}
-						</Text>
-						<Text size="sm" c="dimmed">
-							{t(model.usageKey)}
-						</Text>
-					</Stack>
 				) : null}
 
 				{filteredVariables.length > 0 ? (

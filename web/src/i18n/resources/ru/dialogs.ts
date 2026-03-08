@@ -8,41 +8,15 @@
 				},
 			},
 			liquidDocs: {
+				title: 'Справка по Liquid',
 				open: 'Открыть документацию Liquid',
 				searchPlaceholder: 'Поиск по токенам, описаниям и примерам',
 				noSearchResults: 'По вашему запросу ничего не найдено',
 				sections: {
-					usage: 'Где используется',
 					variables: 'Переменные',
 					methods: 'Методы',
 					macros: 'Макросы',
 					examples: 'Примеры',
-				},
-				contexts: {
-					instruction: {
-						title: 'Liquid для инструкций',
-						usage: 'Используется при рендере инструкций чата перед генерацией.',
-					},
-					operationTemplate: {
-						title: 'Liquid для template-операции',
-						usage: 'Используется в operation kind=template для рендера payload эффектов.',
-					},
-					operationLlm: {
-						title: 'Liquid для llm-операции',
-						usage: 'Используется в operation kind=llm для рендера system и user prompt.',
-					},
-					entityProfile: {
-						title: 'Liquid для полей профиля',
-						usage: 'Liquid может раскрываться в текстовых полях профиля напрямую и косвенно через multi-pass в других шаблонах.',
-					},
-					worldInfoEntry: {
-						title: 'Liquid для World Info',
-						usage: 'Используется при рендере content записей World Info в runtime-контексте.',
-					},
-					chatManualEdit: {
-						title: 'Liquid для ручного редактирования',
-						usage: 'Используется при ручном редактировании части сообщения и рендере через Liquid.',
-					},
 				},
 				variables: {
 					char: 'Алиас объекта персонажа. Работает как строка и как объект.',
