@@ -13,6 +13,8 @@ const ruInstructions = {
 	},
 	actions: {
 		create: 'Создать инструкцию',
+		createBasic: 'Создать basic',
+		createStBase: 'Создать st-base',
 		duplicate: 'Дублировать инструкцию',
 		delete: 'Удалить инструкцию',
 		prerender: 'Пререндер',
@@ -27,9 +29,6 @@ const ruInstructions = {
 		name: 'Название',
 		templateText: 'Template (LiquidJS)',
 		templateTextDescription: 'Синтаксис проверяется на бэкенде при сохранении.',
-		advancedMode: 'Расширенный режим (ST-совместимый)',
-		fallbackTemplateText: 'Fallback templateText (совместимость basic)',
-		fallbackTemplateTextDescription: 'Используется, если режим инструкции переключён обратно на basic.',
 		prerender: 'Пререндер',
 		prerenderDescription: 'Результат рендера Liquid на бэкенде (без генерации LLM).',
 		promptBlocks: 'Блоки промпта',
@@ -53,8 +52,13 @@ const ruInstructions = {
 	},
 	defaults: {
 		newInstruction: 'Новая инструкция',
+		newStBaseInstruction: 'Новая st-base инструкция',
 		newPreset: 'Новый пресет',
 		importedInstruction: 'Импортированная инструкция',
+	},
+	kinds: {
+		basic: 'basic',
+		stBase: 'st-base',
 	},
 	confirm: {
 		deleteInstruction: 'Удалить инструкцию?',
@@ -63,6 +67,7 @@ const ruInstructions = {
 			'Найдены чувствительные connection-поля. Выберите, удалить их при импорте или сохранить для round-trip экспорта.',
 	},
 	dialogs: {
+		createTitle: 'Выберите тип инструкции',
 		renameTitle: 'Переименовать пресет',
 		saveAsTitle: 'Сохранить пресет как',
 		deleteTitle: 'Удалить пресет',
@@ -75,6 +80,7 @@ const ruInstructions = {
 		stPresetOnlyExport: 'Из этого toolbar можно экспортировать только ST-совместимые пресеты',
 		importErrorTitle: 'Ошибка импорта',
 		importMissingTemplateText: 'Файл не содержит templateText',
+		importMissingStBase: 'Файл не содержит stBase',
 		importSuccessTitle: 'Импорт успешен',
 		importReadError: 'Не удалось прочитать файл',
 		createErrorTitle: 'Не удалось создать инструкцию',

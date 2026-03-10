@@ -1,73 +1,57 @@
-import { Group, Select, Stack, Text } from '@mantine/core';
+import { Button, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import React from 'react';
-import { useController, useFormContext } from 'react-hook-form';
+import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 
-import { FormInput, FormNumberInput, FormSelect } from '@ui/form-components';
+import { FormCheckbox, FormInput, FormNumberInput, FormSelect } from '@ui/form-components';
 
-import { makeDefaultArtifactOutput } from '../../../form/operation-profile-form-mapping';
+import type { ArtifactExposure } from '@shared/types/operation-profiles';
 
-type OutputType = 'artifacts' | 'prompt_time' | 'turn_canonicalization';
+const formatOptions = ['text', 'markdown', 'json'] as const;
 
-const outputTypeOptions = [
-	{ value: 'artifacts', label: 'operationProfiles.outputType.artifacts' },
-	{ value: 'prompt_time', label: 'operationProfiles.outputType.promptTime' },
-	{ value: 'turn_canonicalization', label: 'operationProfiles.outputType.turnCanonicalization' },
+const persistenceOptions = ['persisted', 'run_only'] as const;
+
+const writeModeOptions = ['replace', 'append'] as const;
+
+const promptPartModeOptions = ['prepend', 'append', 'replace'] as const;
+
+const exposureTypeOptions = [
+	{ value: 'prompt_part', label: 'operationProfiles.exposureType.promptPart' },
+	{ value: 'prompt_message', label: 'operationProfiles.exposureType.promptMessage' },
+	{ value: 'turn_rewrite', label: 'operationProfiles.exposureType.turnRewrite' },
+	{ value: 'ui_inline', label: 'operationProfiles.exposureType.uiInline' },
 ];
 
-const persistenceOptions = [
-	{ value: 'persisted', label: 'persisted' },
-	{ value: 'run_only', label: 'run_only' },
+const roleOptions = ['system', 'user', 'assistant'] as const;
+
+const anchorOptions = [
+	{ value: 'after_last_user', label: 'operationProfiles.anchor.afterLastUser' },
+	{ value: 'depth_from_end', label: 'operationProfiles.anchor.depthFromEnd' },
 ];
 
-const usageOptions = [
-	{ value: 'prompt_only', label: 'prompt_only' },
-	{ value: 'ui_only', label: 'ui_only' },
-	{ value: 'prompt+ui', label: 'prompt+ui' },
-	{ value: 'internal', label: 'internal' },
+const targetOptions = [
+	{ value: 'current_user_main', label: 'operationProfiles.rewriteTarget.currentUserMain' },
+	{ value: 'assistant_output_main', label: 'operationProfiles.rewriteTarget.assistantOutputMain' },
 ];
 
-const promptTimeRoleOptions = [
-	{ value: 'system', label: 'system' },
-	{ value: 'user', label: 'user' },
-	{ value: 'assistant', label: 'assistant' },
-];
-
-const promptTimeKindOptions = [
-	{ value: 'append_after_last_user', label: 'operationProfiles.promptTimeKind.appendAfterLastUser' },
-	{ value: 'system_update', label: 'operationProfiles.promptTimeKind.systemUpdate' },
-	{ value: 'insert_at_depth', label: 'operationProfiles.promptTimeKind.insertAtDepth' },
-];
-
-const systemUpdateModeOptions = [
-	{ value: 'prepend', label: 'prepend' },
-	{ value: 'append', label: 'append' },
-	{ value: 'replace', label: 'replace' },
-];
-
-function makeDefaultArtifactsOutput() {
-	return { type: 'artifacts' as const, writeArtifact: makeDefaultArtifactOutput().writeArtifact };
+function makeDefaultExposure(type: ArtifactExposure['type']): ArtifactExposure {
+	if (type === 'prompt_part') {
+		return { type, target: 'system', mode: 'append' };
+	}
+	if (type === 'prompt_message') {
+		return { type, role: 'system', anchor: 'after_last_user' };
+	}
+	if (type === 'turn_rewrite') {
+		return { type, target: 'current_user_main', mode: 'replace' };
+	}
+	return { type: 'ui_inline', role: 'assistant', anchor: 'after_last_user' };
 }
 
-function makeDefaultPromptTimeOutput() {
-	return {
-		type: 'prompt_time' as const,
-		promptTime: {
-			kind: 'append_after_last_user' as const,
-			role: 'system' as const,
-			source: 'template_output',
-		},
-	};
-}
-
-function makeDefaultTurnCanonicalizationOutput() {
-	return {
-		type: 'turn_canonicalization' as const,
-		canonicalization: {
-			kind: 'replace_text' as const,
-			target: 'user' as const,
-		},
-	};
+function getExposureCardTitle(t: (key: string) => string, exposure: ArtifactExposure): string {
+	if (exposure.type === 'prompt_part') return t('operationProfiles.exposureType.promptPart');
+	if (exposure.type === 'prompt_message') return t('operationProfiles.exposureType.promptMessage');
+	if (exposure.type === 'turn_rewrite') return t('operationProfiles.exposureType.turnRewrite');
+	return t('operationProfiles.exposureType.uiInline');
 }
 
 type Props = {
@@ -77,191 +61,213 @@ type Props = {
 export const OutputSection: React.FC<Props> = ({ index }) => {
 	const { t } = useTranslation();
 	const { control, setValue } = useFormContext();
+	const artifact = useWatch({ control, name: `operations.${index}.config.params.artifact` }) as
+		| {
+				artifactId?: string;
+				exposures?: ArtifactExposure[];
+		  }
+		| undefined;
 
-	const {
-		field: { value: outputType, onChange: onOutputTypeChange, ...outputTypeField },
-	} = useController({
+	const exposuresArray = useFieldArray({
 		control,
-		name: `operations.${index}.config.params.output.type`,
+		name: `operations.${index}.config.params.artifact.exposures`,
 	});
-
-	const normalizedType: OutputType =
-		outputType === 'artifacts' || outputType === 'prompt_time' || outputType === 'turn_canonicalization'
-			? outputType
-			: 'artifacts';
-
-	const {
-		field: { value: promptTimeKindValue, onChange: onPromptTimeKindChange, ...promptTimeKindField },
-	} = useController({
-		control,
-		name: `operations.${index}.config.params.output.promptTime.kind`,
-	});
-
-	const promptKind =
-		promptTimeKindValue === 'append_after_last_user' ||
-		promptTimeKindValue === 'system_update' ||
-		promptTimeKindValue === 'insert_at_depth'
-			? promptTimeKindValue
-			: 'append_after_last_user';
 
 	return (
-		<Stack gap="xs">
-			<Select
-				{...outputTypeField}
-				label={t('operationProfiles.sectionsLabels.effectType')}
-				data={outputTypeOptions.map((o) => ({ ...o, label: t(o.label) }))}
-				value={normalizedType}
-				onChange={(next) => {
-					const nextType: OutputType = (next as OutputType) ?? 'artifacts';
-					onOutputTypeChange(nextType);
-					if (nextType === 'artifacts') {
-						setValue(`operations.${index}.config.params.output`, makeDefaultArtifactsOutput(), { shouldDirty: true });
-					}
-					if (nextType === 'prompt_time') {
-						setValue(`operations.${index}.config.params.output`, makeDefaultPromptTimeOutput(), { shouldDirty: true });
-					}
-					if (nextType === 'turn_canonicalization') {
-						setValue(`operations.${index}.config.params.output`, makeDefaultTurnCanonicalizationOutput(), { shouldDirty: true });
-					}
-				}}
-				comboboxProps={{ withinPortal: false }}
-				description={t('operationProfiles.tooltips.effectType')}
+		<Stack gap="md">
+			<Stack gap="xs">
+				<Text size="sm" c="dimmed">
+					{t('operationProfiles.outputNotes.artifactModel')}
+				</Text>
+				<Text size="sm" c="dimmed">
+					{t('operationProfiles.outputNotes.referenceByTag')}
+				</Text>
+				<Text size="xs" c="dimmed">
+					{t('operationProfiles.sectionsLabels.artifactId')}: {artifact?.artifactId ?? '-'}
+				</Text>
+			</Stack>
+
+			<Group grow wrap="wrap">
+				<FormInput
+					name={`operations.${index}.config.params.artifact.tag`}
+					label={t('operationProfiles.sectionsLabels.tag')}
+					infoTip={t('operationProfiles.tooltips.tag')}
+				/>
+				<FormInput
+					name={`operations.${index}.config.params.artifact.title`}
+					label={t('operationProfiles.sectionsLabels.artifactTitle')}
+					infoTip={t('operationProfiles.tooltips.artifactTitle')}
+				/>
+				<FormSelect
+					name={`operations.${index}.config.params.artifact.format`}
+					label={t('operationProfiles.sectionsLabels.format')}
+					infoTip={t('operationProfiles.tooltips.format')}
+					selectProps={{ options: formatOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })), comboboxProps: { withinPortal: false } }}
+				/>
+			</Group>
+
+			<Group grow wrap="wrap">
+				<FormSelect
+					name={`operations.${index}.config.params.artifact.persistence`}
+					label={t('operationProfiles.sectionsLabels.persistence')}
+					infoTip={t('operationProfiles.tooltips.persistence')}
+					selectProps={{ options: persistenceOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })), comboboxProps: { withinPortal: false } }}
+				/>
+				<FormSelect
+					name={`operations.${index}.config.params.artifact.writeMode`}
+					label={t('operationProfiles.sectionsLabels.writeMode')}
+					infoTip={t('operationProfiles.tooltips.writeMode')}
+					selectProps={{ options: writeModeOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })), comboboxProps: { withinPortal: false } }}
+				/>
+			</Group>
+
+			<Group grow wrap="wrap">
+				<FormInput
+					name={`operations.${index}.config.params.artifact.semantics`}
+					label={t('operationProfiles.sectionsLabels.semantics')}
+					infoTip={t('operationProfiles.tooltips.semantics')}
+				/>
+				<FormNumberInput
+					name={`operations.${index}.config.params.artifact.history.maxItems`}
+					label={t('operationProfiles.sectionsLabels.historyMaxItems')}
+					infoTip={t('operationProfiles.tooltips.historyMaxItems')}
+					numberInputProps={{ min: 1, step: 1 }}
+				/>
+			</Group>
+
+			<FormCheckbox
+				name={`operations.${index}.config.params.artifact.history.enabled`}
+				label={t('operationProfiles.sectionsLabels.historyEnabled')}
 			/>
 
-			{normalizedType === 'artifacts' && (
-				<Stack gap="xs">
-					<Group grow wrap="wrap">
-						<FormInput
-							name={`operations.${index}.config.params.output.writeArtifact.tag`}
-							label={t('operationProfiles.sectionsLabels.artifactTag')}
-							infoTip={t('operationProfiles.tooltips.artifactTag')}
-						/>
-						<FormSelect
-							name={`operations.${index}.config.params.output.writeArtifact.persistence`}
-							label={t('operationProfiles.sectionsLabels.persistence')}
-							infoTip={t('operationProfiles.tooltips.persistence')}
-							selectProps={{ options: persistenceOptions, comboboxProps: { withinPortal: false } }}
-						/>
+			<FormInput
+				name={`operations.${index}.config.params.artifact.description`}
+				label={t('operationProfiles.sectionsLabels.artifactDescription')}
+				infoTip={t('operationProfiles.tooltips.artifactDescription')}
+			/>
+
+			<Stack gap="xs">
+				<Group justify="space-between" align="center">
+					<Text fw={600}>{t('operationProfiles.sectionsLabels.exposures')}</Text>
+					<Group gap="xs">
+						{exposureTypeOptions.map((option) => (
+							<Button
+								key={option.value}
+								size="xs"
+								variant="light"
+								onClick={() => exposuresArray.append(makeDefaultExposure(option.value as ArtifactExposure['type']))}
+							>
+								{t(option.label)}
+							</Button>
+						))}
 					</Group>
-					<Group grow wrap="wrap">
-						<FormSelect
-							name={`operations.${index}.config.params.output.writeArtifact.usage`}
-							label={t('operationProfiles.sectionsLabels.usage')}
-							infoTip={t('operationProfiles.tooltips.usage')}
-							selectProps={{ options: usageOptions, comboboxProps: { withinPortal: false } }}
-						/>
-						<FormInput
-							name={`operations.${index}.config.params.output.writeArtifact.semantics`}
-							label={t('operationProfiles.sectionsLabels.semantics')}
-							infoTip={t('operationProfiles.tooltips.semantics')}
-						/>
-					</Group>
-				</Stack>
-			)}
+				</Group>
 
-			{normalizedType === 'prompt_time' && (
-				<Stack gap="xs">
-					<Select
-						{...promptTimeKindField}
-						label={t('operationProfiles.sectionsLabels.promptTimeEffect')}
-						description={t('operationProfiles.tooltips.promptTimeEffect')}
-						data={promptTimeKindOptions.map((o) => ({ ...o, label: t(o.label) }))}
-						value={promptKind}
-						onChange={(next) => {
-							const nextKind = (next as typeof promptTimeKindOptions[number]['value']) ?? 'append_after_last_user';
-							onPromptTimeKindChange(nextKind);
-							if (nextKind === 'system_update') {
-								setValue(
-									`operations.${index}.config.params.output.promptTime`,
-									{ kind: nextKind, mode: 'prepend', source: 'template_output' },
-									{ shouldDirty: true },
-								);
-							}
-							if (nextKind === 'append_after_last_user') {
-								setValue(
-									`operations.${index}.config.params.output.promptTime`,
-									{ kind: nextKind, role: 'system', source: 'template_output' },
-									{ shouldDirty: true },
-								);
-							}
-							if (nextKind === 'insert_at_depth') {
-								setValue(
-									`operations.${index}.config.params.output.promptTime`,
-									{ kind: nextKind, depthFromEnd: 0, role: 'system', source: 'template_output' },
-									{ shouldDirty: true },
-								);
-							}
-						}}
-						comboboxProps={{ withinPortal: false }}
-					/>
-
-					{promptKind === 'system_update' && (
-						<Group grow wrap="wrap">
-							<FormSelect
-								name={`operations.${index}.config.params.output.promptTime.mode`}
-								label={t('operationProfiles.sectionsLabels.mode')}
-								infoTip={t('operationProfiles.tooltips.mode')}
-								selectProps={{ options: systemUpdateModeOptions, comboboxProps: { withinPortal: false } }}
-							/>
-							<FormInput
-								name={`operations.${index}.config.params.output.promptTime.source`}
-								label={t('operationProfiles.sectionsLabels.sourceOptional')}
-								infoTip={t('operationProfiles.tooltips.sourceOptional')}
-							/>
-						</Group>
-					)}
-
-					{(promptKind === 'append_after_last_user' || promptKind === 'insert_at_depth') && (
-						<Group grow wrap="wrap">
-							<FormSelect
-								name={`operations.${index}.config.params.output.promptTime.role`}
-								label={t('operationProfiles.sectionsLabels.role')}
-								infoTip={t('operationProfiles.tooltips.role')}
-								selectProps={{ options: promptTimeRoleOptions, comboboxProps: { withinPortal: false } }}
-							/>
-							<FormInput
-								name={`operations.${index}.config.params.output.promptTime.source`}
-								label={t('operationProfiles.sectionsLabels.sourceOptional')}
-								infoTip={t('operationProfiles.tooltips.sourceOptional')}
-							/>
-						</Group>
-					)}
-
-					{promptKind === 'insert_at_depth' && (
-						<FormNumberInput
-							name={`operations.${index}.config.params.output.promptTime.depthFromEnd`}
-							label={t('operationProfiles.sectionsLabels.depthFromEnd')}
-							infoTip={t('operationProfiles.tooltips.depthFromEnd')}
-							numberInputProps={{ min: 0, step: 1 }}
-						/>
-					)}
-
-					<Text size="xs" c="dimmed">
-						{t('operationProfiles.outputNotes.promptTimePayloadSource')}
+				{exposuresArray.fields.length === 0 && (
+					<Text size="sm" c="dimmed">
+						{t('operationProfiles.outputNotes.noExposures')}
 					</Text>
-				</Stack>
-			)}
+				)}
 
-			{normalizedType === 'turn_canonicalization' && (
-				<Stack gap="xs">
-					<FormSelect
-						name={`operations.${index}.config.params.output.canonicalization.target`}
-						label={t('operationProfiles.sectionsLabels.target')}
-						infoTip={t('operationProfiles.tooltips.target')}
-						selectProps={{
-							options: [
-								{ value: 'user', label: 'user' },
-								{ value: 'assistant', label: 'assistant' },
-							],
-							comboboxProps: { withinPortal: false },
-						}}
-					/>
-					<Text size="xs" c="dimmed">
-						{t('operationProfiles.outputNotes.turnCanonicalization')}
-					</Text>
-				</Stack>
-			)}
+				{exposuresArray.fields.map((field, exposureIndex) => {
+					const exposure = (artifact?.exposures?.[exposureIndex] ?? field) as ArtifactExposure;
+					return (
+						<Paper key={field.id} withBorder p="sm">
+							<Stack gap="xs">
+								<Group justify="space-between" align="center">
+									<Text fw={600}>{getExposureCardTitle(t, exposure)}</Text>
+									<Button size="xs" color="red" variant="subtle" onClick={() => exposuresArray.remove(exposureIndex)}>
+										{t('common.delete')}
+									</Button>
+								</Group>
+								<Controller
+									control={control}
+									name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.type`}
+									render={({ field: typeField }) => (
+										<Select
+											label={t('operationProfiles.sectionsLabels.exposureType')}
+											data={exposureTypeOptions.map((option) => ({
+												value: option.value,
+												label: t(option.label),
+											}))}
+											value={typeof typeField.value === 'string' ? typeField.value : exposure.type}
+											onChange={(next) => {
+												if (!next) return;
+												setValue(
+													`operations.${index}.config.params.artifact.exposures.${exposureIndex}`,
+													makeDefaultExposure(next as ArtifactExposure['type']),
+													{ shouldDirty: true },
+												);
+											}}
+											comboboxProps={{ withinPortal: false }}
+										/>
+									)}
+								/>
+
+								{exposure.type === 'prompt_part' && (
+									<Group grow wrap="wrap">
+										<FormSelect
+											name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.mode`}
+											label={t('operationProfiles.sectionsLabels.mode')}
+											selectProps={{
+												options: promptPartModeOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })),
+												comboboxProps: { withinPortal: false },
+											}}
+										/>
+									</Group>
+								)}
+
+								{(exposure.type === 'prompt_message' || exposure.type === 'ui_inline') && (
+									<>
+										<Group grow wrap="wrap">
+											<FormSelect
+												name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.role`}
+												label={t('operationProfiles.sectionsLabels.role')}
+												selectProps={{ options: roleOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })), comboboxProps: { withinPortal: false } }}
+											/>
+											<FormSelect
+												name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.anchor`}
+												label={t('operationProfiles.sectionsLabels.anchor')}
+												selectProps={{ options: anchorOptions, comboboxProps: { withinPortal: false } }}
+											/>
+										</Group>
+										<Group grow wrap="wrap">
+										<FormInput
+											name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.source`}
+											label={t('operationProfiles.sectionsLabels.sourceOptional')}
+										/>
+											{exposure.anchor === 'depth_from_end' && (
+												<FormNumberInput
+													name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.depthFromEnd`}
+													label={t('operationProfiles.sectionsLabels.depthFromEnd')}
+													numberInputProps={{ min: 0, step: 1 }}
+												/>
+											)}
+										</Group>
+									</>
+								)}
+
+								{exposure.type === 'turn_rewrite' && (
+									<Group grow wrap="wrap">
+										<FormSelect
+											name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.target`}
+											label={t('operationProfiles.sectionsLabels.target')}
+											selectProps={{ options: targetOptions, comboboxProps: { withinPortal: false } }}
+										/>
+										<FormInput
+											name={`operations.${index}.config.params.artifact.exposures.${exposureIndex}.mode`}
+											label={t('operationProfiles.sectionsLabels.mode')}
+											inputProps={{ disabled: true }}
+										/>
+									</Group>
+								)}
+							</Stack>
+						</Paper>
+					);
+				})}
+			</Stack>
 		</Stack>
 	);
 };
+
 

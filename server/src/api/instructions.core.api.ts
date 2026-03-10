@@ -97,35 +97,11 @@ router.post(
   "/instructions",
   validate({ body: createInstructionBodySchema }),
   asyncHandler(async (req: Request) => {
-    try {
-      validateLiquidTemplate(req.body.templateText);
-    } catch (error) {
-      throw new HttpError(
-        400,
-        `Instruction не компилируется: ${error instanceof Error ? error.message : String(error)}`,
-        "VALIDATION_ERROR"
-      );
-    }
+    const body = createInstructionBodySchema.parse(req.body);
 
-    const created = await createInstruction({
-      ownerId: getRequestOwnerId(req, req.body.ownerId),
-      name: req.body.name,
-      engine: req.body.engine,
-      templateText: req.body.templateText,
-      meta: req.body.meta,
-    });
-    return { data: created };
-  })
-);
-
-router.put(
-  "/instructions/:id",
-  validate({ params: idParamsSchema, body: updateInstructionBodySchema }),
-  asyncHandler(async (req: Request) => {
-    const params = req.params as unknown as { id: string };
-    if (typeof req.body.templateText === "string") {
+    if (body.kind === "basic") {
       try {
-        validateLiquidTemplate(req.body.templateText);
+        validateLiquidTemplate(body.templateText);
       } catch (error) {
         throw new HttpError(
           400,
@@ -135,13 +111,65 @@ router.put(
       }
     }
 
-    const updated = await updateInstruction({
-      id: params.id,
-      name: req.body.name,
-      engine: req.body.engine,
-      templateText: req.body.templateText,
-      meta: typeof req.body.meta === "undefined" ? undefined : req.body.meta,
-    });
+    const ownerId = getRequestOwnerId(req, body.ownerId);
+    const created =
+      body.kind === "basic"
+        ? await createInstruction({
+            ownerId,
+            name: body.name,
+            kind: "basic",
+            engine: body.engine,
+            templateText: body.templateText,
+            meta: body.meta,
+          })
+        : await createInstruction({
+            ownerId,
+            name: body.name,
+            kind: "st_base",
+            engine: body.engine,
+            stBase: body.stBase,
+            meta: body.meta,
+          });
+    return { data: created };
+  })
+);
+
+router.put(
+  "/instructions/:id",
+  validate({ params: idParamsSchema, body: updateInstructionBodySchema }),
+  asyncHandler(async (req: Request) => {
+    const params = req.params as unknown as { id: string };
+    const body = updateInstructionBodySchema.parse(req.body);
+    if (body.kind === "basic" && typeof body.templateText === "string") {
+      try {
+        validateLiquidTemplate(body.templateText);
+      } catch (error) {
+        throw new HttpError(
+          400,
+          `Instruction не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+          "VALIDATION_ERROR"
+        );
+      }
+    }
+
+    let updated;
+    try {
+      updated = await updateInstruction({
+        id: params.id,
+        kind: body.kind,
+        name: body.name,
+        engine: body.engine,
+        templateText: body.kind === "basic" ? body.templateText : undefined,
+        stBase: body.kind === "st_base" ? body.stBase : undefined,
+        meta: typeof body.meta === "undefined" ? undefined : body.meta,
+      });
+    } catch (error) {
+      throw new HttpError(
+        400,
+        error instanceof Error ? error.message : String(error),
+        "VALIDATION_ERROR"
+      );
+    }
     if (!updated)
       throw new HttpError(404, "Instruction не найден", "NOT_FOUND");
     return { data: updated };

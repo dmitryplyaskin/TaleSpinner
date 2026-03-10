@@ -1,6 +1,7 @@
 import { HttpError } from "@core/middleware/error-handler";
 
 import { getOperationBlockById } from "./operation-blocks-repository";
+import { validateCompiledProfileArtifactWriters } from "./operation-block-validator";
 
 import type {
   OperationBlock,
@@ -72,6 +73,7 @@ export async function resolveCompiledOperationProfile(
 ): Promise<CompiledOperationProfile> {
   if (!Array.isArray(profile.blockRefs) || profile.blockRefs.length === 0) {
     const operations = profile.operations ?? [];
+    validateCompiledProfileArtifactWriters({ ...profile, operations });
     return {
       profile,
       operations,
@@ -100,6 +102,8 @@ export async function resolveCompiledOperationProfile(
   const blockVersionFingerprint = blockVersions
     .map((item) => `${item.blockId}:${item.version}`)
     .join("|");
+
+  validateCompiledProfileArtifactWriters({ ...profile, operations });
 
   return {
     profile,

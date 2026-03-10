@@ -12,16 +12,19 @@ describe("RunArtifactStore", () => {
     const store = new RunArtifactStore();
 
     const artifact = store.upsert({
-      tag: "world_state",
-      usage: "internal",
+      artifactId: "world_state",
+      format: "markdown",
       semantics: "intermediate",
+      writeMode: "replace",
+      history: { enabled: true, maxItems: 20 },
       value: "v1",
     });
 
     expect(artifact).toEqual({
-      usage: "internal",
+      format: "markdown",
       semantics: "intermediate",
       persistence: "run_only",
+      writeMode: "replace",
       value: "v1",
       history: ["v1"],
     });
@@ -32,22 +35,27 @@ describe("RunArtifactStore", () => {
     const store = new RunArtifactStore();
 
     store.upsert({
-      tag: "memory",
-      usage: "internal",
+      artifactId: "memory",
+      format: "markdown",
       semantics: "intermediate",
+      writeMode: "replace",
+      history: { enabled: true, maxItems: 20 },
       value: "first",
     });
     const second = store.upsert({
-      tag: "memory",
-      usage: "prompt_only",
+      artifactId: "memory",
+      format: "json",
       semantics: "state",
+      writeMode: "append",
+      history: { enabled: true, maxItems: 20 },
       value: "second",
     });
 
     expect(second).toEqual({
-      usage: "prompt_only",
+      format: "json",
       semantics: "state",
       persistence: "run_only",
+      writeMode: "append",
       value: "second",
       history: ["first", "second"],
     });
@@ -56,30 +64,36 @@ describe("RunArtifactStore", () => {
   test("snapshot returns record with all tags", () => {
     const store = new RunArtifactStore();
     store.upsert({
-      tag: "a",
-      usage: "internal",
+      artifactId: "a",
+      format: "markdown",
       semantics: "intermediate",
+      writeMode: "replace",
+      history: { enabled: true, maxItems: 20 },
       value: "1",
     });
     store.upsert({
-      tag: "b",
-      usage: "ui_only",
+      artifactId: "b",
+      format: "text",
       semantics: "log/feed",
+      writeMode: "append",
+      history: { enabled: true, maxItems: 20 },
       value: "2",
     });
 
     expect(store.snapshot()).toEqual({
       a: {
-        usage: "internal",
+        format: "markdown",
         semantics: "intermediate",
         persistence: "run_only",
+        writeMode: "replace",
         value: "1",
         history: ["1"],
       },
       b: {
-        usage: "ui_only",
+        format: "text",
         semantics: "log/feed",
         persistence: "run_only",
+        writeMode: "append",
         value: "2",
         history: ["2"],
       },

@@ -1,4 +1,4 @@
-﻿const ruOperationProfiles = {
+const ruOperationProfiles = {
 			sidebar: {
 				title: 'Операции',
 			},
@@ -97,22 +97,29 @@
 				description: 'Описание',
 				enabled: 'Включено',
 				required: 'Обязательная',
-				hook: 'Hook',
+				hook: 'Хук',
 				triggers: 'Триггеры',
 				order: 'Порядок',
 				dependsOn: 'Зависит от',
 				activationEveryNTurns: 'Каждые N ходов',
 				activationEveryNContextTokens: 'Каждые N токенов контекста',
-				effectType: 'Тип эффекта',
-				artifactTag: 'Тег артефакта',
-				persistence: 'Persistence',
-				usage: 'Usage',
-				semantics: 'Semantics',
-				promptTimeEffect: 'Эффект prompt-time',
+				artifactId: 'Идентификатор артефакта',
+				tag: 'Тег артефакта',
+				artifactTitle: 'Заголовок артефакта',
+				artifactDescription: 'Описание артефакта',
+				format: 'Формат',
+				persistence: 'Хранение',
+				writeMode: 'Режим записи',
+				historyEnabled: 'Хранить историю',
+				historyMaxItems: 'Лимит истории',
+				semantics: 'Семантика',
+				exposures: 'Экспозиции',
+				exposureType: 'Тип экспозиции',
 				mode: 'Режим',
 				sourceOptional: 'Источник (опционально)',
 				role: 'Роль',
-				depthFromEnd: 'atDepth',
+				anchor: 'Якорь',
+				depthFromEnd: 'Глубина от конца',
 				target: 'Цель',
 			},
 			tooltips: {
@@ -127,15 +134,18 @@
 					'0 — выключено. Если задано N, операция станет доступна на каждом N-м событии user send (регенерация/continue/system не учитываются).',
 				activationEveryNContextTokens:
 					'0 — выключено. Считается накопление токенов только по user/assistant сообщениям контекста (без system), оценка chars/4.',
-				effectType: 'Выберите, как применить отрендеренный результат при commit во время выполнения.',
-				artifactTag: 'Используйте тег без префикса art. У каждого тега в профиле должен быть один writer.',
+				artifactTitle: 'Человекочитаемое имя primary artifact, которое будет видно в редакторе и отладке.',
+				artifactDescription: 'Необязательное пояснение назначения артефакта.',
+				tag: 'Человекочитаемый тег для ссылок на артефакт из других шаблонов через art.<tag>.',
+				format: 'Формат значения артефакта. Для LLM json-выхода обычно нужен json.',
 				persistence: 'persisted переживает ходы; run_only существует только в текущем запуске.',
-				usage: 'Выберите, используется ли артефакт в prompt, UI, обоих, или только внутренне.',
+				writeMode: 'replace переписывает current value; append добавляет новый snapshot в историю и делает его current.',
+				historyMaxItems: 'Сколько последних snapshot-значений хранить для контекста и отладки.',
 				semantics: 'Семантическая метка для потребителей, например "state" или "log/feed".',
-				promptTimeEffect: 'Тип эффекта для prompt-time вставки текста.',
 				mode: 'prepend => payload + system; append => system + payload; replace => system = payload.',
 				sourceOptional: 'Необязательная метка источника для отладки/объяснимости.',
 				role: 'Роль для синтетического prompt-сообщения.',
+				anchor: 'Куда прикреплять exposure относительно текущего диалога.',
 				depthFromEnd:
 					'0 — вставить в конец; N — вставить на глубине N от конца. Большие значения ограничиваются позицией сразу после основной system-инструкции.',
 				target: 'before_main_llm допускает только target=user; after_main_llm допускает user или assistant.',
@@ -144,27 +154,46 @@
 				activationRule:
 					'Условия объединяются по OR: достаточно одного порога. При срабатывании одного — оба счетчика этой операции сбрасываются.',
 			},
-			outputType: {
-				artifacts: 'Artifacts',
-				promptTime: 'Prompt-time effects',
-				turnCanonicalization: 'Turn canonicalization effects',
-			},
 			outputNotes: {
-				promptTimePayloadSource: 'Источник payload эффекта — текст, отрендеренный шаблоном.',
-				turnCanonicalization: 'Текущий режим replace_text: выбранная часть хода перезаписывается template output.',
+				artifactModel:
+					'Операция всегда пишет в один primary artifact. Exposures определяют, как это значение дополнительно материализуется в prompt, turn rewrite или UI.',
+				referenceByTag: 'В шаблонах можно ссылаться на другой артефакт как {{art.story_summary.value}}.',
+				noExposures: 'У этого артефакта пока нет экспозиций. Он будет доступен только как состояние артефакта.',
 			},
-			promptTimeKind: {
-				appendAfterLastUser: 'prompt.append_after_last_user',
-				systemUpdate: 'prompt.system_update',
-				insertAtDepth: 'prompt.insert_at_depth',
+			exposureType: {
+				promptPart: 'Часть промпта',
+				promptMessage: 'Сообщение промпта',
+				turnRewrite: 'Перезапись хода',
+				uiInline: 'Встроенный UI',
+			},
+			anchor: {
+				afterLastUser: 'После последнего user',
+				depthFromEnd: 'На глубине от конца',
+			},
+			rewriteTarget: {
+				currentUserMain: 'Текущий user main',
+				assistantOutputMain: 'Основной ответ assistant',
+			},
+			valueLabel: {
+				text: 'Текст',
+				markdown: 'Markdown',
+				json: 'JSON',
+				persisted: 'Сохранять',
+				run_only: 'Только на запуск',
+				replace: 'Заменить',
+				append: 'Добавить',
+				prepend: 'В начало',
+				system: 'Система',
+				user: 'Пользователь',
+				assistant: 'Ассистент',
 			},
 			kind: {
-				template: 'Template',
+				template: 'Шаблон',
 				llm: 'LLM',
 				rag: 'RAG',
-				tool: 'Tool',
-				compute: 'Compute',
-				transform: 'Transform',
+				tool: 'Инструмент',
+				compute: 'Вычисление',
+				transform: 'Преобразование',
 				legacy: 'Legacy',
 			},
 			kindSection: {
@@ -316,4 +345,5 @@
 		};
 
 export default ruOperationProfiles;
+
 

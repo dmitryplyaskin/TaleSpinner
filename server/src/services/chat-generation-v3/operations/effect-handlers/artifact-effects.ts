@@ -13,18 +13,25 @@ export async function applyArtifactEffect(params: {
   profile: OperationProfile | null;
   runStore: RunArtifactStore;
   effect: {
-    tag: string;
+    artifactId: string;
+    format: "text" | "markdown" | "json";
     persistence: "persisted" | "run_only";
-    usage: string;
+    writeMode: "replace" | "append";
+    history: {
+      enabled: boolean;
+      maxItems: number;
+    };
     semantics: string;
-    value: string;
+    value: unknown;
   };
 }): Promise<ArtifactValue> {
   if (params.effect.persistence === "run_only") {
     return params.runStore.upsert({
-      tag: params.effect.tag,
-      usage: params.effect.usage as any,
+      artifactId: params.effect.artifactId,
+      format: params.effect.format as any,
       semantics: params.effect.semantics as any,
+      writeMode: params.effect.writeMode as any,
+      history: params.effect.history,
       value: params.effect.value,
     });
   }
@@ -39,9 +46,11 @@ export async function applyArtifactEffect(params: {
     chatId: params.chatId,
     branchId: params.branchId,
     profile: params.profile,
-    tag: params.effect.tag,
-    usage: params.effect.usage as any,
+    tag: params.effect.artifactId,
+    format: params.effect.format as any,
     semantics: params.effect.semantics as any,
+    writeMode: params.effect.writeMode as any,
+    history: params.effect.history,
     value: params.effect.value,
   });
   return persisted;

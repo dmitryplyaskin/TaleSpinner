@@ -7,6 +7,7 @@ export const idSchema = z.string().min(1);
 export const ownerIdSchema = z.string().min(1).default("global");
 
 export const jsonValueSchema: z.ZodType<unknown> = z.unknown();
+export const jsonRecordSchema = z.record(z.string(), z.unknown());
 
 export const messageRoleSchema = z.enum(["user", "assistant", "system"]);
 
@@ -108,20 +109,100 @@ export const listInstructionsQuerySchema = z.object({
   ownerId: ownerIdSchema.optional(),
 });
 
-export const createInstructionBodySchema = z.object({
+const stBasePromptRoleSchema = z.enum(["system", "user", "assistant"]);
+
+const stBasePromptSchema = z.object({
+  identifier: z.string().min(1),
+  name: z.string().min(1).optional(),
+  role: stBasePromptRoleSchema.optional(),
+  content: z.string().optional(),
+  system_prompt: z.boolean().optional(),
+  marker: z.boolean().optional(),
+}).strict();
+
+const stBasePromptOrderEntrySchema = z.object({
+  identifier: z.string().min(1),
+  enabled: z.boolean(),
+}).strict();
+
+const stBasePromptOrderSchema = z.object({
+  character_id: z.number().int(),
+  order: z.array(stBasePromptOrderEntrySchema),
+}).strict();
+
+const stBaseResponseConfigSchema = z.object({
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+  top_k: z.number().optional(),
+  top_a: z.number().optional(),
+  min_p: z.number().optional(),
+  repetition_penalty: z.number().optional(),
+  frequency_penalty: z.number().optional(),
+  presence_penalty: z.number().optional(),
+  openai_max_tokens: z.number().int().positive().optional(),
+  seed: z.number().optional(),
+  n: z.number().int().positive().optional(),
+  reasoning_effort: z.string().min(1).optional(),
+  verbosity: z.string().min(1).optional(),
+  enable_web_search: z.boolean().optional(),
+  stream_openai: z.boolean().optional(),
+}).strict();
+
+export const stBaseConfigSchema = z.object({
+  rawPreset: jsonRecordSchema,
+  prompts: z.array(stBasePromptSchema),
+  promptOrder: z.array(stBasePromptOrderSchema),
+  responseConfig: stBaseResponseConfigSchema,
+  importInfo: z.object({
+    source: z.literal("sillytavern"),
+    fileName: z.string().min(1),
+    importedAt: z.string().min(1),
+  }).strict(),
+}).strict();
+
+const createBasicInstructionBodySchema = z.object({
   ownerId: ownerIdSchema.optional(),
   name: z.string().min(1),
+  kind: z.literal("basic"),
   engine: z.literal("liquidjs").optional().default("liquidjs"),
   templateText: z.string().min(1),
-  meta: jsonValueSchema.optional(),
-});
+  meta: jsonRecordSchema.optional(),
+}).strict();
 
-export const updateInstructionBodySchema = z.object({
+const createStBaseInstructionBodySchema = z.object({
+  ownerId: ownerIdSchema.optional(),
+  name: z.string().min(1),
+  kind: z.literal("st_base"),
+  engine: z.literal("liquidjs").optional().default("liquidjs"),
+  stBase: stBaseConfigSchema,
+  meta: jsonRecordSchema.optional(),
+}).strict();
+
+export const createInstructionBodySchema = z.discriminatedUnion("kind", [
+  createBasicInstructionBodySchema,
+  createStBaseInstructionBodySchema,
+]);
+
+const updateBasicInstructionBodySchema = z.object({
+  kind: z.literal("basic"),
   name: z.string().min(1).optional(),
   engine: z.literal("liquidjs").optional(),
   templateText: z.string().min(1).optional(),
-  meta: jsonValueSchema.optional(),
-});
+  meta: jsonRecordSchema.optional(),
+}).strict();
+
+const updateStBaseInstructionBodySchema = z.object({
+  kind: z.literal("st_base"),
+  name: z.string().min(1).optional(),
+  engine: z.literal("liquidjs").optional(),
+  stBase: stBaseConfigSchema.optional(),
+  meta: jsonRecordSchema.optional(),
+}).strict();
+
+export const updateInstructionBodySchema = z.discriminatedUnion("kind", [
+  updateBasicInstructionBodySchema,
+  updateStBaseInstructionBodySchema,
+]);
 
 // ---- Variants (minimal for v1 endpoints later)
 

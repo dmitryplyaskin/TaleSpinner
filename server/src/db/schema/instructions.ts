@@ -7,8 +7,10 @@ export const instructions = sqliteTable(
     ownerId: text("owner_id").notNull().default("global"),
 
     name: text("name").notNull(),
+    kind: text("kind").notNull().default("basic"),
     engine: text("engine").notNull().default("liquidjs"),
     templateText: text("template_text").notNull(),
+    stBaseJson: text("st_base_json"),
     metaJson: text("meta_json"),
 
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),

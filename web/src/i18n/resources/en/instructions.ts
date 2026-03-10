@@ -13,6 +13,8 @@ const enInstructions = {
 	},
 	actions: {
 		create: 'Create instruction',
+		createBasic: 'Create basic',
+		createStBase: 'Create st-base',
 		duplicate: 'Duplicate instruction',
 		delete: 'Delete instruction',
 		prerender: 'Prerender',
@@ -27,9 +29,6 @@ const enInstructions = {
 		name: 'Name',
 		templateText: 'Template (LiquidJS)',
 		templateTextDescription: 'Syntax is validated on the backend when saving.',
-		advancedMode: 'Advanced mode (ST-compatible)',
-		fallbackTemplateText: 'Fallback templateText (basic compatibility)',
-		fallbackTemplateTextDescription: 'Used when instruction mode is switched back to basic.',
 		prerender: 'Prerender',
 		prerenderDescription: 'Liquid render result on backend (without LLM generation).',
 		promptBlocks: 'Prompt blocks',
@@ -53,8 +52,13 @@ const enInstructions = {
 	},
 	defaults: {
 		newInstruction: 'New instruction',
+		newStBaseInstruction: 'New st-base instruction',
 		newPreset: 'New preset',
 		importedInstruction: 'Imported instruction',
+	},
+	kinds: {
+		basic: 'basic',
+		stBase: 'st-base',
 	},
 	confirm: {
 		deleteInstruction: 'Delete instruction?',
@@ -63,6 +67,7 @@ const enInstructions = {
 			'Sensitive connection fields were found. Choose whether to strip them during import or keep them for round-trip export.',
 	},
 	dialogs: {
+		createTitle: 'Choose instruction type',
 		renameTitle: 'Rename preset',
 		saveAsTitle: 'Save preset as',
 		deleteTitle: 'Delete preset',
@@ -75,6 +80,7 @@ const enInstructions = {
 		stPresetOnlyExport: 'Only ST-compatible presets can be exported from this toolbar',
 		importErrorTitle: 'Import error',
 		importMissingTemplateText: 'File does not contain templateText',
+		importMissingStBase: 'File does not contain stBase',
 		importSuccessTitle: 'Import successful',
 		importReadError: 'Failed to read file',
 		createErrorTitle: 'Failed to create instruction',

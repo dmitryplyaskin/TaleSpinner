@@ -7,8 +7,9 @@ import { operationProfileSessionArtifacts } from "../../../db/schema";
 
 import type { ArtifactValue } from "../contracts";
 import type {
+  ArtifactFormat,
   ArtifactSemantics,
-  ArtifactUsage,
+  ArtifactWriteMode,
   OperationProfile,
 } from "@shared/types/operation-profiles";
 import type { OperationActivationState } from "../operations/operation-activation-intervals";
@@ -17,9 +18,9 @@ import type { OperationActivationState } from "../operations/operation-activatio
 const MAX_HISTORY_ITEMS = 20;
 const INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX = "__sys_op_activation__:";
 
-function normalizeHistory(input: unknown, nextValue: string): string[] {
-  const parsed = Array.isArray(input) ? input.filter((v): v is string => typeof v === "string") : [];
-  return [...parsed, nextValue].slice(-MAX_HISTORY_ITEMS);
+function normalizeHistory(input: unknown, nextValue: unknown, maxItems: number): unknown[] {
+  const parsed = Array.isArray(input) ? input : [];
+  return [...parsed, nextValue].slice(-maxItems);
 }
 
 function normalizeActivationState(input: unknown): OperationActivationState {
@@ -58,16 +59,17 @@ export class ProfileSessionArtifactStore {
     const out: Record<string, ArtifactValue> = {};
     for (const row of rows) {
       if (row.tag.startsWith(INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX)) continue;
-      const usage = (row.usage ?? "internal") as ArtifactUsage;
+      const format = ((row.usage ?? "markdown") as ArtifactFormat) || "markdown";
       const semantics = (row.semantics ?? "intermediate") as ArtifactSemantics;
-      const value = safeJsonParse<string>(row.valueJson, "");
-      const history = safeJsonParse<string[]>(row.historyJson, []);
+      const value = safeJsonParse<unknown>(row.valueJson, "");
+      const history = safeJsonParse<unknown[]>(row.historyJson, []);
       out[row.tag] = {
-        usage,
+        format,
         semantics,
         persistence: "persisted",
+        writeMode: "replace",
         value,
-        history: Array.isArray(history) ? history.filter((v) => typeof v === "string") : [],
+        history: Array.isArray(history) ? history : [],
       };
     }
     return out;
@@ -110,9 +112,14 @@ export class ProfileSessionArtifactStore {
     branchId: string;
     profile: OperationProfile | null;
     tag: string;
-    usage: ArtifactUsage;
+    format: ArtifactFormat;
     semantics: ArtifactSemantics;
-    value: string;
+    writeMode: ArtifactWriteMode;
+    history: {
+      enabled: boolean;
+      maxItems: number;
+    };
+    value: unknown;
   }): Promise<ArtifactValue> {
     const db = await initDb();
     const existingRows = await db
@@ -128,15 +135,21 @@ export class ProfileSessionArtifactStore {
 
     const now = new Date();
     const existing = existingRows[0];
-    const history = normalizeHistory(existing ? safeJsonParse(existing.historyJson, []) : [], params.value);
+    const history = params.history.enabled
+      ? normalizeHistory(
+          existing ? safeJsonParse(existing.historyJson, []) : [],
+          params.value,
+          params.history.maxItems
+        )
+      : [];
 
     if (existing) {
       await db
         .update(operationProfileSessionArtifacts)
         .set({
-          usage: params.usage,
+          usage: params.format,
           semantics: params.semantics,
-          valueJson: safeJsonStringify(params.value, "\"\""),
+          valueJson: safeJsonStringify(params.value, "null"),
           historyJson: safeJsonStringify(history, "[]"),
           updatedAt: now,
         })
@@ -152,18 +165,19 @@ export class ProfileSessionArtifactStore {
         profileVersion: params.profile?.version ?? null,
         operationProfileSessionId: params.profile?.operationProfileSessionId ?? null,
         tag: params.tag,
-        usage: params.usage,
+        usage: params.format,
         semantics: params.semantics,
-        valueJson: safeJsonStringify(params.value, "\"\""),
+        valueJson: safeJsonStringify(params.value, "null"),
         historyJson: safeJsonStringify(history, "[]"),
         updatedAt: now,
       });
     }
 
     return {
-      usage: params.usage,
+      format: params.format,
       semantics: params.semantics,
       persistence: "persisted",
+      writeMode: params.writeMode,
       value: params.value,
       history,
     };
@@ -213,7 +227,7 @@ export class ProfileSessionArtifactStore {
       profileVersion: params.profile?.version ?? null,
       operationProfileSessionId: params.profile?.operationProfileSessionId ?? null,
       tag,
-      usage: "internal",
+      usage: "json",
       semantics: "state",
       valueJson: safeJsonStringify(params.state, "{}"),
       historyJson: "[]",

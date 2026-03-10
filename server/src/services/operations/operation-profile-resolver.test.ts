@@ -2,7 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 
 import { resolveCompiledOperationProfile } from "./operation-profile-resolver";
 
-import type { OperationBlock, OperationProfile } from "@shared/types/operation-profiles";
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationBlock,
+  type OperationProfile,
+} from "@shared/types/operation-profiles";
 
 const blockById = new Map<string, OperationBlock>();
 
@@ -14,6 +19,7 @@ function makeBlock(params: {
   blockId: string;
   version: number;
   order: number;
+  artifactTag?: string;
 }): OperationBlock {
   const now = new Date();
   return {
@@ -35,15 +41,22 @@ function makeBlock(params: {
           dependsOn: [],
           params: {
             template: "hello",
-            output: {
-              type: "artifacts",
-              writeArtifact: {
-                tag: `${params.blockId.replace(/-/g, "_")}_state`,
-                persistence: "run_only",
-                usage: "internal",
-                semantics: "intermediate",
+            artifact: normalizeOperationArtifactConfig({
+              opId: "op-1e6df0d9-2d3a-420f-83f0-a4e90ca1b056",
+              kind: "template",
+              title: "op",
+              rawParams: {
+                output: {
+                  type: "artifacts",
+                  writeArtifact: {
+                    tag: params.artifactTag ?? `${params.blockId.replace(/-/g, "_")}_state`,
+                    persistence: "run_only",
+                    usage: "internal",
+                    semantics: "intermediate",
+                  },
+                } satisfies LegacyOperationOutput,
               },
-            },
+            }),
           },
         },
       },
@@ -122,5 +135,41 @@ describe("operation profile resolver", () => {
     const out = await resolveCompiledOperationProfile(profile);
     expect(out.blockVersionFingerprint).toBe("");
     expect(out.operations).toEqual([]);
+  });
+
+  test("rejects duplicate artifact writers after block flattening", async () => {
+    blockById.clear();
+    blockById.set("11111111-1111-4111-8111-111111111111", makeBlock({
+      blockId: "11111111-1111-4111-8111-111111111111",
+      version: 1,
+      order: 10,
+      artifactTag: "shared_state",
+    }));
+    blockById.set("22222222-2222-4222-8222-222222222222", makeBlock({
+      blockId: "22222222-2222-4222-8222-222222222222",
+      version: 1,
+      order: 20,
+      artifactTag: "shared_state",
+    }));
+
+    const now = new Date();
+    const profile: OperationProfile = {
+      profileId: "profile-dup",
+      ownerId: "global",
+      name: "dup",
+      enabled: true,
+      executionMode: "sequential",
+      operationProfileSessionId: "sess-dup",
+      version: 1,
+      blockRefs: [
+        { blockId: "11111111-1111-4111-8111-111111111111", enabled: true, order: 10 },
+        { blockId: "22222222-2222-4222-8222-222222222222", enabled: true, order: 20 },
+      ],
+      meta: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await expect(resolveCompiledOperationProfile(profile)).rejects.toThrow(/duplicate artifactId in compiled profile/i);
   });
 });

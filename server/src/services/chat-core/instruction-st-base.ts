@@ -2,15 +2,12 @@ import { renderLiquidTemplate } from "./prompt-template-renderer";
 
 import type { InstructionRenderContext } from "./prompt-template-renderer";
 import type {
-  InstructionMeta,
-  StAdvancedConfig,
-  StAdvancedResponseConfig,
-  StPrompt,
-  StPromptOrder,
-  TsInstructionMetaV1,
+  StBaseConfig,
+  StBasePrompt,
+  StBasePromptOrder,
+  StBaseResponseConfig,
 } from "@shared/types/instructions";
 
-const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant.";
 const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;
 
 const ST_PRESET_DETECT_KEYS = new Set([
@@ -51,7 +48,7 @@ const ST_SUPPORTED_PROMPT_IDENTIFIERS = new Set([
 
 type SensitiveImportMode = "remove" | "keep";
 
-type ResolvedAdvancedInstruction = {
+type ResolvedStBaseInstruction = {
   systemPrompt: string;
   preHistorySystemMessages: string[];
   postHistorySystemMessages: string[];
@@ -93,19 +90,19 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 
 function normalizeStPromptRole(
   value: unknown
-): StPrompt["role"] | undefined {
+): StBasePrompt["role"] | undefined {
   if (value === "system" || value === "user" || value === "assistant") {
     return value;
   }
   return undefined;
 }
 
-function normalizePrompt(prompt: unknown): StPrompt | null {
+function normalizePrompt(prompt: unknown): StBasePrompt | null {
   if (!isRecord(prompt)) return null;
   const identifier = asString(prompt.identifier);
   if (!identifier) return null;
 
-  const item: StPrompt = { identifier };
+  const item: StBasePrompt = { identifier };
   const name = asString(prompt.name);
   if (name) item.name = name;
 
@@ -115,6 +112,9 @@ function normalizePrompt(prompt: unknown): StPrompt | null {
   if (typeof prompt.content === "string") item.content = prompt.content;
   if (typeof prompt.system_prompt === "boolean") {
     item.system_prompt = prompt.system_prompt;
+  }
+  if (typeof prompt.marker === "boolean") {
+    item.marker = prompt.marker;
   }
   return item;
 }
@@ -131,7 +131,7 @@ function normalizePromptOrderEntry(
   };
 }
 
-function normalizePromptOrderItem(value: unknown): StPromptOrder | null {
+function normalizePromptOrderItem(value: unknown): StBasePromptOrder | null {
   if (!isRecord(value)) return null;
   const rawCharacterId = value.character_id;
   const characterId =
@@ -170,22 +170,22 @@ export function stripSensitiveFieldsFromPreset(
   return cloned;
 }
 
-export function normalizeStPrompts(input: unknown): StPrompt[] {
+export function normalizeStPrompts(input: unknown): StBasePrompt[] {
   if (!Array.isArray(input)) return [];
-  return input.map(normalizePrompt).filter((item): item is StPrompt => Boolean(item));
+  return input.map(normalizePrompt).filter((item): item is StBasePrompt => Boolean(item));
 }
 
-export function normalizeStPromptOrder(input: unknown): StPromptOrder[] {
+export function normalizeStPromptOrder(input: unknown): StBasePromptOrder[] {
   if (!Array.isArray(input)) return [];
   return input
     .map(normalizePromptOrderItem)
-    .filter((item): item is StPromptOrder => Boolean(item));
+    .filter((item): item is StBasePromptOrder => Boolean(item));
 }
 
 function normalizeResponseConfig(
   preset: Record<string, unknown>
-): StAdvancedResponseConfig {
-  const responseConfig: StAdvancedResponseConfig = {};
+): StBaseResponseConfig {
+  const responseConfig: StBaseResponseConfig = {};
 
   const numericKeys: StResponseNumericKey[] = [
     "temperature",
@@ -227,7 +227,7 @@ function normalizeResponseConfig(
 }
 
 function resolvePreferredPromptOrderEntries(
-  promptOrder: StPromptOrder[]
+  promptOrder: StBasePromptOrder[]
 ): Array<{ identifier: string; enabled: boolean }> {
   if (promptOrder.length === 0) return [];
   const preferred =
@@ -280,7 +280,7 @@ function resolveDynamicPromptContent(params: {
 }
 
 function toGatewaySettingsFromResponseConfig(
-  config: StAdvancedResponseConfig
+  config: StBaseResponseConfig
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {};
 
@@ -317,40 +317,11 @@ function toGatewaySettingsFromResponseConfig(
   return settings;
 }
 
-function normalizeInstructionMeta(meta: unknown): InstructionMeta {
-  if (!isRecord(meta)) return {};
-  return { ...meta };
-}
-
-export function getTsInstructionMeta(meta: unknown): TsInstructionMetaV1 | null {
-  if (!isRecord(meta) || !isRecord(meta.tsInstruction)) return null;
-  const tsInstruction = meta.tsInstruction;
-  if (tsInstruction.version !== 1) return null;
-  if (
-    tsInstruction.mode !== "basic" &&
-    tsInstruction.mode !== "st_advanced"
-  ) {
-    return null;
-  }
-  return tsInstruction as TsInstructionMetaV1;
-}
-
-export function withTsInstructionMeta(params: {
-  meta: unknown;
-  tsInstruction: TsInstructionMetaV1;
-}): InstructionMeta {
-  const normalized = normalizeInstructionMeta(params.meta);
-  return {
-    ...normalized,
-    tsInstruction: params.tsInstruction,
-  };
-}
-
-export function createStAdvancedConfigFromPreset(params: {
+export function createStBaseConfigFromPreset(params: {
   preset: Record<string, unknown>;
   fileName: string;
   sensitiveImportMode: SensitiveImportMode;
-}): StAdvancedConfig {
+}): StBaseConfig {
   const rawPreset =
     params.sensitiveImportMode === "remove"
       ? stripSensitiveFieldsFromPreset(params.preset)
@@ -371,20 +342,20 @@ export function createStAdvancedConfigFromPreset(params: {
   };
 }
 
-export async function resolveStAdvancedInstructionRuntime(params: {
-  stAdvanced: StAdvancedConfig;
+export async function resolveStBaseInstructionRuntime(params: {
+  stBase: StBaseConfig;
   context: InstructionRenderContext;
-}): Promise<ResolvedAdvancedInstruction> {
+}): Promise<ResolvedStBaseInstruction> {
   const promptsByIdentifier = new Map(
-    params.stAdvanced.prompts.map((item) => [item.identifier, item] as const)
+    params.stBase.prompts.map((item) => [item.identifier, item] as const)
   );
   const selectedOrder = resolvePreferredPromptOrderEntries(
-    params.stAdvanced.promptOrder
+    params.stBase.promptOrder
   );
   const fallbackOrder =
     selectedOrder.length > 0
       ? selectedOrder
-      : params.stAdvanced.prompts.map((item) => ({
+      : params.stBase.prompts.map((item) => ({
           identifier: item.identifier,
           enabled: true,
         }));
@@ -426,7 +397,7 @@ export async function resolveStAdvancedInstructionRuntime(params: {
     usedPromptIdentifiers.push(identifier);
   }
 
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT;
+  let systemPrompt: string | null = null;
   let preHistorySystemMessages: string[] = [];
   let postHistorySystemMessages = [...postHistory];
 
@@ -438,12 +409,16 @@ export async function resolveStAdvancedInstructionRuntime(params: {
     postHistorySystemMessages = postHistory.slice(1);
   }
 
+  if (!systemPrompt || !systemPrompt.trim()) {
+    throw new Error("st_base instruction did not resolve a system prompt");
+  }
+
   return {
     systemPrompt,
     preHistorySystemMessages,
     postHistorySystemMessages,
     derivedSettings: toGatewaySettingsFromResponseConfig(
-      params.stAdvanced.responseConfig
+      params.stBase.responseConfig
     ),
     usedPromptIdentifiers,
   };

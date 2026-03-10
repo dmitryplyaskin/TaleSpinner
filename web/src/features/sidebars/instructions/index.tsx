@@ -1,13 +1,13 @@
-import { Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useUnit } from 'effector-react';
-import { useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
 	LuDownload,
-	LuFilePlus2,
 	LuLink2,
 	LuLink2Off,
 	LuPencil,
+	LuPlus,
 	LuSave,
 	LuTrash2,
 	LuUpload,
@@ -25,13 +25,11 @@ import {
 	updateInstructionFx,
 } from '@model/instructions';
 import {
-	buildStPresetFromAdvanced,
+	buildStPresetFromStBase,
 	createBestEffortLlmBindingPlan,
-	createStAdvancedConfigFromPreset,
-	createTsInstructionMeta,
+	createDefaultStBaseConfig,
+	createStBaseConfigFromPreset,
 	detectStChatCompletionPreset,
-	deriveInstructionTemplateText,
-	getTsInstructionMeta,
 	hasSensitivePresetFields,
 } from '@model/instructions/st-preset';
 import { Drawer } from '@ui/drawer';
@@ -40,8 +38,8 @@ import { toaster } from '@ui/toaster';
 
 import { InstructionEditor } from './instruction-editor';
 
-import type { InstructionDto } from '../../../api/instructions';
-import type { InstructionMeta } from '@shared/types/instructions';
+import type { CreateInstructionDraft, InstructionDto } from '../../../api/instructions';
+import type { InstructionMeta, StBaseConfig } from '@shared/types/instructions';
 
 type NameDialogMode = 'rename' | 'saveAs';
 
@@ -56,6 +54,20 @@ type PendingSensitiveImport = {
 	fileName: string;
 	json: Record<string, unknown>;
 };
+
+type InstructionViewState =
+	| {
+			kind: 'basic';
+			name: string;
+			templateText: string;
+			meta?: InstructionMeta;
+	  }
+	| {
+			kind: 'st_base';
+			name: string;
+			stBase: StBaseConfig;
+			meta?: InstructionMeta;
+	  };
 
 function downloadJson(params: { fileName: string; data: unknown }): void {
 	const blob = new Blob([JSON.stringify(params.data, null, 2)], { type: 'application/json' });
@@ -79,18 +91,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function createInstructionPayloadFromDraft(params: {
-	name: string;
-	templateText: string;
-	meta?: InstructionMeta;
-}) {
-	return {
-		name: params.name.trim(),
-		templateText: params.templateText,
-		meta: params.meta,
-	};
-}
-
 function resolveCopyName(originalName: string, usedNames: Set<string>): string {
 	const firstCopy = `${originalName} (copy)`;
 	if (!usedNames.has(firstCopy)) return firstCopy;
@@ -107,17 +107,70 @@ function resolveUniqueName(name: string, usedNames: Set<string>): string {
 	return resolveCopyName(trimmed, usedNames);
 }
 
+function toInstructionViewState(instruction: InstructionDto): InstructionViewState {
+	if (instruction.kind === 'st_base') {
+		return {
+			kind: 'st_base',
+			name: instruction.name,
+			stBase: instruction.stBase,
+			meta: instruction.meta ?? undefined,
+		};
+	}
+
+	return {
+		kind: 'basic',
+		name: instruction.name,
+		templateText: instruction.templateText,
+		meta: instruction.meta ?? undefined,
+	};
+}
+
 function areInstructionValuesEqual(
 	selectedInstruction: InstructionDto | null,
-	draft: { sourceInstructionId: string; name: string; templateText: string; meta?: InstructionMeta } | null,
+	draft:
+		| ({
+				sourceInstructionId: string;
+		  } & InstructionViewState)
+		| null,
 ): boolean {
 	if (!selectedInstruction || !draft) return true;
 	if (draft.sourceInstructionId !== selectedInstruction.id) return false;
-	return (
-		draft.name === selectedInstruction.name &&
-		draft.templateText === selectedInstruction.templateText &&
-		JSON.stringify(draft.meta ?? null) === JSON.stringify(selectedInstruction.meta ?? null)
-	);
+	if (draft.kind !== selectedInstruction.kind) return false;
+	if (draft.name !== selectedInstruction.name) return false;
+	if (JSON.stringify(draft.meta ?? null) !== JSON.stringify(selectedInstruction.meta ?? null)) return false;
+
+	if (draft.kind === 'basic' && selectedInstruction.kind === 'basic') {
+		return draft.templateText === selectedInstruction.templateText;
+	}
+
+	if (draft.kind === 'st_base' && selectedInstruction.kind === 'st_base') {
+		return JSON.stringify(draft.stBase) === JSON.stringify(selectedInstruction.stBase);
+	}
+
+	return false;
+}
+
+function createInstructionPayloadFromState(params: InstructionViewState): CreateInstructionDraft {
+	if (params.kind === 'st_base') {
+		return {
+			kind: 'st_base',
+			name: params.name.trim(),
+			stBase: params.stBase,
+			meta: params.meta,
+		};
+	}
+
+	return {
+		kind: 'basic',
+		name: params.name.trim(),
+		templateText: params.templateText,
+		meta: params.meta,
+	};
+}
+
+function createInstructionLabel(item: InstructionDto, t: (key: string) => string): string {
+	const kindLabel = item.kind === 'st_base' ? t('instructions.kinds.stBase') : t('instructions.kinds.basic');
+	return `${item.name} · ${kindLabel}`;
 }
 
 export const InstructionsSidebar = () => {
@@ -133,6 +186,7 @@ export const InstructionsSidebar = () => {
 		deleteInstructionFx,
 	]);
 
+	const [createOpened, setCreateOpened] = useState(false);
 	const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
 	const [deleteOpened, setDeleteOpened] = useState(false);
 	const [discardOpened, setDiscardOpened] = useState(false);
@@ -144,11 +198,20 @@ export const InstructionsSidebar = () => {
 	const usedNames = useMemo(() => new Set(items.map((item) => item.name)), [items]);
 	const options = items
 		.filter((item) => typeof item.id === 'string' && item.id.trim().length > 0)
-		.map((item) => ({ value: item.id, label: item.name || item.id }));
+		.map((item) => ({ value: item.id, label: createInstructionLabel(item, t) }));
 
-	const currentValues = useMemo(() => {
+	const currentValues = useMemo<InstructionViewState | null>(() => {
 		if (draft && selectedInstruction && draft.sourceInstructionId === selectedInstruction.id) {
+			if (draft.kind === 'st_base') {
+				return {
+					kind: 'st_base',
+					name: draft.name,
+					stBase: draft.stBase,
+					meta: draft.meta,
+				};
+			}
 			return {
+				kind: 'basic',
 				name: draft.name,
 				templateText: draft.templateText,
 				meta: draft.meta,
@@ -156,11 +219,7 @@ export const InstructionsSidebar = () => {
 		}
 
 		if (selectedInstruction) {
-			return {
-				name: selectedInstruction.name,
-				templateText: selectedInstruction.templateText,
-				meta: selectedInstruction.meta ?? undefined,
-			};
+			return toInstructionViewState(selectedInstruction);
 		}
 
 		return null;
@@ -171,18 +230,11 @@ export const InstructionsSidebar = () => {
 		[selectedInstruction, draft],
 	);
 
-	const selectedTsInstruction = getTsInstructionMeta(currentValues?.meta);
-	const selectedStAdvanced =
-		selectedTsInstruction?.mode === 'st_advanced' ? selectedTsInstruction.stAdvanced : null;
-
 	const applyBestEffortBinding = async (instruction: InstructionDto) => {
 		if (!appSettings.bindChatCompletionPresetToConnection) return;
+		if (instruction.kind !== 'st_base') return;
 
-		const tsInstruction = getTsInstructionMeta(instruction.meta);
-		const stAdvanced = tsInstruction?.mode === 'st_advanced' ? tsInstruction.stAdvanced : null;
-		if (!stAdvanced) return;
-
-		const plan = createBestEffortLlmBindingPlan(stAdvanced);
+		const plan = createBestEffortLlmBindingPlan(instruction.stBase);
 		try {
 			if (plan.runtimePatch?.activeProviderId || typeof plan.runtimePatch?.activeModel !== 'undefined') {
 				const currentRuntime = await getRuntime({ scope: 'global', scopeId: 'global' });
@@ -230,16 +282,6 @@ export const InstructionsSidebar = () => {
 		});
 	};
 
-	const promptForSaveAs = () => {
-		const fallbackName = currentValues?.name?.trim() ? `${currentValues.name} copy` : t('instructions.defaults.newPreset');
-		setNameDialog({
-			mode: 'saveAs',
-			value: fallbackName,
-			title: t('instructions.dialogs.saveAsTitle'),
-			submitLabel: t('instructions.actions.saveAs'),
-		});
-	};
-
 	const handleNameDialogSubmit = async () => {
 		if (!nameDialog || !currentValues || !selectedInstruction) return;
 		const nextName = nameDialog.value.trim();
@@ -249,25 +291,17 @@ export const InstructionsSidebar = () => {
 				? nextName
 				: resolveUniqueName(nextName, usedNames);
 
+		const nextState: InstructionViewState = { ...currentValues, name: resolvedName } as InstructionViewState;
+
 		try {
 			if (nameDialog.mode === 'rename') {
 				await onUpdateInstruction({
 					id: selectedInstruction.id,
-					...createInstructionPayloadFromDraft({
-						name: resolvedName,
-						templateText: currentValues.templateText,
-						meta: currentValues.meta,
-					}),
+					...createInstructionPayloadFromState(nextState),
 				});
 				toaster.success({ title: t('instructions.toasts.savedTitle'), description: resolvedName });
 			} else {
-				const created = await onCreateInstruction(
-					createInstructionPayloadFromDraft({
-						name: resolvedName,
-						templateText: currentValues.templateText,
-						meta: currentValues.meta,
-					}),
-				);
+				const created = await onCreateInstruction(createInstructionPayloadFromState(nextState));
 				await applyBestEffortBinding(created);
 				toaster.success({ title: t('instructions.toasts.createdTitle'), description: created.name });
 			}
@@ -282,7 +316,7 @@ export const InstructionsSidebar = () => {
 		try {
 			await onUpdateInstruction({
 				id: selectedInstruction.id,
-				...createInstructionPayloadFromDraft(currentValues),
+				...createInstructionPayloadFromState(currentValues),
 			});
 			toaster.success({ title: t('instructions.toasts.savedTitle'), description: currentValues.name });
 		} catch {
@@ -300,43 +334,54 @@ export const InstructionsSidebar = () => {
 		}
 	};
 
-	const handleExport = () => {
-		if (!currentValues) {
-			toaster.error({ title: t('instructions.toasts.exportNotPossibleTitle'), description: t('instructions.toasts.selectForExport') });
-			return;
+	const handleCreate = async (kind: 'basic' | 'st_base') => {
+		try {
+			const created = await onCreateInstruction(
+				kind === 'st_base'
+					? {
+							kind: 'st_base',
+							name: resolveUniqueName(t('instructions.defaults.newStBaseInstruction'), usedNames),
+							stBase: createDefaultStBaseConfig(),
+					  }
+					: {
+							kind: 'basic',
+							name: resolveUniqueName(t('instructions.defaults.newInstruction'), usedNames),
+							templateText: '{{char.name}}',
+					  }
+			);
+			await applyBestEffortBinding(created);
+			setCreateOpened(false);
+			toaster.success({ title: t('instructions.toasts.createdTitle'), description: created.name });
+		} catch {
+			// handled by model watcher
 		}
+	};
 
-		const tsInstruction = getTsInstructionMeta(currentValues.meta);
-		const stAdvanced = tsInstruction?.mode === 'st_advanced' ? tsInstruction.stAdvanced : null;
-		if (!stAdvanced) {
+	const handleExport = () => {
+		if (!currentValues || currentValues.kind !== 'st_base') {
 			toaster.error({ title: t('instructions.toasts.exportNotPossibleTitle'), description: t('instructions.toasts.stPresetOnlyExport') });
 			return;
 		}
 
 		downloadJson({
 			fileName: `${currentValues.name}.json`,
-			data: buildStPresetFromAdvanced(stAdvanced),
+			data: buildStPresetFromStBase(currentValues.stBase),
 		});
 	};
 
 	const importStPreset = (fileName: string, json: Record<string, unknown>, sensitiveImportMode: 'remove' | 'keep') => {
-		const stAdvanced = createStAdvancedConfigFromPreset({
+		const stBase = createStBaseConfigFromPreset({
 			preset: json,
 			fileName,
 			sensitiveImportMode,
 		});
-		const templateText = deriveInstructionTemplateText(stAdvanced);
 		void onCreateInstruction({
+			kind: 'st_base',
 			name: resolveUniqueName(
 				getBasename(fileName).trim() || t('instructions.defaults.importedInstruction'),
 				usedNames,
 			),
-			templateText,
-			meta: createTsInstructionMeta({
-				meta: null,
-				mode: 'st_advanced',
-				stAdvanced,
-			}),
+			stBase,
 		})
 			.then((created) => {
 				void applyBestEffortBinding(created);
@@ -347,7 +392,7 @@ export const InstructionsSidebar = () => {
 			});
 	};
 
-	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
 		if (!file) return;
 
@@ -360,22 +405,48 @@ export const InstructionsSidebar = () => {
 				if (
 					isRecord(json) &&
 					json.type === 'talespinner.instruction' &&
-					isRecord(json.instruction)
+					isRecord(json.instruction) &&
+					(json.instruction.kind === 'basic' || json.instruction.kind === 'st_base')
 				) {
 					const name = typeof json.instruction.name === 'string' ? json.instruction.name : t('instructions.defaults.importedInstruction');
-					const templateText = typeof json.instruction.templateText === 'string' ? json.instruction.templateText : '';
 					const meta = isRecord(json.instruction.meta) ? (json.instruction.meta as InstructionMeta) : undefined;
 
-					if (!templateText.trim()) {
+					if (json.instruction.kind === 'basic') {
+						const templateText = typeof json.instruction.templateText === 'string' ? json.instruction.templateText : '';
+						if (!templateText.trim()) {
+							toaster.error({
+								title: t('instructions.toasts.importErrorTitle'),
+								description: t('instructions.toasts.importMissingTemplateText'),
+							});
+							return;
+						}
+
+						void onCreateInstruction({ kind: 'basic', name, templateText, meta })
+							.then((created) => toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: created.name }))
+							.catch(() => {
+								// handled by model watcher
+							});
+						return;
+					}
+
+					if (!isRecord(json.instruction.stBase)) {
 						toaster.error({
 							title: t('instructions.toasts.importErrorTitle'),
-							description: t('instructions.toasts.importMissingTemplateText'),
+							description: t('instructions.toasts.importMissingStBase'),
 						});
 						return;
 					}
 
-					void onCreateInstruction({ name, templateText, meta })
-						.then((created) => toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: created.name }))
+					void onCreateInstruction({
+						kind: 'st_base',
+						name,
+						stBase: json.instruction.stBase as StBaseConfig,
+						meta,
+					})
+						.then((created) => {
+							void applyBestEffortBinding(created);
+							toaster.success({ title: t('instructions.toasts.importSuccessTitle'), description: created.name });
+						})
 						.catch(() => {
 							// handled by model watcher
 						});
@@ -412,6 +483,13 @@ export const InstructionsSidebar = () => {
 		<Drawer name="instructions" title={t('instructions.title')}>
 			<Stack gap="md">
 				<input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json,.settings" onChange={handleFileChange} />
+
+				<Modal opened={createOpened} onClose={() => setCreateOpened(false)} title={t('instructions.dialogs.createTitle')} centered>
+					<Stack gap="md">
+						<Button onClick={() => void handleCreate('basic')}>{t('instructions.actions.createBasic')}</Button>
+						<Button variant="light" onClick={() => void handleCreate('st_base')}>{t('instructions.actions.createStBase')}</Button>
+					</Stack>
+				</Modal>
 
 				<Modal
 					opened={nameDialog !== null}
@@ -530,6 +608,12 @@ export const InstructionsSidebar = () => {
 						<Text fw={700}>{t('instructions.presets.title')}</Text>
 						<Group gap="xs" wrap="nowrap">
 							<IconButtonWithTooltip
+								tooltip={t('instructions.actions.create')}
+								icon={<LuPlus size={16} />}
+								aria-label={t('instructions.actions.create')}
+								onClick={() => setCreateOpened(true)}
+							/>
+							<IconButtonWithTooltip
 								tooltip={
 									appSettings.bindChatCompletionPresetToConnection
 										? t('instructions.presets.actions.unbind')
@@ -560,7 +644,7 @@ export const InstructionsSidebar = () => {
 								tooltip={t('instructions.presets.actions.export')}
 								icon={<LuDownload size={16} />}
 								aria-label={t('instructions.presets.actions.export')}
-								disabled={!selectedStAdvanced}
+								disabled={currentValues?.kind !== 'st_base'}
 								onClick={handleExport}
 							/>
 							<IconButtonWithTooltip
@@ -594,6 +678,12 @@ export const InstructionsSidebar = () => {
 							style={{ flex: 1 }}
 						/>
 
+						{selectedInstruction && (
+							<Badge variant="light">
+								{selectedInstruction.kind === 'st_base' ? t('instructions.kinds.stBase') : t('instructions.kinds.basic')}
+							</Badge>
+						)}
+
 						<Group gap="xs" wrap="nowrap">
 							<IconButtonWithTooltip
 								tooltip={t('instructions.actions.updateCurrent')}
@@ -609,13 +699,6 @@ export const InstructionsSidebar = () => {
 								aria-label={t('instructions.actions.rename')}
 								disabled={!selectedInstruction}
 								onClick={promptForRename}
-							/>
-							<IconButtonWithTooltip
-								tooltip={t('instructions.actions.saveAs')}
-								icon={<LuFilePlus2 size={16} />}
-								aria-label={t('instructions.actions.saveAs')}
-								disabled={!currentValues}
-								onClick={promptForSaveAs}
 							/>
 						</Group>
 					</Group>

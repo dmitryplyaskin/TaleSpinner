@@ -4,12 +4,14 @@ import { type RunArtifactStore } from "../artifacts/run-artifact-store";
 import { applyArtifactEffect } from "./effect-handlers/artifact-effects";
 import { applyPromptEffect } from "./effect-handlers/prompt-effects";
 import { persistUserTurnText } from "./effect-handlers/turn-effects";
+import { persistUiInlineEffect } from "./effect-handlers/ui-effects";
 import { validateEffectForHook } from "./effect-policy";
 
 import type {
   CommitPhaseReport,
   OperationExecutionResult,
   RuntimeEffect,
+  RunPersistenceTarget,
   RunState,
   TurnUserCanonicalizationRecord,
   UserTurnTarget,
@@ -104,6 +106,7 @@ export async function commitEffectsPhase(params: {
   sessionKey: string | null;
   runState: RunState;
   runArtifactStore: RunArtifactStore;
+  persistenceTarget?: RunPersistenceTarget;
   userTurnTarget?: UserTurnTarget;
   onUserTurnCanonicalized?: (payload: TurnUserCanonicalizationRecord) => void;
   onCommitEvent?: (event: {
@@ -174,8 +177,33 @@ export async function commitEffectsPhase(params: {
             effect,
           });
           if (applied.persistence === "persisted") {
-            params.runState.persistedArtifactsSnapshot[effect.tag] = applied;
+            params.runState.persistedArtifactsSnapshot[effect.artifactId] = applied;
           }
+          effectsReport.push({
+            opId: opResult.opId,
+            effectType: effect.type,
+            status: "applied",
+          });
+          params.onCommitEvent?.({
+            type: "commit.effect_applied",
+            data: { hook: params.hook, opId: opResult.opId, effectType: effect.type },
+          });
+          continue;
+        }
+
+        if (effect.type === "ui.inline") {
+          if (!params.persistenceTarget) {
+            throw new Error("UI inline effect requires persistence target");
+          }
+          await persistUiInlineEffect({
+            ownerId: params.ownerId,
+            chatId: params.chatId,
+            branchId: params.branchId,
+            hook: params.hook,
+            effect,
+            persistenceTarget: params.persistenceTarget,
+            userTurnTarget: currentUserTurnTarget,
+          });
           effectsReport.push({
             opId: opResult.opId,
             effectType: effect.type,

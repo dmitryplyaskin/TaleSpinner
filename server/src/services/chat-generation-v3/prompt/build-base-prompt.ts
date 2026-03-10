@@ -1,7 +1,6 @@
 import {
-  getTsInstructionMeta,
-  resolveStAdvancedInstructionRuntime,
-} from "../../chat-core/instruction-st-preset";
+  resolveStBaseInstructionRuntime,
+} from "../../chat-core/instruction-st-base";
 import { pickInstructionForChat } from "../../chat-core/instructions-repository";
 import { buildPromptDraft } from "../../chat-core/prompt-draft-builder";
 import {
@@ -84,35 +83,28 @@ export async function buildBasePrompt(params: {
   let preHistorySystemMessages: string[] = [];
   let postHistorySystemMessages: string[] = [];
   let instructionDerivedSettings: Record<string, unknown> = {};
-  try {
-    const template = await pickInstructionForChat({
-      ownerId: params.ownerId,
-      chatId: params.chatId,
-    });
-    if (template) {
-      const tsInstruction = getTsInstructionMeta(template.meta);
-      if (tsInstruction?.mode === "st_advanced" && tsInstruction.stAdvanced) {
-        const resolved = await resolveStAdvancedInstructionRuntime({
-          stAdvanced: tsInstruction.stAdvanced,
-          context: templateContext,
-        });
-        if (resolved.systemPrompt.trim().length > 0) {
-          systemPrompt = resolved.systemPrompt;
-        }
-        preHistorySystemMessages = resolved.preHistorySystemMessages;
-        postHistorySystemMessages = resolved.postHistorySystemMessages;
-        instructionDerivedSettings = resolved.derivedSettings;
-      } else {
-        const rendered = await renderLiquidTemplate({
-          templateText: template.templateText,
-          context: templateContext,
-        });
-        const normalized = rendered.trim();
-        if (normalized) systemPrompt = normalized;
-      }
+  const template = await pickInstructionForChat({
+    ownerId: params.ownerId,
+    chatId: params.chatId,
+  });
+  if (template) {
+    if (template.kind === "st_base") {
+      const resolved = await resolveStBaseInstructionRuntime({
+        stBase: template.stBase,
+        context: templateContext,
+      });
+      systemPrompt = resolved.systemPrompt;
+      preHistorySystemMessages = resolved.preHistorySystemMessages;
+      postHistorySystemMessages = resolved.postHistorySystemMessages;
+      instructionDerivedSettings = resolved.derivedSettings;
+    } else {
+      const rendered = await renderLiquidTemplate({
+        templateText: template.templateText,
+        context: templateContext,
+      });
+      const normalized = rendered.trim();
+      if (normalized) systemPrompt = normalized;
     }
-  } catch {
-    // Keep default fallback.
   }
 
   const builtPrompt = await buildPromptDraft({

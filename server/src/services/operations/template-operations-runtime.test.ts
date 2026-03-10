@@ -5,7 +5,20 @@ import {
   applyTemplateOperationsToPromptDraft,
 } from "./template-operations-runtime";
 
-import type { OperationProfile } from "@shared/types/operation-profiles";
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationProfile,
+} from "@shared/types/operation-profiles";
+
+function toArtifact(opId: string, title: string, output: LegacyOperationOutput) {
+  return normalizeOperationArtifactConfig({
+    opId,
+    kind: "template",
+    title,
+    rawParams: { output },
+  });
+}
 
 
 function makeProfile(operations: OperationProfile["operations"]): OperationProfile {
@@ -41,10 +54,10 @@ describe("template operations runtime", () => {
           order: 10,
           params: {
             template: "[{{user.name}}]",
-            output: {
+            artifact: toArtifact("a7ea76de-6e0a-4f8a-a9fb-6eb9ad33c7df", "sys prepend", {
               type: "prompt_time",
               promptTime: { kind: "system_update", mode: "prepend", source: "t" },
-            },
+            }),
           },
         },
       },
@@ -86,10 +99,10 @@ describe("template operations runtime", () => {
           order: 10,
           params: {
             template: "normalized",
-            output: {
+            artifact: toArtifact("de11b614-a56e-4d95-9ee3-5a4ffb0b2d44", "assistant post", {
               type: "turn_canonicalization",
               canonicalization: { kind: "replace_text", target: "assistant" },
-            },
+            }),
           },
         },
       },
@@ -129,7 +142,7 @@ describe("template operations runtime", () => {
           order: 10,
           params: {
             template: "{{promptSystem}}",
-            output: {
+            artifact: toArtifact("4b7c0a14-5528-4f65-beb0-f8a65ef6a1f2", "copy system", {
               type: "artifacts",
               writeArtifact: {
                 tag: "sys_copy",
@@ -137,7 +150,7 @@ describe("template operations runtime", () => {
                 usage: "internal",
                 semantics: "intermediate",
               },
-            },
+            }),
           },
         },
       },
@@ -165,4 +178,77 @@ describe("template operations runtime", () => {
 
     expect(out.artifacts.sys_copy?.value).toBe("sys one\n\nsys two");
   });
+
+  test("provides artByOpId alias for cross-operation artifact references", async () => {
+    const profile = makeProfile([
+      {
+        opId: "producer-op",
+        name: "producer",
+        kind: "template",
+        config: {
+          enabled: true,
+          required: false,
+          hooks: ["before_main_llm"],
+          triggers: ["generate"],
+          order: 10,
+          params: {
+            template: "VALUE_FROM_PRODUCER",
+            artifact: toArtifact("producer-op", "producer", {
+              type: "artifacts",
+              writeArtifact: {
+                tag: "producer_value",
+                persistence: "run_only",
+                usage: "internal",
+                semantics: "intermediate",
+              },
+            }),
+          },
+        },
+      },
+      {
+        opId: "consumer-op",
+        name: "consumer",
+        kind: "template",
+        config: {
+          enabled: true,
+          required: false,
+          hooks: ["before_main_llm"],
+          triggers: ["generate"],
+          order: 20,
+          dependsOn: ["producer-op"],
+          params: {
+            template: "{{artByOpId[\"producer-op\"].value}}",
+            artifact: toArtifact("consumer-op", "consumer", {
+              type: "artifacts",
+              writeArtifact: {
+                tag: "consumer_value",
+                persistence: "run_only",
+                usage: "internal",
+                semantics: "intermediate",
+              },
+            }),
+          },
+        },
+      },
+    ]);
+
+    const out = await applyTemplateOperationsToPromptDraft({
+      runId: "run-4",
+      profile,
+      trigger: "generate",
+      draftMessages: [{ role: "user", content: "hello" }],
+      templateContext: {
+        char: {},
+        user: {},
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date().toISOString(),
+      },
+    });
+
+    expect(out.artifacts.consumer_value?.value).toBe("VALUE_FROM_PRODUCER");
+  });
 });
+
