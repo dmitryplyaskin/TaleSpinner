@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { executeOperationsPhase } from "./execute-operations-phase";
 
 import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
-import type { OperationInProfile, OperationOutput } from "@shared/types/operation-profiles";
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationInProfile,
+} from "@shared/types/operation-profiles";
 
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +34,24 @@ vi.mock("../../llm/llm-gateway-adapter", () => ({
 
 type TemplateOp = Extract<OperationInProfile, { kind: "template" }>;
 type LlmOp = Extract<OperationInProfile, { kind: "llm" }>;
+
+function toArtifact(params: {
+  opId: string;
+  kind: "template" | "llm" | "compute";
+  title: string;
+  output: LegacyOperationOutput;
+  llmOutputMode?: "text" | "json";
+}) {
+  return normalizeOperationArtifactConfig({
+    opId: params.opId,
+    kind: params.kind,
+    title: params.title,
+    rawParams: {
+      output: params.output,
+      ...(params.llmOutputMode ? { params: { outputMode: params.llmOutputMode } } : {}),
+    },
+  });
+}
 
 function streamOf(
   events: Array<
@@ -62,7 +84,7 @@ function makeLlmOp(params: {
   opId: string;
   order: number;
   prompt: string;
-  output: OperationOutput;
+  output: LegacyOperationOutput;
   hooks?: LlmOp["config"]["hooks"];
   dependsOn?: string[];
   outputMode?: "text" | "json";
@@ -99,13 +121,19 @@ function makeLlmOp(params: {
           timeoutMs: params.timeoutMs,
           retry: params.retry,
         },
-        output: params.output,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "llm",
+          title: params.opId,
+          output: params.output,
+          llmOutputMode: params.outputMode,
+        }),
       },
     },
   };
 }
 
-function artifactOutput(tag: string): OperationOutput {
+function artifactOutput(tag: string): LegacyOperationOutput {
   return {
     type: "artifacts",
     writeArtifact: {
@@ -121,7 +149,7 @@ function makeTemplateOp(params: {
   opId: string;
   order: number;
   template: string;
-  output: OperationOutput;
+  output: LegacyOperationOutput;
   hooks?: TemplateOp["config"]["hooks"];
   dependsOn?: string[];
   required?: boolean;
@@ -142,7 +170,12 @@ function makeTemplateOp(params: {
       params: {
         template: params.template,
         strictVariables: params.strictVariables,
-        output: params.output,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "template",
+          title: params.opId,
+          output: params.output,
+        }),
       },
     },
   };
@@ -164,8 +197,13 @@ function makeComputeOp(params: {
       triggers: ["generate", "regenerate"],
       order: params.order,
       params: {
-        params: { noop: true },
-        output: artifactOutput(`compute_${params.opId}`),
+        params: { noop: true } as Record<string, unknown>,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "compute",
+          title: params.opId,
+          output: artifactOutput(`compute_${params.opId}`),
+        }),
       },
     },
   };
@@ -293,7 +331,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
       opId: "a",
-      tag: "greeting",
+      artifactId: "greeting",
       value: "hello",
     });
   });
@@ -335,7 +373,7 @@ describe("executeOperationsPhase", () => {
     expect(finished?.status).toBe("done");
     expect(finished?.result?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "greeting",
+      artifactId: "greeting",
       value: "hello",
     });
     expect(finished?.result?.debugSummary).toBe("artifact.upsert:5");
@@ -373,7 +411,7 @@ describe("executeOperationsPhase", () => {
     expect(byId.get("b")?.status).toBe("done");
     expect(byId.get("b")?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "seen=alpha",
     });
   });
@@ -423,7 +461,7 @@ describe("executeOperationsPhase", () => {
     expect(joined?.status).toBe("done");
     expect(joined?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "joined",
+      artifactId: "joined",
       value: "root-L|root-R",
     });
   });
@@ -458,7 +496,7 @@ describe("executeOperationsPhase", () => {
     expect(b?.status).toBe("done");
     expect(b?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "b",
+      artifactId: "b",
       value: "none",
     });
   });
@@ -644,7 +682,7 @@ describe("executeOperationsPhase", () => {
       templateContext: makeTemplateContext(),
     });
 
-    const effectTypes = out.map((r) => r.effects[0]?.type);
+    const effectTypes = out.map((r) => r.effects[1]?.type);
     expect(effectTypes).toEqual([
       "prompt.system_update",
       "prompt.append_after_last_user",
@@ -659,6 +697,7 @@ describe("executeOperationsPhase", () => {
         promptSystem: string;
         messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
         art: Record<string, { value: string; history: string[] }>;
+        artByOpId?: Record<string, { value: string; history: string[] }>;
       };
       rendered: string;
     }>();
@@ -708,7 +747,7 @@ describe("executeOperationsPhase", () => {
     const bResult = out.find((r) => r.opId === "b");
     expect(bResult?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "PROMPT|NOTE",
     });
 
@@ -717,6 +756,7 @@ describe("executeOperationsPhase", () => {
     expect(bDebug?.liquidContext.promptSystem).toBe("sys\n\nPROMPT");
     expect(bDebug?.liquidContext.messages[2]).toEqual({ role: "system", content: "PROMPT" });
     expect(bDebug?.liquidContext.art.note?.value).toBe("NOTE");
+    expect(bDebug?.liquidContext.artByOpId?.c?.value).toBe("NOTE");
   });
 
   test("exposes promptSystem to template operations with dependency replay", async () => {
@@ -752,7 +792,7 @@ describe("executeOperationsPhase", () => {
     const byId = new Map(out.map((item) => [item.opId, item] as const));
     expect(byId.get("read-system")?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "NEW_SYS",
     });
   });
@@ -823,7 +863,7 @@ describe("executeOperationsPhase", () => {
     });
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_tag",
+      artifactId: "llm_tag",
       value: "LLM RESULT",
     });
   });
@@ -859,7 +899,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.status).toBe("done");
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_json",
+      artifactId: "llm_json",
       value: '{"alpha":1,"beta":[2,3]}',
     });
   });
@@ -1156,7 +1196,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.status).toBe("done");
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_json_schema",
+      artifactId: "llm_json_schema",
     });
   });
 
@@ -1391,3 +1431,4 @@ describe("executeOperationsPhase", () => {
     }
   });
 });
+

@@ -6,9 +6,10 @@ export interface InstructionRenderContext {
   chat: unknown;
   messages: Array<{ role: string; content: string }>;
   rag: unknown;
-  // Persisted pipeline artifacts materialized as `art.<tag>.value/history`.
-  // v1: chat-scoped session only.
+  // Artifacts materialized as `art.<artifactId>.value/history`.
+  // `artByOpId` is a convenience alias for cross-operation references from templates.
   art?: Record<string, unknown>;
+  artByOpId?: Record<string, unknown>;
   now: string;
 
   // --- SillyTavern-like convenience variables (compat layer).
@@ -391,7 +392,7 @@ export async function renderLiquidTemplate(params: {
 
   // Additional passes: render again only if the output still looks like a template.
   // Important: if the output contains `{{` for non-template reasons (e.g. documentation/code),
-  // the next parse may throw — in that case we stop and return the previous output.
+  // the next parse may throw вЂ” in that case we stop and return the previous output.
   for (let pass = 2; pass <= maxPasses; pass++) {
     if (!mightContainLiquidSyntax(current)) break;
     if (current.length > maxOutputChars) break;
@@ -417,3 +418,4 @@ export async function renderLiquidTemplate(params: {
 
   return current;
 }
+

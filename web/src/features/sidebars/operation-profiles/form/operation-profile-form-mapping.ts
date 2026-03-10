@@ -1,23 +1,26 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import type { OperationProfileDto } from '../../../../api/chat-core';
-import type {
-	LlmOperationParams,
-	LlmOperationRetryOn,
-	LlmOperationSamplers,
-	OperationInProfile,
-	OperationKind,
-	OperationOutput,
-	OperationTemplateParams,
+import {
+	buildOperationArtifactId,
+	makeDefaultOperationArtifactConfig,
+	normalizeOperationArtifactConfig,
+	type LlmOperationParams,
+	type LlmOperationRetryOn,
+	type LlmOperationSamplers,
+	type OperationArtifactConfig,
+	type OperationInProfile,
+	type OperationKind,
+	type OperationTemplateParams,
 } from '@shared/types/operation-profiles';
 
-export type FormTemplateParams = OperationTemplateParams & {
+export type FormTemplateParams = Omit<OperationTemplateParams, 'strictVariables'> & {
 	strictVariables: boolean;
 };
 
 export type FormOtherKindParams = {
 	paramsJson: string;
-	output: OperationOutput;
+	artifact: OperationArtifactConfig;
 };
 
 export type FormLlmKindParams = {
@@ -41,7 +44,7 @@ export type FormLlmKindParams = {
 		backoffMs: number;
 		retryOn: LlmOperationRetryOn[];
 	};
-	output: OperationOutput;
+	artifact: OperationArtifactConfig;
 };
 
 export type FormOperation = {
@@ -73,20 +76,17 @@ export type OperationProfileFormValues = {
 	operations: FormOperation[];
 };
 
-export function makeDefaultArtifactOutput(): Extract<OperationOutput, { type: 'artifacts' }> {
-	return {
-		type: 'artifacts',
-		writeArtifact: {
-			tag: `artifact_${Math.random().toString(16).slice(2, 8)}`,
-			persistence: 'run_only',
-			usage: 'internal',
-			semantics: 'intermediate',
-		},
-	};
+export function makeDefaultArtifactOutput(opId = uuidv4(), kind: OperationKind = 'template'): OperationArtifactConfig {
+	return makeDefaultOperationArtifactConfig({
+		opId,
+		kind,
+		title: 'Artifact',
+	});
 }
 
 export function makeDefaultLlmKindParams(
-	output: OperationOutput = makeDefaultArtifactOutput(),
+	opId: string,
+	artifact: OperationArtifactConfig = makeDefaultArtifactOutput(opId, 'llm'),
 ): FormLlmKindParams {
 	return {
 		providerId: 'openrouter',
@@ -109,121 +109,47 @@ export function makeDefaultLlmKindParams(
 			backoffMs: 0,
 			retryOn: ['timeout', 'provider_error', 'rate_limit'],
 		},
-		output,
+		artifact,
 	};
 }
 
 export function makeDefaultOtherKindParams(
-	output: OperationOutput = makeDefaultArtifactOutput(),
+	opId: string,
+	kind: Exclude<OperationKind, 'template' | 'llm'>,
+	artifact: OperationArtifactConfig = makeDefaultArtifactOutput(opId, kind),
 ): FormOtherKindParams {
 	return {
 		paramsJson: '{\n  \n}',
-		output,
+		artifact,
 	};
 }
 
-function normalizePromptTimeRole(value: unknown): 'system' | 'user' | 'assistant' {
-	if (value === 'user' || value === 'assistant' || value === 'system') return value;
-	if (value === 'developer') return 'system';
-	return 'system';
+function toNonNegativeInteger(value: unknown): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return Math.max(0, Math.floor(value));
+	}
+	if (typeof value === 'string') {
+		const normalized = value.trim().replace(',', '.');
+		if (normalized.length === 0) return 0;
+		const parsed = Number(normalized);
+		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
+	}
+	return 0;
 }
 
-function normalizeDepthFromEnd(value: unknown): number {
-	if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
-	return Math.max(0, Math.floor(Math.abs(value)));
-}
-
-function normalizeOperationOutput(output: unknown, fallback: OperationOutput): OperationOutput {
-	if (!output || typeof output !== 'object') return fallback;
-	const raw = output as Record<string, unknown>;
-	if (raw.type !== 'prompt_time') return output as OperationOutput;
-
-	const promptTime = raw.promptTime;
-	if (!promptTime || typeof promptTime !== 'object') return fallback;
-	const pt = promptTime as Record<string, unknown>;
-
-	if (pt.kind === 'append_after_last_user') {
-		return {
-			type: 'prompt_time',
-			promptTime: {
-				kind: 'append_after_last_user',
-				role: normalizePromptTimeRole(pt.role),
-				source: typeof pt.source === 'string' ? pt.source : undefined,
-			},
-		};
+function normalizeActivation(value: unknown): { everyNTurns: number; everyNContextTokens: number } {
+	if (!value || typeof value !== 'object') {
+		return { everyNTurns: 0, everyNContextTokens: 0 };
 	}
-
-	if (pt.kind === 'insert_at_depth') {
-		return {
-			type: 'prompt_time',
-			promptTime: {
-				kind: 'insert_at_depth',
-				depthFromEnd: normalizeDepthFromEnd(pt.depthFromEnd),
-				role: normalizePromptTimeRole(pt.role),
-				source: typeof pt.source === 'string' ? pt.source : undefined,
-			},
-		};
-	}
-
-	return output as OperationOutput;
-}
-
-function normalizeTemplateParams(params: unknown): OperationTemplateParams {
-	if (!params || typeof params !== 'object') {
-		return {
-			template: '',
-			strictVariables: false,
-			output: {
-				type: 'artifacts',
-				writeArtifact: makeDefaultArtifactOutput().writeArtifact,
-			},
-		};
-	}
-
-	const p = params as any;
-	if (p.output && typeof p.output === 'object') {
-		return {
-			template: typeof p.template === 'string' ? p.template : '',
-			strictVariables: Boolean(p.strictVariables),
-			output: normalizeOperationOutput(p.output, makeDefaultArtifactOutput()),
-		};
-	}
-
-	// Legacy compatibility: params.writeArtifact -> params.output.type="artifacts"
-	if (p.writeArtifact && typeof p.writeArtifact === 'object') {
-		return {
-			template: typeof p.template === 'string' ? p.template : '',
-			strictVariables: Boolean(p.strictVariables),
-			output: {
-				type: 'artifacts',
-				writeArtifact: p.writeArtifact,
-			},
-		};
-	}
-
+	const raw = value as Record<string, unknown>;
+	const normalize = (input: unknown): number => {
+		const parsed = toNonNegativeInteger(input);
+		return parsed >= 1 ? parsed : 0;
+	};
 	return {
-		template: typeof p.template === 'string' ? p.template : '',
-		strictVariables: Boolean(p.strictVariables),
-		output: {
-			type: 'artifacts',
-			writeArtifact: {
-				tag: `artifact_${Math.random().toString(16).slice(2, 8)}`,
-				persistence: 'run_only',
-				usage: 'internal',
-				semantics: 'intermediate',
-			},
-		},
+		everyNTurns: normalize(raw.everyNTurns),
+		everyNContextTokens: normalize(raw.everyNContextTokens),
 	};
-}
-
-function normalizeOtherKindParams(params: unknown): FormOtherKindParams {
-	const defaultOutput = makeDefaultArtifactOutput();
-	if (!params || typeof params !== 'object') return makeDefaultOtherKindParams(defaultOutput);
-
-	const p = params as any;
-	const output: OperationOutput = normalizeOperationOutput(p.output, defaultOutput);
-	const rawParams = p.params && typeof p.params === 'object' && !Array.isArray(p.params) ? (p.params as Record<string, unknown>) : {};
-	return { paramsJson: JSON.stringify(rawParams, null, 2), output };
 }
 
 function pickNumericSamplers(raw: unknown): LlmOperationSamplers {
@@ -261,54 +187,58 @@ function normalizeRetryOn(value: unknown): LlmOperationRetryOn[] {
 	return unique.length > 0 ? unique : ['timeout', 'provider_error', 'rate_limit'];
 }
 
-function toNonNegativeInteger(value: unknown): number {
-	if (typeof value === 'number' && Number.isFinite(value)) {
-		return Math.max(0, Math.floor(value));
-	}
-	if (typeof value === 'string') {
-		const normalized = value.trim().replace(',', '.');
-		if (normalized.length === 0) return 0;
-		const parsed = Number(normalized);
-		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
-	}
-	return 0;
-}
-
-function normalizeActivation(value: unknown): { everyNTurns: number; everyNContextTokens: number } {
-	if (!value || typeof value !== 'object') {
-		return { everyNTurns: 0, everyNContextTokens: 0 };
-	}
-	const raw = value as Record<string, unknown>;
-	const normalize = (input: unknown): number => {
-		const parsed = toNonNegativeInteger(input);
-		return parsed >= 1 ? parsed : 0;
-	};
+function normalizeTemplateParams(op: OperationInProfile): FormTemplateParams {
+	const params = op.config.params as Record<string, unknown>;
 	return {
-		everyNTurns: normalize(raw.everyNTurns),
-		everyNContextTokens: normalize(raw.everyNContextTokens),
+		template: typeof params.template === 'string' ? params.template : '',
+		strictVariables: Boolean(params.strictVariables),
+		artifact: normalizeOperationArtifactConfig({
+			opId: op.opId,
+			kind: op.kind,
+			title: op.name,
+			rawParams: params,
+		}),
 	};
 }
 
-function normalizeLlmKindParams(params: unknown): FormLlmKindParams {
-	if (!params || typeof params !== 'object') return makeDefaultLlmKindParams();
+function normalizeOtherKindParams(op: OperationInProfile): FormOtherKindParams {
+	const params = op.config.params as Record<string, unknown>;
+	const rawParams =
+		params.params && typeof params.params === 'object' && !Array.isArray(params.params)
+			? (params.params as Record<string, unknown>)
+			: {};
+	return {
+		paramsJson: JSON.stringify(rawParams, null, 2),
+		artifact: normalizeOperationArtifactConfig({
+			opId: op.opId,
+			kind: op.kind,
+			title: op.name,
+			rawParams: params,
+		}),
+	};
+}
 
-	const raw = params as any;
-	const llmParamsRaw = raw.params && typeof raw.params === 'object' ? raw.params : {};
-	const output: OperationOutput =
-		normalizeOperationOutput(raw.output, makeDefaultArtifactOutput());
-
-	const base = makeDefaultLlmKindParams(output);
+function normalizeLlmKindParams(op: Extract<OperationInProfile, { kind: 'llm' }>): FormLlmKindParams {
+	const raw = op.config.params as Record<string, unknown>;
+	const llmParamsRaw = raw.params && typeof raw.params === 'object' ? (raw.params as Record<string, unknown>) : {};
 	const providerId = llmParamsRaw.providerId === 'openai_compatible' ? 'openai_compatible' : 'openrouter';
 	const outputMode = llmParamsRaw.outputMode === 'json' ? 'json' : 'text';
 	const jsonParseMode =
 		llmParamsRaw.jsonParseMode === 'markdown_code_block' || llmParamsRaw.jsonParseMode === 'custom_regex'
 			? llmParamsRaw.jsonParseMode
 			: 'raw';
-	const retryRaw = llmParamsRaw.retry && typeof llmParamsRaw.retry === 'object' ? llmParamsRaw.retry : {};
+	const retryRaw = llmParamsRaw.retry && typeof llmParamsRaw.retry === 'object' ? (llmParamsRaw.retry as Record<string, unknown>) : {};
 
 	return {
-		...base,
-		output,
+		...makeDefaultLlmKindParams(
+			op.opId,
+			normalizeOperationArtifactConfig({
+				opId: op.opId,
+				kind: op.kind,
+				title: op.name,
+				rawParams: raw,
+			}),
+		),
 		providerId,
 		credentialRef: typeof llmParamsRaw.credentialRef === 'string' ? llmParamsRaw.credentialRef : '',
 		model: typeof llmParamsRaw.model === 'string' ? llmParamsRaw.model : '',
@@ -320,23 +250,23 @@ function normalizeLlmKindParams(params: unknown): FormLlmKindParams {
 		jsonCustomPattern: typeof llmParamsRaw.jsonCustomPattern === 'string' ? llmParamsRaw.jsonCustomPattern : '',
 		jsonCustomFlags: typeof llmParamsRaw.jsonCustomFlags === 'string' ? llmParamsRaw.jsonCustomFlags : '',
 		jsonSchemaText:
-			typeof llmParamsRaw.jsonSchema === 'undefined'
-				? ''
-				: JSON.stringify(llmParamsRaw.jsonSchema, null, 2),
+			typeof llmParamsRaw.jsonSchema === 'undefined' ? '' : JSON.stringify(llmParamsRaw.jsonSchema, null, 2),
 		strictSchemaValidation: llmParamsRaw.strictSchemaValidation === true,
 		samplerPresetId: typeof llmParamsRaw.samplerPresetId === 'string' ? llmParamsRaw.samplerPresetId : '',
 		samplers: pickNumericSamplers(llmParamsRaw.samplers),
 		timeoutMs:
-			typeof llmParamsRaw.timeoutMs === 'number' && Number.isFinite(llmParamsRaw.timeoutMs) ? llmParamsRaw.timeoutMs : base.timeoutMs,
+			typeof llmParamsRaw.timeoutMs === 'number' && Number.isFinite(llmParamsRaw.timeoutMs)
+				? llmParamsRaw.timeoutMs
+				: 60000,
 		retry: {
 			maxAttempts:
 				typeof retryRaw.maxAttempts === 'number' && Number.isFinite(retryRaw.maxAttempts)
 					? Math.max(1, Math.floor(retryRaw.maxAttempts))
-					: base.retry.maxAttempts,
+					: 1,
 			backoffMs:
 				typeof retryRaw.backoffMs === 'number' && Number.isFinite(retryRaw.backoffMs)
 					? Math.max(0, Math.floor(retryRaw.backoffMs))
-					: base.retry.backoffMs,
+					: 0,
 			retryOn: normalizeRetryOn(retryRaw.retryOn),
 		},
 	};
@@ -364,13 +294,10 @@ export function toOperationProfileForm(profile: OperationProfileDto): OperationP
 				order: Number((op.config as any).order ?? 0),
 				params:
 					op.kind === 'template'
-						? ({
-								...normalizeTemplateParams(op.config.params as unknown),
-								strictVariables: Boolean((op.config.params as any)?.strictVariables),
-							} satisfies FormTemplateParams)
+						? normalizeTemplateParams(op)
 						: op.kind === 'llm'
-							? (normalizeLlmKindParams(op.config.params as unknown) satisfies FormLlmKindParams)
-						: (normalizeOtherKindParams(op.config.params as unknown) satisfies FormOtherKindParams),
+							? normalizeLlmKindParams(op)
+							: normalizeOtherKindParams(op),
 			},
 		})),
 	};
@@ -421,7 +348,10 @@ export function fromOperationProfileForm(
 						params: {
 							template: params.template,
 							strictVariables: params.strictVariables ? true : undefined,
-							output: params.output,
+							artifact: {
+								...params.artifact,
+								artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+							},
 						},
 					},
 				};
@@ -436,12 +366,8 @@ export function fromOperationProfileForm(
 				const jsonCustomFlags = params.jsonCustomFlags.trim();
 				const jsonSchemaText = params.jsonSchemaText.trim();
 				const timeoutMs = Number.isFinite(params.timeoutMs) ? Math.max(1, Math.floor(params.timeoutMs)) : undefined;
-				const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts)
-					? Math.max(1, Math.floor(params.retry.maxAttempts))
-					: 1;
-				const retryBackoffMs = Number.isFinite(params.retry.backoffMs)
-					? Math.max(0, Math.floor(params.retry.backoffMs))
-					: 0;
+				const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts) ? Math.max(1, Math.floor(params.retry.maxAttempts)) : 1;
+				const retryBackoffMs = Number.isFinite(params.retry.backoffMs) ? Math.max(0, Math.floor(params.retry.backoffMs)) : 0;
 				const retryOn = normalizeRetryOn(params.retry.retryOn);
 				const samplers = pickNumericSamplers(params.samplers);
 				const hasSamplers = Object.keys(samplers).length > 0;
@@ -497,7 +423,10 @@ export function fromOperationProfileForm(
 									retryOn,
 								},
 							},
-							output: params.output,
+							artifact: {
+								...params.artifact,
+								artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+							},
 						},
 					},
 				};
@@ -509,8 +438,8 @@ export function fromOperationProfileForm(
 			if (raw) {
 				try {
 					parsed = JSON.parse(raw) as unknown;
-				} catch (e) {
-					if (options?.validateJson) throw e;
+				} catch (error) {
+					if (options?.validateJson) throw error;
 					parsed = {};
 				}
 			}
@@ -531,7 +460,10 @@ export function fromOperationProfileForm(
 					dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
 					params: {
 						params: asObj,
-						output: params.output,
+						artifact: {
+							...params.artifact,
+							artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+						},
 					},
 				},
 			};
@@ -540,8 +472,9 @@ export function fromOperationProfileForm(
 }
 
 export function makeDefaultOperation(): FormOperation {
+	const opId = uuidv4();
 	return {
-		opId: uuidv4(),
+		opId,
 		name: 'New operation',
 		description: '',
 		kind: 'template',
@@ -559,7 +492,7 @@ export function makeDefaultOperation(): FormOperation {
 			params: {
 				template: '',
 				strictVariables: false,
-				output: makeDefaultArtifactOutput(),
+				artifact: makeDefaultArtifactOutput(opId, 'template'),
 			},
 		},
 	};

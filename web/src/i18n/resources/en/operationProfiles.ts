@@ -1,4 +1,4 @@
-﻿const enOperationProfiles = {
+const enOperationProfiles = {
 			sidebar: {
 				title: 'Operations',
 			},
@@ -103,15 +103,22 @@
 				dependsOn: 'Depends on',
 				activationEveryNTurns: 'Every N turns',
 				activationEveryNContextTokens: 'Every N context tokens',
-				effectType: 'Effect type',
-				artifactTag: 'Artifact tag',
+				artifactId: 'Artifact id',
+				tag: 'Artifact tag',
+				artifactTitle: 'Artifact title',
+				artifactDescription: 'Artifact description',
+				format: 'Format',
 				persistence: 'Persistence',
-				usage: 'Usage',
+				writeMode: 'Write mode',
+				historyEnabled: 'Store history',
+				historyMaxItems: 'History limit',
 				semantics: 'Semantics',
-				promptTimeEffect: 'Prompt-time effect',
+				exposures: 'Exposures',
+				exposureType: 'Exposure type',
 				mode: 'Mode',
 				sourceOptional: 'Source (optional)',
 				role: 'Role',
+				anchor: 'Anchor',
 				depthFromEnd: 'atDepth',
 				target: 'Target',
 			},
@@ -127,15 +134,17 @@
 					'0 disables this mechanism. If N is set, the operation becomes eligible on every Nth user send event (regenerate/continue/system are ignored).',
 				activationEveryNContextTokens:
 					'0 disables this mechanism. Counts accumulated context tokens for user/assistant messages only (system excluded), estimated as chars/4.',
-				effectType: 'Choose how rendered result is applied during commit at runtime.',
-				artifactTag: 'Use a tag without `art` prefix. Each tag in profile should have a single writer.',
+				artifactTitle: 'Human-readable name for the primary artifact shown in the editor and debug output.',
+				artifactDescription: 'Optional note describing the purpose of the artifact.',
+				format: 'Artifact payload format. For LLM JSON output, `json` is usually the right choice.',
 				persistence: '`persisted` survives turns; `run_only` exists only during current run.',
-				usage: 'Choose whether artifact is used in prompt, UI, both, or internal only.',
+				writeMode: '`replace` overwrites current value; `append` writes a new snapshot and makes it the current value.',
+				historyMaxItems: 'How many latest snapshots to keep for context and debugging.',
 				semantics: 'Semantic label for consumers, e.g. "state" or "log/feed".',
-				promptTimeEffect: 'Effect kind for prompt-time text insertion.',
 				mode: '`prepend` => payload + system; `append` => system + payload; `replace` => system = payload.',
 				sourceOptional: 'Optional source label for debugging/explainability.',
 				role: 'Role for synthetic prompt message.',
+				anchor: 'Where to attach the exposure relative to the current conversation.',
 				depthFromEnd:
 					'0 inserts at the end; N inserts N messages from the end. Large values clamp right after the main system instruction.',
 				target: '`before_main_llm` allows only target=user; `after_main_llm` allows user or assistant.',
@@ -144,19 +153,38 @@
 				activationRule:
 					'Conditions are combined with OR: reaching either threshold is enough. When one triggers, both counters are reset for this operation.',
 			},
-			outputType: {
-				artifacts: 'Artifacts',
-				promptTime: 'Prompt-time effects',
-				turnCanonicalization: 'Turn canonicalization effects',
-			},
 			outputNotes: {
-				promptTimePayloadSource: 'Effect payload source is template-rendered text.',
-				turnCanonicalization: 'Current `replace_text` mode: selected turn part is overwritten with template output.',
+				artifactModel:
+					'Each operation writes to one primary artifact. Exposures define how that value is additionally materialized into prompt state, turn rewrites, or UI.',
+				referenceByTag: 'In templates, reference another artifact as {{art.story_summary.value}}.',
+				noExposures: 'This artifact has no exposures yet. It will be available only as artifact state.',
 			},
-			promptTimeKind: {
-				appendAfterLastUser: 'prompt.append_after_last_user',
-				systemUpdate: 'prompt.system_update',
-				insertAtDepth: 'prompt.insert_at_depth',
+			exposureType: {
+				promptPart: 'Prompt part',
+				promptMessage: 'Prompt message',
+				turnRewrite: 'Turn rewrite',
+				uiInline: 'UI inline',
+			},
+			anchor: {
+				afterLastUser: 'After last user',
+				depthFromEnd: 'Depth from end',
+			},
+			rewriteTarget: {
+				currentUserMain: 'Current user main',
+				assistantOutputMain: 'Assistant output main',
+			},
+			valueLabel: {
+				text: 'Text',
+				markdown: 'Markdown',
+				json: 'JSON',
+				persisted: 'Persisted',
+				run_only: 'Run only',
+				replace: 'Replace',
+				append: 'Append',
+				prepend: 'Prepend',
+				system: 'System',
+				user: 'User',
+				assistant: 'Assistant',
 			},
 			kind: {
 				template: 'Template',
@@ -316,4 +344,5 @@
 		};
 
 export default enOperationProfiles;
+
 

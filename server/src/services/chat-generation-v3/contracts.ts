@@ -1,11 +1,12 @@
 import type { GenerateMessage } from "@shared/types/generate";
 import type {
+  ArtifactExposure,
+  ArtifactFormat,
   ArtifactPersistence,
   ArtifactSemantics,
-  ArtifactUsage,
+  OperationArtifactConfig,
   OperationHook,
   OperationInProfile,
-  OperationOutput,
   OperationProfile,
   OperationTrigger,
 } from "@shared/types/operation-profiles";
@@ -33,20 +34,18 @@ export type PromptSnapshotV1 = {
   };
 };
 
-export type RunPersistenceTarget =
-  {
-    mode: "entry_parts";
-    assistantEntryId: string;
-    assistantMainPartId: string;
-    assistantReasoningPartId?: string;
-  };
+export type RunPersistenceTarget = {
+  mode: "entry_parts";
+  assistantEntryId: string;
+  assistantMainPartId: string;
+  assistantReasoningPartId?: string;
+};
 
-export type UserTurnTarget =
-  {
-    mode: "entry_parts";
-    userEntryId: string;
-    userMainPartId: string;
-  };
+export type UserTurnTarget = {
+  mode: "entry_parts";
+  userEntryId: string;
+  userMainPartId: string;
+};
 
 export type RunRequest = {
   requestId?: string;
@@ -99,11 +98,12 @@ export type RunContext = {
 };
 
 export type ArtifactValue = {
-  usage: ArtifactUsage;
+  format: ArtifactFormat;
   semantics: ArtifactSemantics;
   persistence: ArtifactPersistence;
-  value: string;
-  history: string[];
+  writeMode: "replace" | "append";
+  value: unknown;
+  history: unknown[];
 };
 
 export type PromptBuildOutput = {
@@ -141,11 +141,16 @@ export type RuntimeEffect =
   | {
       type: "artifact.upsert";
       opId: string;
-      tag: string;
+      artifactId: string;
+      format: ArtifactFormat;
       persistence: ArtifactPersistence;
-      usage: ArtifactUsage;
+      writeMode: "replace" | "append";
+      history: {
+        enabled: boolean;
+        maxItems: number;
+      };
       semantics: ArtifactSemantics;
-      value: string;
+      value: unknown;
     }
   | {
       type: "turn.user.replace_text";
@@ -156,6 +161,16 @@ export type RuntimeEffect =
       type: "turn.assistant.replace_text";
       opId: string;
       text: string;
+    }
+  | {
+      type: "ui.inline";
+      opId: string;
+      role: PromptDraftRole;
+      anchor: "after_last_user" | "depth_from_end";
+      depthFromEnd?: number;
+      payload: unknown;
+      format: ArtifactFormat;
+      source?: string;
     };
 
 export type OperationExecutionStatus = "done" | "skipped" | "error" | "aborted";
@@ -446,19 +461,102 @@ export type RunEvent =
           now: string;
           promptSystem: string;
           messages: Array<{ role: PromptDraftRole; content: string }>;
-          art: Record<string, { value: string; history: string[] }>;
+          art: Record<string, { value: unknown; history: unknown[] }>;
+          artByOpId?: Record<string, { value: unknown; history: unknown[] }>;
         };
       };
     };
 
-export function mapOperationOutputToEffectType(output: OperationOutput): RuntimeEffect["type"] {
-  if (output.type === "artifacts") return "artifact.upsert";
-  if (output.type === "turn_canonicalization") {
-    return output.canonicalization.target === "assistant"
-      ? "turn.assistant.replace_text"
-      : "turn.user.replace_text";
-  }
-  if (output.promptTime.kind === "system_update") return "prompt.system_update";
-  if (output.promptTime.kind === "append_after_last_user") return "prompt.append_after_last_user";
-  return "prompt.insert_at_depth";
+function valueToText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
 }
+
+export function mapArtifactExposureToEffectTypes(
+  artifact: OperationArtifactConfig
+): RuntimeEffect["type"][] {
+  const effectTypes: RuntimeEffect["type"][] = ["artifact.upsert"];
+  for (const exposure of artifact.exposures) {
+    if (exposure.type === "prompt_part") {
+      effectTypes.push("prompt.system_update");
+      continue;
+    }
+    if (exposure.type === "prompt_message") {
+      effectTypes.push(
+        exposure.anchor === "after_last_user"
+          ? "prompt.append_after_last_user"
+          : "prompt.insert_at_depth"
+      );
+      continue;
+    }
+    if (exposure.type === "turn_rewrite") {
+      effectTypes.push(
+        exposure.target === "assistant_output_main"
+          ? "turn.assistant.replace_text"
+          : "turn.user.replace_text"
+      );
+      continue;
+    }
+    effectTypes.push("ui.inline");
+  }
+  return effectTypes;
+}
+
+export function getArtifactPrimaryEffectType(
+  artifact: OperationArtifactConfig
+): RuntimeEffect["type"] {
+  return mapArtifactExposureToEffectTypes(artifact)[0] ?? "artifact.upsert";
+}
+
+export function compileArtifactExposureEffect(params: {
+  opId: string;
+  artifact: OperationArtifactConfig;
+  exposure: ArtifactExposure;
+  value: unknown;
+}): RuntimeEffect {
+  const { opId, artifact, exposure, value } = params;
+  if (exposure.type === "prompt_part") {
+    return {
+      type: "prompt.system_update",
+      opId,
+      mode: exposure.mode,
+      payload: valueToText(value),
+      source: exposure.source,
+    };
+  }
+  if (exposure.type === "prompt_message") {
+    if (exposure.anchor === "after_last_user") {
+      return {
+        type: "prompt.append_after_last_user",
+        opId,
+        role: exposure.role,
+        payload: valueToText(value),
+        source: exposure.source,
+      };
+    }
+    return {
+      type: "prompt.insert_at_depth",
+      opId,
+      role: exposure.role,
+      depthFromEnd: exposure.depthFromEnd,
+      payload: valueToText(value),
+      source: exposure.source,
+    };
+  }
+  if (exposure.type === "turn_rewrite") {
+    const text = valueToText(value);
+    return exposure.target === "assistant_output_main"
+      ? { type: "turn.assistant.replace_text", opId, text }
+      : { type: "turn.user.replace_text", opId, text };
+  }
+  return {
+    type: "ui.inline",
+    opId,
+    role: exposure.role,
+    anchor: exposure.anchor,
+    depthFromEnd: exposure.anchor === "depth_from_end" ? exposure.depthFromEnd : undefined,
+    payload: value,
+    format: artifact.format,
+    source: exposure.source,
+  };
+}
+

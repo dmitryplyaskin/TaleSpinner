@@ -220,7 +220,8 @@ type ArtifactPersistence = "run_only" | "persisted";
 type ArtifactWriteMode = "replace" | "append";
 
 type OperationArtifactConfig = {
-  tag: string;
+  artifactId: string; // internal stable id
+  tag: string; // human-readable unique alias for templates and references
   title: string;
   description?: string;
 
@@ -236,6 +237,9 @@ type OperationArtifactConfig = {
   exposures: ArtifactExposure[];
 };
 ```
+
+Шаблонный доступ к другим артефактам должен идти через `tag`, например `{{art.story_summary.value}}`.
+`artifactId` остается внутренним ключом хранения и не должен становиться основным пользовательским API.
 
 ```ts
 type ArtifactRecord = {
@@ -527,8 +531,8 @@ Exposure:
 
 После принятия этого концепта отдельно нужно решить:
 
-1. Должен ли `tag` быть глобально уникален в profile или вычисляться автоматически из operation id.
-2. Нужен ли пользователю editable `tag`, или лучше иметь стабильный internal id и отдельный display name.
+1. `tag` должен быть user-facing и уникальным в пределах compiled profile.
+2. `artifactId` должен оставаться internal stable id; ссылки из шаблонов идут по `tag`, а не по `artifactId` и не по `opId`.
 3. Должен ли `turn_rewrite` всегда персиститься в parts.
 4. Нужен ли `append` как write mode в первой версии, или пока достаточно только `replace`.
 5. Нужен ли `ui_panel` уже в первой версии, или его лучше отложить.

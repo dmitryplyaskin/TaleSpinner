@@ -25,6 +25,13 @@ function parseSpecJson(value: string): OperationBlockSpecRow {
 
 function rowToDto(row: typeof operationBlocks.$inferSelect): OperationBlock {
   const spec = parseSpecJson(row.specJson);
+  const normalized = validateOperationBlockUpsertInput({
+    name: row.name,
+    description: row.description ?? undefined,
+    enabled: row.enabled,
+    operations: spec.operations,
+    meta: safeJsonParse(row.metaJson, null),
+  });
   return {
     blockId: row.id,
     ownerId: row.ownerId,
@@ -32,8 +39,8 @@ function rowToDto(row: typeof operationBlocks.$inferSelect): OperationBlock {
     description: row.description ?? undefined,
     enabled: row.enabled,
     version: row.version,
-    operations: spec.operations,
-    meta: safeJsonParse(row.metaJson, null),
+    operations: normalized.operations,
+    meta: normalized.meta,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

@@ -20,7 +20,7 @@ export function cloneLlmMessages(messages: GenerateMessage[]): GenerateMessage[]
 export function mergeArtifacts(
   persisted: RunState["persistedArtifactsSnapshot"],
   runOnly: RunState["runArtifacts"]
-): Record<string, { value: string; history: string[] }> {
+): Record<string, { value: unknown; history: unknown[] }> {
   return Object.fromEntries(
     Object.entries({ ...persisted, ...runOnly }).map(([tag, value]) => [
       tag,
@@ -36,18 +36,20 @@ export function mergeArtifactsForDebug(
   const merged: Record<string, ArtifactValue> = {};
   for (const [tag, value] of Object.entries(persisted)) {
     merged[tag] = {
-      usage: value.usage,
+      format: value.format,
       semantics: value.semantics,
       persistence: value.persistence,
+      writeMode: value.writeMode,
       value: value.value,
       history: [...value.history],
     };
   }
   for (const [tag, value] of Object.entries(runOnly)) {
     merged[tag] = {
-      usage: value.usage,
+      format: value.format,
       semantics: value.semantics,
       persistence: value.persistence,
+      writeMode: value.writeMode,
       value: value.value,
       history: [...value.history],
     };

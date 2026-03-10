@@ -6,6 +6,7 @@ import type {
   OperationSkipDetails,
   RunDebugStateSnapshotStage,
   RunEvent,
+  RunPersistenceTarget,
   RunState,
   UserTurnTarget,
 } from "../contracts";
@@ -25,7 +26,7 @@ type ExecuteOperationHookPhaseParams = {
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
   executionMode: "concurrent" | "sequential";
   baseMessages: PromptDraftMessage[];
-  baseArtifacts: Record<string, { value: string; history: string[] }>;
+  baseArtifacts: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
   templateContext: {
     char: unknown;
@@ -44,6 +45,7 @@ type ExecuteOperationHookPhaseParams = {
   branchId: string;
   profile: OperationProfile | null;
   sessionKey: string | null;
+  persistenceTarget: RunPersistenceTarget;
   userTurnTarget?: UserTurnTarget;
   debugEnabled: boolean;
   emit: EmitRunEvent;
@@ -100,6 +102,7 @@ export async function* runOperationHookPhase(
       sessionKey: params.sessionKey,
       runState: params.runState,
       runArtifactStore: params.runArtifactStore,
+      persistenceTarget: params.persistenceTarget,
       userTurnTarget: params.userTurnTarget,
       onUserTurnCanonicalized: (data) => {
         params.emit("turn.user.canonicalized", data);

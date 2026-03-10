@@ -8,9 +8,26 @@ import { executeOperationsPhase } from "./execute-operations-phase";
 
 import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 import type { RunState } from "../contracts";
-import type { OperationInProfile, OperationOutput } from "@shared/types/operation-profiles";
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationInProfile,
+} from "@shared/types/operation-profiles";
 
 type TemplateOp = Extract<OperationInProfile, { kind: "template" }>;
+
+function toArtifact(params: {
+  opId: string;
+  title: string;
+  output: LegacyOperationOutput;
+}) {
+  return normalizeOperationArtifactConfig({
+    opId: params.opId,
+    kind: "template",
+    title: params.title,
+    rawParams: { output: params.output },
+  });
+}
 
 function makeTemplateContext(): InstructionRenderContext {
   return {
@@ -54,7 +71,7 @@ function makeRunState(): RunState {
   };
 }
 
-function artifactOutput(tag: string): OperationOutput {
+function artifactOutput(tag: string): LegacyOperationOutput {
   return {
     type: "artifacts",
     writeArtifact: {
@@ -70,7 +87,7 @@ function makeTemplateOp(params: {
   opId: string;
   order: number;
   template: string;
-  output: OperationOutput;
+  output: LegacyOperationOutput;
   hooks: Array<"before_main_llm" | "after_main_llm">;
   dependsOn?: string[];
   required?: boolean;
@@ -88,13 +105,17 @@ function makeTemplateOp(params: {
       dependsOn: params.dependsOn,
       params: {
         template: params.template,
-        output: params.output,
+        artifact: toArtifact({
+          opId: params.opId,
+          title: params.opId,
+          output: params.output,
+        }),
       },
     },
   };
 }
 
-function toExecuteArtifacts(runState: RunState): Record<string, { value: string; history: string[] }> {
+function toExecuteArtifacts(runState: RunState): Record<string, { value: unknown; history: unknown[] }> {
   const merged = { ...runState.persistedArtifactsSnapshot, ...runState.runArtifacts };
   return Object.fromEntries(
     Object.entries(merged).map(([tag, value]) => [
@@ -173,6 +194,11 @@ describe("operations flow integration (execute + commit)", () => {
       sessionKey: null,
       runState,
       runArtifactStore,
+      persistenceTarget: {
+        mode: "entry_parts",
+        assistantEntryId: "assistant-entry",
+        assistantMainPartId: "assistant-main",
+      },
     });
 
     expect(beforeCommit.requiredError).toBe(false);
@@ -229,6 +255,11 @@ describe("operations flow integration (execute + commit)", () => {
       sessionKey: null,
       runState,
       runArtifactStore,
+      persistenceTarget: {
+        mode: "entry_parts",
+        assistantEntryId: "assistant-entry",
+        assistantMainPartId: "assistant-main",
+      },
     });
 
     expect(afterCommit.requiredError).toBe(false);
@@ -283,12 +314,17 @@ describe("operations flow integration (execute + commit)", () => {
       sessionKey: null,
       runState,
       runArtifactStore,
+      persistenceTarget: {
+        mode: "entry_parts",
+        assistantEntryId: "assistant-entry",
+        assistantMainPartId: "assistant-main",
+      },
       onCommitEvent: events.onCommitEvent,
     });
 
     expect(afterCommit.requiredError).toBe(true);
     expect(afterCommit.report.status).toBe("error");
-    expect(afterCommit.report.effects[0]).toMatchObject({
+    expect(afterCommit.report.effects.find((effect) => effect.effectType === "prompt.system_update")).toMatchObject({
       opId: "after-invalid-required",
       effectType: "prompt.system_update",
       status: "error",

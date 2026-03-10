@@ -37,6 +37,8 @@ describe("operation block validator", () => {
       ],
     });
     expect(out.operations).toHaveLength(1);
+    expect(out.operations[0]?.config.params.artifact.artifactId).toBe("world_state");
+    expect(out.operations[0]?.config.params.artifact.tag).toBe("world_state");
   });
 
   test("rejects dependency to unknown opId", () => {
@@ -116,4 +118,126 @@ describe("operation block validator", () => {
       expect(issues.some((issue) => issue.message === "activation must include at least one interval")).toBe(true);
     }
   });
+
+  test("fills missing tag for artifact configs loaded from older saved blocks", () => {
+    const out = validateOperationBlockUpsertInput({
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "9ff77029-5037-4d21-8ace-c9836f58a14b",
+          name: "saved-op",
+          kind: "template",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 10,
+            params: {
+              template: "Hello",
+              artifact: {
+                artifactId: "artifact:9ff77029-5037-4d21-8ace-c9836f58a14b",
+                title: "Saved artifact",
+                format: "markdown",
+                persistence: "run_only",
+                writeMode: "replace",
+                history: {
+                  enabled: true,
+                  maxItems: 20,
+                },
+                exposures: [],
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(out.operations[0]?.config.params.artifact.tag).toBe("saved_op");
+  });
+
+  test("migrates legacy prompt_time output into artifact exposures", () => {
+    const out = validateOperationBlockUpsertInput({
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "7ff77029-5037-4d21-8ace-c9836f58a14b",
+          name: "prompt-op",
+          kind: "template",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 10,
+            params: {
+              template: "Hello",
+              output: {
+                type: "prompt_time",
+                promptTime: {
+                  kind: "append_after_last_user",
+                  role: "system",
+                  source: "legacy",
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(out.operations[0]?.config.params.artifact.exposures).toEqual([
+      {
+        type: "prompt_message",
+        role: "system",
+        anchor: "after_last_user",
+        source: "legacy",
+      },
+    ]);
+  });
+
+  test("rejects prompt_message exposure in after_main_llm hook", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "8ff77029-5037-4d21-8ace-c9836f58a14b",
+            name: "bad-op",
+            kind: "template",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["after_main_llm"],
+              order: 10,
+              params: {
+                template: "Hello",
+                artifact: {
+                  artifactId: "artifact:bad-op",
+                  tag: "bad_artifact",
+                  title: "Bad artifact",
+                  format: "markdown",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [
+                    {
+                      type: "prompt_message",
+                      role: "system",
+                      anchor: "after_last_user",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/before_main_llm/i);
+  });
 });
+

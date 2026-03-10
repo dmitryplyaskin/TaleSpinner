@@ -19,7 +19,20 @@ import {
 } from "./operation-runtime-state";
 
 import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
-import type { OperationInProfile } from "@shared/types/operation-profiles";
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationInProfile,
+} from "@shared/types/operation-profiles";
+
+function toTemplateArtifact(opId: string, output: LegacyOperationOutput) {
+  return normalizeOperationArtifactConfig({
+    opId,
+    kind: "template",
+    title: opId,
+    rawParams: { output },
+  });
+}
 
 function makeEntry(params: {
   entryId: string;
@@ -86,7 +99,7 @@ describe("operation runtime state bootstrap", () => {
           order: 1,
           params: {
             template: "x",
-            output: {
+            artifact: toTemplateArtifact("op-generate", {
               type: "artifacts",
               writeArtifact: {
                 tag: "state",
@@ -94,7 +107,7 @@ describe("operation runtime state bootstrap", () => {
                 usage: "internal",
                 semantics: "intermediate",
               },
-            },
+            }),
           },
         },
       },
@@ -111,7 +124,7 @@ describe("operation runtime state bootstrap", () => {
           order: 2,
           params: {
             template: "x",
-            output: {
+            artifact: toTemplateArtifact("op-regenerate-only", {
               type: "artifacts",
               writeArtifact: {
                 tag: "state2",
@@ -119,7 +132,7 @@ describe("operation runtime state bootstrap", () => {
                 usage: "internal",
                 semantics: "intermediate",
               },
-            },
+            }),
           },
         },
       },
@@ -162,7 +175,7 @@ describe("operation runtime state bootstrap", () => {
           order: 1,
           params: {
             template: "x",
-            output: {
+            artifact: toTemplateArtifact("op-turns", {
               type: "artifacts",
               writeArtifact: {
                 tag: "state",
@@ -170,7 +183,7 @@ describe("operation runtime state bootstrap", () => {
                 usage: "internal",
                 semantics: "intermediate",
               },
-            },
+            }),
           },
         },
       },

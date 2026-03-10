@@ -38,15 +38,7 @@ type Props = {
 	onRemove?: () => void;
 };
 
-const kindOptions = [
-	{ value: 'template', label: 'template' },
-	{ value: 'llm', label: 'llm' },
-	{ value: 'rag', label: 'rag' },
-	{ value: 'tool', label: 'tool' },
-	{ value: 'compute', label: 'compute' },
-	{ value: 'transform', label: 'transform' },
-	{ value: 'legacy', label: 'legacy' },
-];
+const kindOptions = ['template', 'llm', 'rag', 'tool', 'compute', 'transform', 'legacy'] as const;
 
 function isOperationKind(value: unknown): value is OperationKind {
 	return (
@@ -68,7 +60,7 @@ function makeSafeOutput(output: unknown) {
 export const OperationEditor: React.FC<Props> = memo(({ index, title, status, canSave, canDiscard, onSave, onDiscard, onRemove }) => {
 	const { t } = useTranslation();
 	const opId = useWatch({ name: `operations.${index}.opId` }) as unknown;
-	const output = useWatch({ name: `operations.${index}.config.params.output` }) as unknown;
+	const artifact = useWatch({ name: `operations.${index}.config.params.artifact` }) as unknown;
 	const { setValue, control } = useFormContext();
 
 	const {
@@ -89,7 +81,7 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 					{status && (
 						<>
 							<Badge variant="light">#{status.index}</Badge>
-							<Badge variant="outline">{status.kind}</Badge>
+							<Badge variant="outline">{t(`operationProfiles.kind.${status.kind}`)}</Badge>
 							{status.isDirty && <Badge color="yellow">{t('operationProfiles.operationEditor.unsaved')}</Badge>}
 						</>
 					)}
@@ -130,31 +122,38 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 				<Select
 					{...kindField}
 					label={t('operationProfiles.fields.kind')}
-					data={kindOptions}
+					data={kindOptions.map((kind) => ({ value: kind, label: t(`operationProfiles.kind.${kind}`) }))}
 					value={normalizedKind}
 					onChange={(next) => {
 						const nextKind: OperationKind = isOperationKind(next) ? next : 'template';
 						onKindChange(nextKind);
 
-						const safeOutput = makeSafeOutput(output);
+						const safeArtifact = makeSafeOutput(artifact);
 
 						if (nextKind === 'template') {
 							const nextParams: FormTemplateParams = {
 								template: '',
 								strictVariables: false,
-								output: safeOutput as FormTemplateParams['output'],
+								artifact: safeArtifact as FormTemplateParams['artifact'],
 							};
 							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
 							return;
 						}
 
 						if (nextKind === 'llm') {
-							const nextParams: FormLlmKindParams = makeDefaultLlmKindParams(safeOutput as FormLlmKindParams['output']);
+							const nextParams: FormLlmKindParams = makeDefaultLlmKindParams(
+								safeOpId || 'temp-op',
+								safeArtifact as FormLlmKindParams['artifact'],
+							);
 							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
 							return;
 						}
 
-						const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(safeOutput as FormOtherKindParams['output']);
+						const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(
+							safeOpId || 'temp-op',
+							nextKind as Exclude<OperationKind, 'template' | 'llm'>,
+							safeArtifact as FormOtherKindParams['artifact'],
+						);
 						setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
 					}}
 					comboboxProps={{ withinPortal: false }}
@@ -164,7 +163,7 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 			</Group>
 
 			<Text size="xs" c="dimmed" className="op-opIdText">
-				{t('operationProfiles.fields.opId', { value: safeOpId || '—' })}
+				{t('operationProfiles.fields.opId', { value: safeOpId || '-' })}
 			</Text>
 
 			<OperationSectionsAccordion index={index} kind={normalizedKind} />
@@ -173,3 +172,5 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 });
 
 OperationEditor.displayName = 'OperationEditor';
+
+
