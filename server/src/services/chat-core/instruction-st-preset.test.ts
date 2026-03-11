@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   createStBaseConfigFromPreset,
   detectStChatCompletionPreset,
+  loadBuiltInSillyTavernPreset,
   resolveStBaseInstructionRuntime,
   stripSensitiveFieldsFromPreset,
 } from "./instruction-st-base";
@@ -61,6 +62,8 @@ describe("instruction-st-base", () => {
       detectStChatCompletionPreset({
         chat_completion_source: "openai",
         openai_model: "gpt-4-turbo",
+        prompts: [{ identifier: "main" }],
+        prompt_order: [{ character_id: 100001, order: [] }],
       })
     ).toBe(true);
 
@@ -69,6 +72,39 @@ describe("instruction-st-base", () => {
         type: "talespinner.instruction",
       })
     ).toBe(false);
+
+    expect(
+      detectStChatCompletionPreset({
+        temperature: 0.8,
+      })
+    ).toBe(false);
+
+    expect(
+      detectStChatCompletionPreset({
+        openai_model: "gpt-4-turbo",
+        prompts: [{ identifier: "main" }],
+      })
+    ).toBe(false);
+  });
+
+  test("loads built-in Default.json preset", async () => {
+    const builtInPreset = await loadBuiltInSillyTavernPreset();
+
+    expect(builtInPreset.fileName).toBe("Default.json");
+    expect(detectStChatCompletionPreset(builtInPreset.preset)).toBe(true);
+
+    const normalized = createStBaseConfigFromPreset({
+      preset: builtInPreset.preset,
+      fileName: builtInPreset.fileName,
+      sensitiveImportMode: "keep",
+    });
+
+    expect(normalized.prompts.length).toBeGreaterThan(0);
+    expect(normalized.promptOrder.length).toBeGreaterThan(0);
+    expect(normalized.rawPreset.prompts).toEqual(builtInPreset.preset.prompts);
+    expect(normalized.rawPreset.prompt_order).toEqual(
+      builtInPreset.preset.prompt_order
+    );
   });
 
   test("strips sensitive fields", () => {
@@ -92,8 +128,8 @@ describe("instruction-st-base", () => {
       openai_max_tokens: 512,
       openai_model: "gpt-4-turbo",
       custom_url: "https://proxy.local/v1",
-      prompts: [],
-      prompt_order: [],
+      prompts: [{ identifier: "main", role: "system", content: "Main" }],
+      prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
     };
 
     const removed = createStBaseConfigFromPreset({

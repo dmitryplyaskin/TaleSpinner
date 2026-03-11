@@ -1,19 +1,11 @@
-import { Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useUnit } from 'effector-react';
 import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-	LuDownload,
-	LuLink2,
-	LuLink2Off,
-	LuPencil,
-	LuPlus,
-	LuSave,
-	LuTrash2,
-	LuUpload,
-} from 'react-icons/lu';
+import { LuDownload, LuLink2, LuLink2Off, LuPencil, LuPlus, LuSave, LuTrash2, LuUpload } from 'react-icons/lu';
 
 import { getRuntime, patchRuntime } from '../../../api/llm';
+import { getDefaultStPreset } from '../../../api/instructions';
 import { $appSettings, updateAppSettings } from '@model/app-settings';
 import {
 	$instructionEditorDraft,
@@ -27,9 +19,9 @@ import {
 import {
 	buildStPresetFromStBase,
 	createBestEffortLlmBindingPlan,
-	createDefaultStBaseConfig,
 	createStBaseConfigFromPreset,
 	detectStChatCompletionPreset,
+	getStPresetValidationError,
 	hasSensitivePresetFields,
 } from '@model/instructions/st-preset';
 import { Drawer } from '@ui/drawer';
@@ -53,6 +45,11 @@ type NameDialogState = {
 type PendingSensitiveImport = {
 	fileName: string;
 	json: Record<string, unknown>;
+};
+
+type CreateDialogState = {
+	kind: 'basic' | 'st_base' | null;
+	name: string;
 };
 
 type InstructionViewState =
@@ -168,9 +165,8 @@ function createInstructionPayloadFromState(params: InstructionViewState): Create
 	};
 }
 
-function createInstructionLabel(item: InstructionDto, t: (key: string) => string): string {
-	const kindLabel = item.kind === 'st_base' ? t('instructions.kinds.stBase') : t('instructions.kinds.basic');
-	return `${item.name} · ${kindLabel}`;
+function createInstructionLabel(item: InstructionDto): string {
+	return item.name;
 }
 
 export const InstructionsSidebar = () => {
@@ -187,6 +183,10 @@ export const InstructionsSidebar = () => {
 	]);
 
 	const [createOpened, setCreateOpened] = useState(false);
+	const [createDialog, setCreateDialog] = useState<CreateDialogState>({
+		kind: null,
+		name: '',
+	});
 	const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
 	const [deleteOpened, setDeleteOpened] = useState(false);
 	const [discardOpened, setDiscardOpened] = useState(false);
@@ -198,7 +198,7 @@ export const InstructionsSidebar = () => {
 	const usedNames = useMemo(() => new Set(items.map((item) => item.name)), [items]);
 	const options = items
 		.filter((item) => typeof item.id === 'string' && item.id.trim().length > 0)
-		.map((item) => ({ value: item.id, label: createInstructionLabel(item, t) }));
+		.map((item) => ({ value: item.id, label: createInstructionLabel(item) }));
 
 	const currentValues = useMemo<InstructionViewState | null>(() => {
 		if (draft && selectedInstruction && draft.sourceInstructionId === selectedInstruction.id) {
@@ -334,26 +334,70 @@ export const InstructionsSidebar = () => {
 		}
 	};
 
-	const handleCreate = async (kind: 'basic' | 'st_base') => {
+	const openCreateDialog = () => {
+		setCreateDialog({
+			kind: null,
+			name: resolveUniqueName(t('instructions.defaults.newPreset'), usedNames),
+		});
+		setCreateOpened(true);
+	};
+
+	const handleCreateBasic = async (name: string): Promise<boolean> => {
 		try {
 			const created = await onCreateInstruction(
-				kind === 'st_base'
-					? {
-							kind: 'st_base',
-							name: resolveUniqueName(t('instructions.defaults.newStBaseInstruction'), usedNames),
-							stBase: createDefaultStBaseConfig(),
-					  }
-					: {
-							kind: 'basic',
-							name: resolveUniqueName(t('instructions.defaults.newInstruction'), usedNames),
-							templateText: '{{char.name}}',
-					  }
+				{
+					kind: 'basic',
+					name: resolveUniqueName(name, usedNames),
+					templateText: '{{char.name}}',
+				}
 			);
 			await applyBestEffortBinding(created);
-			setCreateOpened(false);
 			toaster.success({ title: t('instructions.toasts.createdTitle'), description: created.name });
+			return true;
 		} catch {
 			// handled by model watcher
+			return false;
+		}
+	};
+
+	const createSillyTavernLikeInstruction = async (name: string): Promise<boolean> => {
+		try {
+			const defaultPreset = await getDefaultStPreset();
+			const stBase = createStBaseConfigFromPreset({
+				preset: defaultPreset.preset,
+				fileName: defaultPreset.fileName,
+				sensitiveImportMode: 'keep',
+			});
+			const created = await onCreateInstruction({
+				kind: 'st_base',
+				name: resolveUniqueName(name, usedNames),
+				stBase,
+			});
+			await applyBestEffortBinding(created);
+			toaster.success({ title: t('instructions.toasts.createdTitle'), description: created.name });
+			return true;
+		} catch (error) {
+			toaster.error({
+				title: t('instructions.toasts.createErrorTitle'),
+				description: error instanceof Error ? error.message : String(error),
+			});
+			return false;
+		}
+	};
+
+	const handleCreateSubmit = async () => {
+		const nextName = createDialog.name.trim();
+		if (!createDialog.kind || !nextName) return;
+
+		let created = false;
+		if (createDialog.kind === 'basic') {
+			created = await handleCreateBasic(nextName);
+		} else {
+			created = await createSillyTavernLikeInstruction(nextName);
+		}
+
+		if (created) {
+			setCreateOpened(false);
 		}
 	};
 
@@ -453,7 +497,8 @@ export const InstructionsSidebar = () => {
 					return;
 				}
 
-				if (detectStChatCompletionPreset(json)) {
+				const stPresetValidationError = getStPresetValidationError(json);
+				if (!stPresetValidationError && detectStChatCompletionPreset(json)) {
 					if (hasSensitivePresetFields(json)) {
 						setPendingSensitiveImport({ fileName: file.name, json });
 						return;
@@ -465,7 +510,7 @@ export const InstructionsSidebar = () => {
 
 				toaster.error({
 					title: t('instructions.toasts.importErrorTitle'),
-					description: t('instructions.toasts.importReadError'),
+					description: stPresetValidationError ?? t('instructions.toasts.importReadError'),
 				});
 			} catch (error) {
 				toaster.error({
@@ -484,10 +529,55 @@ export const InstructionsSidebar = () => {
 			<Stack gap="md">
 				<input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json,.settings" onChange={handleFileChange} />
 
-				<Modal opened={createOpened} onClose={() => setCreateOpened(false)} title={t('instructions.dialogs.createTitle')} centered>
+				<Modal
+					opened={createOpened}
+					onClose={() => setCreateOpened(false)}
+					title={t('instructions.dialogs.createTitle')}
+					centered
+				>
 					<Stack gap="md">
-						<Button onClick={() => void handleCreate('basic')}>{t('instructions.actions.createBasic')}</Button>
-						<Button variant="light" onClick={() => void handleCreate('st_base')}>{t('instructions.actions.createStBase')}</Button>
+						<Select
+							label={t('instructions.fields.createInstructionType')}
+							placeholder={t('instructions.placeholders.createInstructionType')}
+							value={createDialog.kind}
+							onChange={(value) =>
+								setCreateDialog((current) => ({
+									...current,
+									kind: (value as CreateDialogState['kind']) ?? null,
+								}))
+							}
+							data={[
+								{ value: 'basic', label: t('instructions.actions.createBasic') },
+								{ value: 'st_base', label: t('instructions.actions.createStBase') },
+							]}
+							allowDeselect
+						/>
+						<TextInput
+							label={t('instructions.fields.name')}
+							value={createDialog.name}
+							onChange={(event) =>
+								setCreateDialog((current) => ({
+									...current,
+									name: event.currentTarget.value,
+								}))
+							}
+							placeholder={t('instructions.placeholders.name')}
+						/>
+						{createDialog.kind && (
+							<Text size="sm" c="dimmed">
+								{createDialog.kind === 'basic'
+									? t('instructions.dialogs.createBasicHelp')
+									: t('instructions.dialogs.createStBaseHelp')}
+							</Text>
+						)}
+						<Group justify="flex-end">
+							<Button variant="default" onClick={() => setCreateOpened(false)}>
+								{t('common.cancel')}
+							</Button>
+							<Button onClick={() => void handleCreateSubmit()} disabled={!createDialog.kind || !createDialog.name.trim()}>
+								{t('instructions.actions.create')}
+							</Button>
+						</Group>
 					</Stack>
 				</Modal>
 
@@ -604,103 +694,88 @@ export const InstructionsSidebar = () => {
 				</Modal>
 
 				<Stack gap="xs">
-					<Group justify="space-between" wrap="nowrap">
-						<Text fw={700}>{t('instructions.presets.title')}</Text>
-						<Group gap="xs" wrap="nowrap">
-							<IconButtonWithTooltip
-								tooltip={t('instructions.actions.create')}
-								icon={<LuPlus size={16} />}
-								aria-label={t('instructions.actions.create')}
-								onClick={() => setCreateOpened(true)}
-							/>
-							<IconButtonWithTooltip
-								tooltip={
-									appSettings.bindChatCompletionPresetToConnection
-										? t('instructions.presets.actions.unbind')
-										: t('instructions.presets.actions.bind')
-								}
-								icon={
-									appSettings.bindChatCompletionPresetToConnection ? (
-										<LuLink2 size={16} />
-									) : (
-										<LuLink2Off size={16} />
-									)
-								}
-								aria-label={t('instructions.presets.actions.bind')}
-								variant={appSettings.bindChatCompletionPresetToConnection ? 'solid' : 'subtle'}
-								onClick={() =>
-									updateAppSettings({
-										bindChatCompletionPresetToConnection: !appSettings.bindChatCompletionPresetToConnection,
-									})
-								}
-							/>
-							<IconButtonWithTooltip
-								tooltip={t('instructions.presets.actions.import')}
-								icon={<LuUpload size={16} />}
-								aria-label={t('instructions.presets.actions.import')}
-								onClick={() => fileInputRef.current?.click()}
-							/>
-							<IconButtonWithTooltip
-								tooltip={t('instructions.presets.actions.export')}
-								icon={<LuDownload size={16} />}
-								aria-label={t('instructions.presets.actions.export')}
-								disabled={currentValues?.kind !== 'st_base'}
-								onClick={handleExport}
-							/>
-							<IconButtonWithTooltip
-								tooltip={t('instructions.presets.actions.delete')}
-								icon={<LuTrash2 size={16} />}
-								aria-label={t('instructions.presets.actions.delete')}
-								color="red"
-								variant="outline"
-								disabled={!selectedInstruction}
-								onClick={() => setDeleteOpened(true)}
-							/>
-						</Group>
-					</Group>
+					<Select
+						data={options}
+						value={selectedValue}
+						onChange={(id) => {
+							if (!id || id === selectedValue) return;
+							if (hasUnsavedChanges) {
+								setPendingSelectionId(id);
+								setDiscardOpened(true);
+								return;
+							}
+							void applySelection(id);
+						}}
+						placeholder={t('instructions.placeholders.selectInstruction')}
+						comboboxProps={{ withinPortal: false }}
+						className="ts-sidebar-toolbar__main"
+					/>
 
-					<Group gap="sm" wrap="nowrap" align="flex-end">
-						<Select
-							data={options}
-							value={selectedValue}
-							onChange={(id) => {
-								if (!id || id === selectedValue) return;
-								if (hasUnsavedChanges) {
-									setPendingSelectionId(id);
-									setDiscardOpened(true);
-									return;
-								}
-								void applySelection(id);
-							}}
-							placeholder={t('instructions.placeholders.selectInstruction')}
-							comboboxProps={{ withinPortal: false }}
-							className="ts-sidebar-toolbar__main"
-							style={{ flex: 1 }}
+					<Group justify="flex-end" gap="xs" wrap="wrap">
+						<IconButtonWithTooltip
+							tooltip={t('instructions.actions.create')}
+							icon={<LuPlus size={16} />}
+							aria-label={t('instructions.actions.create')}
+							onClick={openCreateDialog}
 						/>
-
-						{selectedInstruction && (
-							<Badge variant="light">
-								{selectedInstruction.kind === 'st_base' ? t('instructions.kinds.stBase') : t('instructions.kinds.basic')}
-							</Badge>
-						)}
-
-						<Group gap="xs" wrap="nowrap">
-							<IconButtonWithTooltip
-								tooltip={t('instructions.actions.updateCurrent')}
-								icon={<LuSave size={16} />}
-								aria-label={t('instructions.actions.updateCurrent')}
-								variant="solid"
-								disabled={!selectedInstruction || !hasUnsavedChanges}
-								onClick={() => void handleUpdateCurrent()}
-							/>
-							<IconButtonWithTooltip
-								tooltip={t('instructions.actions.rename')}
-								icon={<LuPencil size={16} />}
-								aria-label={t('instructions.actions.rename')}
-								disabled={!selectedInstruction}
-								onClick={promptForRename}
-							/>
-						</Group>
+						<IconButtonWithTooltip
+							tooltip={
+								appSettings.bindChatCompletionPresetToConnection
+									? t('instructions.presets.actions.unbind')
+									: t('instructions.presets.actions.bind')
+							}
+							icon={
+								appSettings.bindChatCompletionPresetToConnection ? (
+									<LuLink2 size={16} />
+								) : (
+									<LuLink2Off size={16} />
+								)
+							}
+							aria-label={t('instructions.presets.actions.bind')}
+							variant={appSettings.bindChatCompletionPresetToConnection ? 'solid' : 'subtle'}
+							onClick={() =>
+								updateAppSettings({
+									bindChatCompletionPresetToConnection: !appSettings.bindChatCompletionPresetToConnection,
+								})
+							}
+						/>
+						<IconButtonWithTooltip
+							tooltip={t('instructions.presets.actions.import')}
+							icon={<LuUpload size={16} />}
+							aria-label={t('instructions.presets.actions.import')}
+							onClick={() => fileInputRef.current?.click()}
+						/>
+						<IconButtonWithTooltip
+							tooltip={t('instructions.presets.actions.export')}
+							icon={<LuDownload size={16} />}
+							aria-label={t('instructions.presets.actions.export')}
+							disabled={currentValues?.kind !== 'st_base'}
+							onClick={handleExport}
+						/>
+						<IconButtonWithTooltip
+							tooltip={t('instructions.presets.actions.delete')}
+							icon={<LuTrash2 size={16} />}
+							aria-label={t('instructions.presets.actions.delete')}
+							color="red"
+							variant="outline"
+							disabled={!selectedInstruction}
+							onClick={() => setDeleteOpened(true)}
+						/>
+						<IconButtonWithTooltip
+							tooltip={t('instructions.actions.updateCurrent')}
+							icon={<LuSave size={16} />}
+							aria-label={t('instructions.actions.updateCurrent')}
+							variant="solid"
+							disabled={!selectedInstruction || !hasUnsavedChanges}
+							onClick={() => void handleUpdateCurrent()}
+						/>
+						<IconButtonWithTooltip
+							tooltip={t('instructions.actions.rename')}
+							icon={<LuPencil size={16} />}
+							aria-label={t('instructions.actions.rename')}
+							disabled={!selectedInstruction}
+							onClick={promptForRename}
+						/>
 					</Group>
 				</Stack>
 

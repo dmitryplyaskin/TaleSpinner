@@ -1,4 +1,13 @@
 import { renderLiquidTemplate } from "./prompt-template-renderer";
+import {
+  BUILT_IN_SILLY_TAVERN_PRESET,
+  BUILT_IN_SILLY_TAVERN_PRESET_FILE_NAME,
+} from "./built-in-sillytavern-preset";
+import {
+  isSillyTavernPreset,
+  getSillyTavernPresetValidationError,
+  SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+} from "@shared/utils/sillytavern-preset";
 
 import type { InstructionRenderContext } from "./prompt-template-renderer";
 import type {
@@ -7,17 +16,6 @@ import type {
   StBasePromptOrder,
   StBaseResponseConfig,
 } from "@shared/types/instructions";
-
-const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;
-
-const ST_PRESET_DETECT_KEYS = new Set([
-  "chat_completion_source",
-  "prompts",
-  "prompt_order",
-  "openai_max_tokens",
-  "openai_model",
-  "temperature",
-]);
 
 export const ST_SENSITIVE_FIELDS = [
   "reverse_proxy",
@@ -155,9 +153,7 @@ function normalizePromptOrderItem(value: unknown): StBasePromptOrder | null {
 export function detectStChatCompletionPreset(
   input: unknown
 ): input is Record<string, unknown> {
-  if (!isRecord(input)) return false;
-  if (input.type === "talespinner.instruction") return false;
-  return Object.keys(input).some((key) => ST_PRESET_DETECT_KEYS.has(key));
+  return isSillyTavernPreset(input);
 }
 
 export function stripSensitiveFieldsFromPreset(
@@ -232,7 +228,7 @@ function resolvePreferredPromptOrderEntries(
   if (promptOrder.length === 0) return [];
   const preferred =
     promptOrder.find(
-      (item) => item.character_id === PROMPT_ORDER_PREFERRED_CHARACTER_ID
+      (item) => item.character_id === SILLY_TAVERN_PREFERRED_CHARACTER_ID
     ) ?? promptOrder[0];
   return preferred.order;
 }
@@ -322,6 +318,11 @@ export function createStBaseConfigFromPreset(params: {
   fileName: string;
   sensitiveImportMode: SensitiveImportMode;
 }): StBaseConfig {
+  const validationError = getSillyTavernPresetValidationError(params.preset);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
   const rawPreset =
     params.sensitiveImportMode === "remove"
       ? stripSensitiveFieldsFromPreset(params.preset)
@@ -339,6 +340,25 @@ export function createStBaseConfigFromPreset(params: {
       fileName: params.fileName,
       importedAt: new Date().toISOString(),
     },
+  };
+}
+
+export async function loadBuiltInSillyTavernPreset(): Promise<{
+  fileName: string;
+  preset: Record<string, unknown>;
+}> {
+  const parsed = structuredClone(BUILT_IN_SILLY_TAVERN_PRESET) as unknown;
+  const validationError = getSillyTavernPresetValidationError(parsed);
+
+  if (validationError || !isSillyTavernPreset(parsed)) {
+    throw new Error(
+      `Built-in SillyTavern preset is invalid: ${validationError ?? "Unknown validation error."}`
+    );
+  }
+
+  return {
+    fileName: BUILT_IN_SILLY_TAVERN_PRESET_FILE_NAME,
+    preset: parsed,
   };
 }
 

@@ -28,11 +28,20 @@ export type StBaseInstructionDto = InstructionDtoBase & {
 
 export type InstructionDto = BasicInstructionDto | StBaseInstructionDto;
 
+export type DefaultStPresetDto = {
+	fileName: string;
+	preset: Record<string, unknown>;
+};
+
 export async function listInstructions(params?: { ownerId?: string }): Promise<InstructionDto[]> {
 	const query = new URLSearchParams();
 	if (typeof params?.ownerId === 'string') query.set('ownerId', params.ownerId);
 	const suffix = query.size > 0 ? `?${query.toString()}` : '';
 	return apiJson<InstructionDto[]>(`/instructions${suffix}`);
+}
+
+export async function getDefaultStPreset(): Promise<DefaultStPresetDto> {
+	return apiJson<DefaultStPresetDto>('/instructions/default-st-preset');
 }
 
 export async function createInstruction(params: {
@@ -87,7 +96,7 @@ export type CreateInstructionDraft =
 	  };
 
 export function getInstructionKindLabel(kind: InstructionKind): string {
-	return kind === 'st_base' ? 'st-base' : 'basic';
+	return kind === 'st_base' ? 'SillyTavern-like' : 'Simple';
 }
 
 export async function deleteInstruction(id: string): Promise<{ id: string }> {

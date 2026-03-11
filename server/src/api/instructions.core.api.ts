@@ -23,6 +23,7 @@ import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../services/chat-core/prompt-template-context";
+import { loadBuiltInSillyTavernPreset } from "../services/chat-core/instruction-st-base";
 import {
   renderLiquidTemplate,
   validateLiquidTemplate,
@@ -49,6 +50,14 @@ router.get(
       ownerId: getRequestOwnerId(req, query.ownerId),
     });
     return { data: instructions };
+  })
+);
+
+router.get(
+  "/instructions/default-st-preset",
+  asyncHandler(async () => {
+    const preset = await loadBuiltInSillyTavernPreset();
+    return { data: preset };
   })
 );
 

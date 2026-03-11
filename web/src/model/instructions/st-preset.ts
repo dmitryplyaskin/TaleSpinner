@@ -1,3 +1,8 @@
+import {
+	isSillyTavernPreset,
+	getSillyTavernPresetValidationError,
+	SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+} from '@shared/utils/sillytavern-preset';
 import type {
 	StBaseConfig,
 	StBasePrompt,
@@ -5,8 +10,6 @@ import type {
 	StBaseResponseConfig,
 } from '@shared/types/instructions';
 import type { LlmProviderConfig, LlmProviderId } from '@shared/types/llm';
-
-const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;
 
 export const ST_SYSTEM_PROMPT_DEFAULTS: StBasePrompt[] = [
 	{
@@ -99,15 +102,6 @@ export const ST_PROMPT_SOURCE_LABELS: Partial<Record<string, string>> = {
 	dialogueExamples: 'Dialogue Examples',
 	chatHistory: 'Chat History',
 };
-
-const ST_PRESET_DETECT_KEYS = new Set([
-	'chat_completion_source',
-	'prompts',
-	'prompt_order',
-	'openai_max_tokens',
-	'openai_model',
-	'temperature',
-]);
 
 export const ST_SENSITIVE_FIELDS = [
 	'reverse_proxy',
@@ -302,17 +296,14 @@ function normalizeResponseConfig(
 	return responseConfig;
 }
 
-export function createDefaultStBaseConfig(): StBaseConfig {
+export function createEmptyStBaseConfig(): StBaseConfig {
 	return {
 		rawPreset: {},
-		prompts: normalizeStPrompts([]),
+		prompts: [],
 		promptOrder: [
 			{
-				character_id: PROMPT_ORDER_PREFERRED_CHARACTER_ID,
-				order: [
-					{ identifier: 'main', enabled: true },
-					{ identifier: 'chatHistory', enabled: true },
-				],
+				character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+				order: [],
 			},
 		],
 		responseConfig: {},
@@ -327,9 +318,11 @@ export function createDefaultStBaseConfig(): StBaseConfig {
 export function detectStChatCompletionPreset(
 	input: unknown
 ): input is Record<string, unknown> {
-	if (!isRecord(input)) return false;
-	if (input.type === 'talespinner.instruction') return false;
-	return Object.keys(input).some((key) => ST_PRESET_DETECT_KEYS.has(key));
+	return isSillyTavernPreset(input);
+}
+
+export function getStPresetValidationError(input: unknown): string | null {
+	return getSillyTavernPresetValidationError(input);
 }
 
 export function hasSensitivePresetFields(preset: Record<string, unknown>): boolean {
@@ -347,23 +340,8 @@ export function stripSensitiveFieldsFromPreset(
 }
 
 export function normalizeStPrompts(input: unknown): StBasePrompt[] {
-	if (!Array.isArray(input)) return [...ST_SYSTEM_PROMPT_DEFAULTS];
-	const normalized = input.map(normalizePrompt).filter((item): item is StBasePrompt => Boolean(item));
-	const byIdentifier = new Map<string, StBasePrompt>();
-
-	for (const prompt of ST_SYSTEM_PROMPT_DEFAULTS) {
-		byIdentifier.set(prompt.identifier, { ...prompt });
-	}
-
-	for (const prompt of normalized) {
-		const existing = byIdentifier.get(prompt.identifier);
-		byIdentifier.set(prompt.identifier, {
-			...(existing ?? {}),
-			...prompt,
-		});
-	}
-
-	return Array.from(byIdentifier.values());
+	if (!Array.isArray(input)) return [];
+	return input.map(normalizePrompt).filter((item): item is StBasePrompt => Boolean(item));
 }
 
 export function normalizeStPromptOrder(input: unknown): StBasePromptOrder[] {
@@ -378,6 +356,11 @@ export function createStBaseConfigFromPreset(params: {
 	fileName: string;
 	sensitiveImportMode: SensitiveImportMode;
 }): StBaseConfig {
+	const validationError = getSillyTavernPresetValidationError(params.preset);
+	if (validationError) {
+		throw new Error(validationError);
+	}
+
 	const rawPreset =
 		params.sensitiveImportMode === 'remove'
 			? stripSensitiveFieldsFromPreset(params.preset)
@@ -398,7 +381,7 @@ export function createStBaseConfigFromPreset(params: {
 export function resolvePreferredPromptOrder(stBase: StBaseConfig): StBasePromptOrder {
 	const preferred =
 		stBase.promptOrder.find(
-			(item) => item.character_id === PROMPT_ORDER_PREFERRED_CHARACTER_ID
+			(item) => item.character_id === SILLY_TAVERN_PREFERRED_CHARACTER_ID
 		) ?? stBase.promptOrder[0];
 
 	if (preferred) {
@@ -409,7 +392,7 @@ export function resolvePreferredPromptOrder(stBase: StBaseConfig): StBasePromptO
 	}
 
 	return {
-		character_id: PROMPT_ORDER_PREFERRED_CHARACTER_ID,
+		character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
 		order: stBase.prompts.map((item) => ({
 			identifier: item.identifier,
 			enabled: true,

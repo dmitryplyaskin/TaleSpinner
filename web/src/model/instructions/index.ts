@@ -10,7 +10,7 @@ import {
 } from '../../api/instructions';
 import i18n from '../../i18n';
 import { $currentChat, setChatInstructionRequested, setOpenedChat } from '../chat-core';
-import { createDefaultStBaseConfig } from './st-preset';
+import { createEmptyStBaseConfig } from './st-preset';
 
 import type { CreateInstructionDraft, InstructionDto } from '../../api/instructions';
 import type { InstructionMeta, StBaseConfig } from '@shared/types/instructions';
@@ -186,9 +186,9 @@ sample({
 					templateText: '{{char.name}}',
 			  }
 			: {
-					kind: 'st_base' as const,
-					name: i18n.t('instructions.defaults.newStBaseInstruction'),
-					stBase: createDefaultStBaseConfig(),
+				kind: 'st_base' as const,
+				name: i18n.t('instructions.defaults.newStBaseInstruction'),
+				stBase: createEmptyStBaseConfig(),
 			  },
 	target: createInstructionFx,
 });
