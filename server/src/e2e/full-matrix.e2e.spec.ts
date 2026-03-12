@@ -224,7 +224,7 @@ describe("backend e2e full matrix", () => {
       baseUrl,
       method: "POST",
       path: "/api/instructions",
-      body: { name: "Matrix instruction", templateText: "System prompt" },
+      body: { name: "Matrix instruction", kind: "basic", templateText: "System prompt" },
     });
     expect(instructionRes.status).toBe(200);
     expect(
@@ -233,7 +233,7 @@ describe("backend e2e full matrix", () => {
           baseUrl,
           method: "PUT",
           path: `/api/instructions/${instructionRes.data.data.id}`,
-          body: { name: "Matrix instruction updated" },
+          body: { kind: "basic", name: "Matrix instruction updated" },
         })
       ).status
     ).toBe(200);

@@ -4,10 +4,13 @@ import { getOperationBlockById } from "./operation-blocks-repository";
 import { validateCompiledProfileArtifactWriters } from "./operation-block-validator";
 
 import type {
+  OperationArtifactConfig,
   OperationBlock,
   OperationInProfile,
   OperationProfile,
+  OperationKind,
 } from "@shared/types/operation-profiles";
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
 
 const ORDER_BUCKET = 1_000_000;
 
@@ -32,6 +35,10 @@ function mapOperationToRuntime(params: {
   const opId = `${blockPrefix}${params.op.opId}`;
   const dependsOn = params.op.config.dependsOn?.map((dep) => `${blockPrefix}${dep}`);
   const order = params.blockOrderIndex * ORDER_BUCKET + normalizeOrder(params.op.config.order);
+  const artifact: OperationArtifactConfig = {
+    ...params.op.config.params.artifact,
+    artifactId: buildOperationArtifactId(opId),
+  };
   return {
     ...params.op,
     opId,
@@ -39,8 +46,18 @@ function mapOperationToRuntime(params: {
       ...params.op.config,
       order,
       dependsOn: dependsOn?.length ? dependsOn : undefined,
+      params:
+        params.op.kind === "template"
+          ? {
+              ...params.op.config.params,
+              artifact,
+            }
+          : {
+              ...params.op.config.params,
+              artifact,
+            },
     },
-  } as OperationInProfile;
+  } as Extract<OperationInProfile, { kind: OperationKind }>;
 }
 
 async function resolveBlocks(

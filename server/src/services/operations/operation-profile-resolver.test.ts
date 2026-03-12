@@ -48,12 +48,12 @@ function makeBlock(params: {
               rawParams: {
                 output: {
                   type: "artifacts",
-                  writeArtifact: {
-                    tag: params.artifactTag ?? `${params.blockId.replace(/-/g, "_")}_state`,
-                    persistence: "run_only",
-                    usage: "internal",
-                    semantics: "intermediate",
-                  },
+                    writeArtifact: {
+                      tag: params.artifactTag ?? `block_${params.blockId.replace(/-/g, "_")}_state`,
+                      persistence: "run_only",
+                      usage: "internal",
+                      semantics: "intermediate",
+                    },
                 } satisfies LegacyOperationOutput,
               },
             }),
@@ -170,6 +170,8 @@ describe("operation profile resolver", () => {
       updatedAt: now,
     };
 
-    await expect(resolveCompiledOperationProfile(profile)).rejects.toThrow(/duplicate artifactId in compiled profile/i);
+    await expect(resolveCompiledOperationProfile(profile)).rejects.toThrow(
+      /duplicate artifact (tag|id) in compiled profile/i
+    );
   });
 });

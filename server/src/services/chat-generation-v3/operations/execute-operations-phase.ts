@@ -26,6 +26,24 @@ type PreviewState = {
   assistantText: string;
 };
 
+function getRuntimeArtifactKey(params: {
+  artifactId: string;
+  tag: string;
+}): string {
+  return params.tag;
+}
+
+function readArtifactValue(params: {
+  artifacts: Record<string, { value: unknown; history: unknown[] }>;
+  artifactId: string;
+  tag: string;
+}): { value: unknown; history: unknown[] } | undefined {
+  return (
+    params.artifacts[getRuntimeArtifactKey(params)] ??
+    params.artifacts[params.artifactId]
+  );
+}
+
 function resolvePromptSystem(messages: PromptDraftMessage[]): string {
   return messages
     .filter((m) => m.role === "system")
@@ -126,7 +144,11 @@ function mapArtifactsByOpId(
 ): Record<string, { value: unknown; history: unknown[] }> {
   const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
   for (const op of operations) {
-    const artifact = artifacts[op.config.params.artifact.artifactId];
+    const artifact = readArtifactValue({
+      artifacts,
+      artifactId: op.config.params.artifact.artifactId,
+      tag: op.config.params.artifact.tag,
+    });
     if (!artifact) continue;
     mapped[op.opId] = { value: artifact.value, history: [...artifact.history] };
   }
@@ -139,13 +161,28 @@ function mapArtifactsForTemplate(
 ): Record<string, { value: unknown; history: unknown[] }> {
   const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
   for (const op of operations) {
-    const artifact = artifacts[op.config.params.artifact.artifactId];
+    const artifact = readArtifactValue({
+      artifacts,
+      artifactId: op.config.params.artifact.artifactId,
+      tag: op.config.params.artifact.tag,
+    });
     if (!artifact) continue;
     const snapshot = { value: artifact.value, history: [...artifact.history] };
     mapped[op.config.params.artifact.tag] = snapshot;
     mapped[op.config.params.artifact.artifactId] = snapshot;
   }
   return mapped;
+}
+
+function mapKnownArtifacts(
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  return Object.fromEntries(
+    Object.entries(artifacts).map(([key, value]) => [
+      key,
+      { value: value.value, history: [...value.history] },
+    ])
+  );
 }
 
 function buildTemplateContext(
@@ -155,6 +192,7 @@ function buildTemplateContext(
 ): InstructionRenderContext {
   const art = {
     ...(base.art ?? {}),
+    ...mapKnownArtifacts(state.artifacts),
     ...mapArtifactsForTemplate(operations, state.artifacts),
   };
   return {
@@ -192,7 +230,10 @@ function buildLiquidContextSnapshot(params: {
     now: params.base.now,
     promptSystem: resolvePromptSystem(params.state.messages),
     messages: params.state.messages.map((m) => ({ role: m.role, content: m.content })),
-    art: mapArtifactsForTemplate(params.operations, params.state.artifacts),
+    art: {
+      ...mapKnownArtifacts(params.state.artifacts),
+      ...mapArtifactsForTemplate(params.operations, params.state.artifacts),
+    },
     artByOpId: params.base.artByOpId as Record<string, { value: unknown; history: unknown[] }> | undefined,
   };
 }
@@ -490,7 +531,7 @@ export async function executeOperationsPhase(params: {
               {
                 type: "artifact.upsert",
                 opId: op.opId,
-                artifactId: artifact.artifactId,
+                artifactId: getRuntimeArtifactKey(artifact),
                 format: artifact.format,
                 persistence: artifact.persistence,
                 writeMode: artifact.writeMode,
