@@ -1,6 +1,6 @@
 import { Avatar, Box, Checkbox, Flex, Stack, Text } from '@mantine/core';
 import { useStoreMap, useUnit } from 'effector-react';
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { $currentEntityProfile } from '@model/chat-core';
@@ -19,8 +19,6 @@ import {
 	openEntryPartsEditorRequested,
 	openPromptInspectorRequested,
 	openUndoCanonicalizationPickerRequested,
-	regenerateRequested,
-	selectVariantRequested,
 	setEntryPromptVisibilityRequested,
 	updateEntryPartDraftRequested,
 } from '@model/chat-entry-parts';
@@ -247,8 +245,6 @@ const MessageInner: React.FC<MessageProps> = ({
 	const isStreaming = useUnit($isChatStreaming);
 	const currentTurn = useUnit($currentTurn);
 	const variantsById = useUnit($variantsByEntryId);
-	const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-	const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
 	const editState = useStoreMap({
 		store: $entryPartEdits,
 		keys: [data.entry.entryId],
@@ -285,13 +281,6 @@ const MessageInner: React.FC<MessageProps> = ({
 	const isOptimistic =
 		String(data.entry.entryId).startsWith('local_') || (typeof data.entry.meta === 'object' && Boolean((data.entry.meta as any)?.optimistic));
 	const variants = useMemo(() => variantsById[data.entry.entryId] ?? [], [variantsById, data.entry.entryId]);
-	const isImportedFirstMessage =
-		data.variant?.kind === 'import' &&
-		typeof data.entry.meta === 'object' &&
-		data.entry.meta !== null &&
-		Boolean((data.entry.meta as any)?.imported) &&
-		((data.entry.meta as any)?.kind === 'first_mes' || (data.entry.meta as any)?.source === 'entity_profile_import');
-	const canSwipeVariants = isAssistant && isLast && !isBulkDeleteMode;
 	const canOpenUndoCanonicalization = useMemo(() => {
 		if (!isUser) return false;
 		const parts = data.variant?.parts ?? [];
@@ -325,11 +314,6 @@ const MessageInner: React.FC<MessageProps> = ({
 		closeEntryPartEdit({ entryId: data.entry.entryId });
 	}, [closeEntryPartEdit, data.entry.entryId, isBulkDeleteMode]);
 
-	const currentVariantIndex = useMemo(() => {
-		if (variants.length === 0) return -1;
-		const idx = variants.findIndex((v) => v.variantId === data.entry.activeVariantId);
-		return idx >= 0 ? idx : variants.length - 1;
-	}, [data.entry.activeVariantId, variants]);
 	const activeVariantIndexInList = useMemo(
 		() => variants.findIndex((v) => v.variantId === data.entry.activeVariantId),
 		[data.entry.activeVariantId, variants],
@@ -338,72 +322,6 @@ const MessageInner: React.FC<MessageProps> = ({
 		variants.length > 0 && activeVariantIndexInList < 0 && Boolean(data.variant && data.variant.variantId === data.entry.activeVariantId);
 	const displayVariantCount = hasActiveOutsideList ? variants.length + 1 : variants.length > 0 ? variants.length : data.variant ? 1 : 0;
 	const canDeleteVariant = isAssistant && displayVariantCount > 1;
-
-	const swipePrev = () => {
-		if (!canSwipeVariants || isEditing || isStreaming || isOptimistic) return;
-		if (variants.length === 0 || currentVariantIndex <= 0) return;
-		const prev = variants[currentVariantIndex - 1];
-		if (!prev) return;
-		selectVariantRequested({ entryId: data.entry.entryId, variantId: prev.variantId });
-	};
-
-	const swipeNextOrRegenerate = () => {
-		if (!canSwipeVariants || isEditing || isStreaming || isOptimistic) return;
-		if (variants.length === 0) {
-			if (isLast && !isImportedFirstMessage) {
-				regenerateRequested({ entryId: data.entry.entryId });
-			}
-			return;
-		}
-		if (currentVariantIndex >= 0 && currentVariantIndex < variants.length - 1) {
-			const next = variants[currentVariantIndex + 1];
-			if (next) selectVariantRequested({ entryId: data.entry.entryId, variantId: next.variantId });
-			return;
-		}
-		if (isLast && !isImportedFirstMessage) {
-			regenerateRequested({ entryId: data.entry.entryId });
-		}
-	};
-
-	const tryApplySwipe = (deltaX: number, deltaY: number) => {
-		if (!canSwipeVariants) return;
-		const absX = Math.abs(deltaX);
-		const absY = Math.abs(deltaY);
-		if (absX < 48 || absX <= absY) return;
-		if (deltaX < 0) {
-			swipeNextOrRegenerate();
-			return;
-		}
-		swipePrev();
-	};
-
-	const handleTouchStart: React.TouchEventHandler<HTMLDivElement> = (event) => {
-		const touch = event.changedTouches[0];
-		if (!touch) return;
-		touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-	};
-
-	const handleTouchEnd: React.TouchEventHandler<HTMLDivElement> = (event) => {
-		const start = touchStartRef.current;
-		touchStartRef.current = null;
-		if (!start) return;
-		const touch = event.changedTouches[0];
-		if (!touch) return;
-		tryApplySwipe(touch.clientX - start.x, touch.clientY - start.y);
-	};
-
-	const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
-		if (event.button !== 0) return;
-		pointerStartRef.current = { x: event.clientX, y: event.clientY };
-	};
-
-	const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
-		if (event.button !== 0) return;
-		const start = pointerStartRef.current;
-		pointerStartRef.current = null;
-		if (!start) return;
-		tryApplySwipe(event.clientX - start.x, event.clientY - start.y);
-	};
 
 	const handleOpenEdit = () => {
 		if (!canMutateParts) return;
@@ -540,10 +458,6 @@ const MessageInner: React.FC<MessageProps> = ({
 						data-role={isUser ? 'user' : 'assistant'}
 						data-prompt-excluded={isPromptExcluded ? 'true' : undefined}
 						data-bulk-selected={isBulkSelected ? 'true' : undefined}
-						onTouchStart={handleTouchStart}
-						onTouchEnd={handleTouchEnd}
-						onPointerDown={handlePointerDown}
-						onPointerUp={handlePointerUp}
 						onClick={isBulkDeleteMode ? () => onToggleBulkSelection({ entryId: data.entry.entryId }) : undefined}
 						style={isBulkDeleteMode ? { cursor: 'pointer' } : undefined}
 					>

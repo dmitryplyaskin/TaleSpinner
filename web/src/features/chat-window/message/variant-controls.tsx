@@ -7,18 +7,14 @@ import { LuArrowLeft, LuArrowRight } from 'react-icons/lu';
 import { $variantsByEntryId, $variantsLoadingByEntryId, loadVariantsRequested, regenerateRequested, selectVariantRequested } from '@model/chat-entry-parts';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
+import { pickActiveVariantIndex, resolveNextVariantAction, resolvePreviousVariantAction, type VariantNavigationAction } from './variant-navigation';
+
 import type { ChatEntryWithVariantDto } from '../../../api/chat-entry-parts';
 
 type Props = {
 	entry: ChatEntryWithVariantDto;
 	isLast: boolean;
 };
-
-function pickActiveIndex(variants: Array<{ variantId: string }>, activeVariantId: string): number {
-	if (variants.length === 0) return -1;
-	const idx = variants.findIndex((v) => v.variantId === activeVariantId);
-	return idx >= 0 ? idx : variants.length - 1;
-}
 
 export const VariantControls: React.FC<Props> = ({ entry, isLast }) => {
 	const { t } = useTranslation();
@@ -43,7 +39,7 @@ export const VariantControls: React.FC<Props> = ({ entry, isLast }) => {
 	}, [isLast, entry.entry.entryId, entry.entry.role, isLoading, variants.length]);
 
 	const currentIndex = useMemo(
-		() => pickActiveIndex(variants, entry.entry.activeVariantId),
+		() => pickActiveVariantIndex(variants, entry.entry.activeVariantId),
 		[variants, entry.entry.activeVariantId],
 	);
 	const total = variants.length;
@@ -62,39 +58,40 @@ export const VariantControls: React.FC<Props> = ({ entry, isLast }) => {
 	const isFirst = currentIndex <= 0;
 	const isLastVariant = total === 0 ? true : hasActiveOutsideList ? true : currentIndex === total - 1;
 
-	const handleLeft = () => {
-		if (total === 0) return;
-		if (hasActiveOutsideList) {
-			const prev = variants[total - 1];
-			if (prev) selectVariantRequested({ entryId: entry.entry.entryId, variantId: prev.variantId });
+	const applyAction = (action: VariantNavigationAction) => {
+		if (action.kind === 'select') {
+			selectVariantRequested({ entryId: entry.entry.entryId, variantId: action.variantId });
 			return;
 		}
-		if (isFirst) return;
-		const next = variants[currentIndex - 1];
-		if (next) selectVariantRequested({ entryId: entry.entry.entryId, variantId: next.variantId });
-	};
-
-	const handleRight = () => {
-		if (total === 0) {
-			if (isLoading) return;
-			loadVariantsRequested({ entryId: entry.entry.entryId });
-			return;
-		}
-
-		if (hasActiveOutsideList) {
-			if (isImportedFirstMessage) return;
+		if (action.kind === 'regenerate') {
 			regenerateRequested({ entryId: entry.entry.entryId });
 			return;
 		}
-
-		if (!isLastVariant) {
-			const next = variants[currentIndex + 1];
-			if (next) selectVariantRequested({ entryId: entry.entry.entryId, variantId: next.variantId });
-			return;
+		if (action.kind === 'load') {
+			loadVariantsRequested({ entryId: entry.entry.entryId });
 		}
+	};
 
-		if (isImportedFirstMessage) return;
-		regenerateRequested({ entryId: entry.entry.entryId });
+	const handleLeft = () => {
+		applyAction(
+			resolvePreviousVariantAction({
+				variants,
+				activeVariantId: entry.entry.activeVariantId,
+				hasActiveOutsideList,
+			}),
+		);
+	};
+
+	const handleRight = () => {
+		applyAction(
+			resolveNextVariantAction({
+				variants,
+				activeVariantId: entry.entry.activeVariantId,
+				hasActiveOutsideList,
+				isImportedFirstMessage,
+				isLoading,
+			}),
+		);
 	};
 
 	const rightDisabled = total === 0 ? isLoading : isImportedFirstMessage ? isLastVariant : false;
