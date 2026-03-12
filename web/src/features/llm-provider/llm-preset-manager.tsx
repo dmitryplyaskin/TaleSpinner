@@ -2,10 +2,11 @@ import { useTranslation } from 'react-i18next';
 
 import { toaster } from '@ui/toaster';
 
+import { PresetControls } from '../sidebars/settings/preset-controls';
+
 import type { LlmPresetDto, LlmPresetSettingsDto } from '../../api/llm';
 import type { LlmPresetPayload } from '@shared/types/llm';
 
-import { PresetControls } from '../sidebars/settings/preset-controls';
 
 type Props = {
 	presets: LlmPresetDto[];

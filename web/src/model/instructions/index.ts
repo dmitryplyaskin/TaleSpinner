@@ -10,6 +10,7 @@ import {
 } from '../../api/instructions';
 import i18n from '../../i18n';
 import { $currentChat, setChatInstructionRequested, setOpenedChat } from '../chat-core';
+
 import { createEmptyStBaseConfig } from './st-preset';
 
 import type { CreateInstructionDraft, InstructionDto } from '../../api/instructions';

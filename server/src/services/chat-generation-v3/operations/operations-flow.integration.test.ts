@@ -1,3 +1,8 @@
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationInProfile,
+} from "@shared/types/operation-profiles";
 import { describe, expect, test } from "vitest";
 
 
@@ -8,11 +13,6 @@ import { executeOperationsPhase } from "./execute-operations-phase";
 
 import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 import type { RunState } from "../contracts";
-import {
-  normalizeOperationArtifactConfig,
-  type LegacyOperationOutput,
-  type OperationInProfile,
-} from "@shared/types/operation-profiles";
 
 type TemplateOp = Extract<OperationInProfile, { kind: "template" }>;
 

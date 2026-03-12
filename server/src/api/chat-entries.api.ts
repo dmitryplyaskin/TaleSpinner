@@ -6,8 +6,6 @@ import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 import { initSse, type SseWriter } from "@core/sse/sse";
 
-import type { BatchUpdateEntryPartsBody as ChatRuntimeBatchUpdateEntryPartsBody } from "../application/chat-runtime/chat-entry-helpers";
-import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
 import { batchUpdateEntryParts } from "../application/chat-runtime/use-cases/batch-update-entry-parts";
 import { continueGeneration } from "../application/chat-runtime/use-cases/continue-generation";
 import { createEntryAndStartGeneration } from "../application/chat-runtime/use-cases/create-entry-and-start-generation";
@@ -31,6 +29,8 @@ import {
 } from "../services/chat-entry-parts/entries-repository";
 import { softDeletePart } from "../services/chat-entry-parts/parts-repository";
 
+import type { BatchUpdateEntryPartsBody as ChatRuntimeBatchUpdateEntryPartsBody } from "../application/chat-runtime/chat-entry-helpers";
+import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
 import type { RunEvent } from "../services/chat-generation-v3/contracts";
 
 const router = express.Router();

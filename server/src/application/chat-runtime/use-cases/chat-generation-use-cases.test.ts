@@ -33,8 +33,8 @@ vi.mock("../../../services/chat-core/generations-repository", async () => {
 
 import { eq } from "drizzle-orm";
 
-import { resetDbForTests, initDb } from "../../../db/client";
 import { applyMigrations } from "../../../db/apply-migrations";
+import { resetDbForTests, initDb } from "../../../db/client";
 import { chatBranches, chatEntries, chats, entityProfiles, entryVariants, variantParts } from "../../../db/schema";
 import { createTempDataDir, removeTempDataDir } from "../../../e2e/helpers/tmp-dir";
 import { createEntryWithVariant, getEntryById } from "../../../services/chat-entry-parts/entries-repository";

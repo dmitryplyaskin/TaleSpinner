@@ -1,13 +1,13 @@
-import { describe, expect, test, vi } from "vitest";
-
-import { resolveCompiledOperationProfile } from "./operation-profile-resolver";
-
 import {
   normalizeOperationArtifactConfig,
   type LegacyOperationOutput,
   type OperationBlock,
   type OperationProfile,
 } from "@shared/types/operation-profiles";
+import { describe, expect, test, vi } from "vitest";
+
+import { resolveCompiledOperationProfile } from "./operation-profile-resolver";
+
 
 const blockById = new Map<string, OperationBlock>();
 

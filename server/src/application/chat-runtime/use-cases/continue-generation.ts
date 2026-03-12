@@ -1,5 +1,6 @@
 import { HttpError } from "@core/middleware/error-handler";
 
+import { withDbTransaction } from "../../../db/client";
 import { getChatById } from "../../../services/chat-core/chats-repository";
 import { getBranchCurrentTurn, incrementBranchTurn } from "../../../services/chat-entry-parts/branch-turn-repository";
 import {
@@ -8,13 +9,11 @@ import {
   listEntries,
 } from "../../../services/chat-entry-parts/entries-repository";
 import { createPart } from "../../../services/chat-entry-parts/parts-repository";
-import { withDbTransaction } from "../../../db/client";
-
+import { resolveContinueUserTurnTarget } from "../chat-entry-helpers";
 import {
   createAssistantReasoningPart,
   finalizeChatGenerationArtifacts,
 } from "../chat-generation-helpers";
-import { resolveContinueUserTurnTarget } from "../chat-entry-helpers";
 import { buildChatGenerationSession } from "../generation-session";
 
 import type { ChatGenerationSession } from "../contracts";

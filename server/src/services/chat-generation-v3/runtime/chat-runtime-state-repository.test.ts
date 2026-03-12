@@ -13,6 +13,7 @@ import {
   entityProfiles,
   operationProfiles,
 } from "../../../db/schema";
+
 import { ChatRuntimeStateRepository } from "./chat-runtime-state-repository";
 
 describe("chat-runtime-state-repository", () => {

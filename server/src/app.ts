@@ -7,9 +7,9 @@ import morgan from "morgan";
 import { routes } from "./api/_routes_";
 import staticRouter from "./api/static.api";
 import { runBackendBootstrap } from "./core/bootstrap/bootstrap-coordinator";
+import { structuredLogger } from "./core/logging/structured-logger";
 import { errorHandler } from "./core/middleware/error-handler";
 import { requestLifecycleLogger } from "./core/middleware/request-lifecycle-logger";
-import { structuredLogger } from "./core/logging/structured-logger";
 import { requestContextMiddleware } from "./core/request-context/request-context";
 
 export type BootstrapAppOptions = {

@@ -1,5 +1,3 @@
-import type { GenerateMessage } from "@shared/types/generate";
-
 import type {
   ArtifactValue,
   PromptDraftMessage,
@@ -8,6 +6,8 @@ import type {
   RunResult,
   RunState,
 } from "../contracts";
+import type { GenerateMessage } from "@shared/types/generate";
+
 
 export function clonePromptDraftMessages(messages: PromptDraftMessage[]): PromptDraftMessage[] {
   return messages.map((message) => ({ role: message.role, content: message.content }));

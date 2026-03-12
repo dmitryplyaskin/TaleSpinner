@@ -1,11 +1,11 @@
 import { HttpError } from "@core/middleware/error-handler";
 
+import { getChatById } from "../../../services/chat-core/chats-repository";
+import { getLatestGenerationByChatBranchWithDebug } from "../../../services/chat-core/generations-repository";
 import {
   buildLatestWorldInfoActivationsFromGeneration,
   emptyLatestWorldInfoActivationsResponse,
 } from "../chat-entry-helpers";
-import { getChatById } from "../../../services/chat-core/chats-repository";
-import { getLatestGenerationByChatBranchWithDebug } from "../../../services/chat-core/generations-repository";
 
 import type { LatestWorldInfoActivationsResponse } from "../chat-entry-helpers";
 

@@ -1,13 +1,14 @@
-import { renderLiquidTemplate } from "./prompt-template-renderer";
-import {
-  BUILT_IN_SILLY_TAVERN_PRESET,
-  BUILT_IN_SILLY_TAVERN_PRESET_FILE_NAME,
-} from "./built-in-sillytavern-preset";
 import {
   isSillyTavernPreset,
   getSillyTavernPresetValidationError,
   SILLY_TAVERN_PREFERRED_CHARACTER_ID,
 } from "@shared/utils/sillytavern-preset";
+
+import {
+  BUILT_IN_SILLY_TAVERN_PRESET,
+  BUILT_IN_SILLY_TAVERN_PRESET_FILE_NAME,
+} from "./built-in-sillytavern-preset";
+import { renderLiquidTemplate } from "./prompt-template-renderer";
 
 import type { InstructionRenderContext } from "./prompt-template-renderer";
 import type {

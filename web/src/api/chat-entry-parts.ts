@@ -1,8 +1,8 @@
 import { BASE_URL } from '../const';
 
 import type { SseEnvelope } from './chat-core';
-import type { ChatOperationRuntimeStateDto } from '@shared/types/chat-runtime-state';
 import type { Variant, Entry } from '@shared/types/chat-entry-parts';
+import type { ChatOperationRuntimeStateDto } from '@shared/types/chat-runtime-state';
 
 type ApiEnvelope<T> = { data: T; error?: unknown };
 export type ApiHttpError = Error & { status?: number };

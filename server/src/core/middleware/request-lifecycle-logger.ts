@@ -1,7 +1,8 @@
+import { structuredLogger } from "../logging/structured-logger";
+import { getRequestContext } from "../request-context/request-context";
+
 import type { RequestHandler } from "express";
 
-import { getRequestContext } from "../request-context/request-context";
-import { structuredLogger } from "../logging/structured-logger";
 
 export const requestLifecycleLogger: RequestHandler = (req, res, next) => {
   const startedAt = Date.now();

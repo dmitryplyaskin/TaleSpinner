@@ -1,6 +1,7 @@
 import { commitEffectsPhase } from "../operations/commit-effects-phase";
 import { executeOperationsPhase } from "../operations/execute-operations-phase";
 
+import type { EmitRunEvent, StreamEventsWhile } from "./run-event-stream";
 import type { RunArtifactStore } from "../artifacts/run-artifact-store";
 import type {
   OperationSkipDetails,
@@ -9,9 +10,7 @@ import type {
   RunPersistenceTarget,
   RunState,
   UserTurnTarget,
-} from "../contracts";
-import type { EmitRunEvent, StreamEventsWhile } from "./run-event-stream";
-import type { PromptDraftMessage } from "../contracts";
+ PromptDraftMessage } from "../contracts";
 import type {
   OperationHook,
   OperationInProfile,

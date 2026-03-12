@@ -1,10 +1,11 @@
 import { HttpError } from "@core/middleware/error-handler";
 
+import { withDbTransaction } from "../../../db/client";
+import { getChatById } from "../../../services/chat-core/chats-repository";
 import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../../../services/chat-core/prompt-template-context";
-import { getChatById } from "../../../services/chat-core/chats-repository";
 import { getBranchCurrentTurn } from "../../../services/chat-entry-parts/branch-turn-repository";
 import {
   getActiveVariantWithParts,
@@ -12,8 +13,6 @@ import {
   updateEntryMeta,
 } from "../../../services/chat-entry-parts/entries-repository";
 import { applyManualEditToPart } from "../../../services/chat-entry-parts/parts-repository";
-import { withDbTransaction } from "../../../db/client";
-
 import {
   isRecord,
   renderUserInputWithLiquid,

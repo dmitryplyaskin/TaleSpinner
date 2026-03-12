@@ -1,6 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
-import type { OperationProfileDto } from '../../../../api/chat-core';
 import {
 	buildOperationArtifactId,
 	makeDefaultOperationArtifactConfig,
@@ -13,6 +10,9 @@ import {
 	type OperationKind,
 	type OperationTemplateParams,
 } from '@shared/types/operation-profiles';
+import { v4 as uuidv4 } from 'uuid';
+
+import type { OperationProfileDto } from '../../../../api/chat-core';
 
 export type FormTemplateParams = Omit<OperationTemplateParams, 'strictVariables'> & {
 	strictVariables: boolean;

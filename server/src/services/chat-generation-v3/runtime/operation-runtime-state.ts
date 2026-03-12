@@ -3,14 +3,15 @@ import { listEntriesWithActiveVariantsPage } from "../../chat-entry-parts/entrie
 import { getPromptProjection } from "../../chat-entry-parts/projection";
 import { serializePart } from "../../chat-entry-parts/prompt-serializers";
 import { resolveOperationActivationState } from "../operations/operation-activation-intervals";
+
 import {
   ChatRuntimeStateRepository,
   type ChatRuntimeStatePayload,
   type ChatRuntimeStateScope,
 } from "./chat-runtime-state-repository";
 
-import type { OperationInProfile } from "@shared/types/operation-profiles";
 import type { GenerateMessage } from "@shared/types/generate";
+import type { OperationInProfile } from "@shared/types/operation-profiles";
 
 type UserContextEvent = {
   contextTokens: number;

@@ -1,7 +1,9 @@
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
+
 import { HttpError } from "@core/middleware/error-handler";
 
-import { getOperationBlockById } from "./operation-blocks-repository";
 import { validateCompiledProfileArtifactWriters } from "./operation-block-validator";
+import { getOperationBlockById } from "./operation-blocks-repository";
 
 import type {
   OperationArtifactConfig,
@@ -10,7 +12,6 @@ import type {
   OperationProfile,
   OperationKind,
 } from "@shared/types/operation-profiles";
-import { buildOperationArtifactId } from "@shared/types/operation-profiles";
 
 const ORDER_BUCKET = 1_000_000;
 

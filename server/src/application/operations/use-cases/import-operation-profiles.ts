@@ -1,9 +1,9 @@
-import { validateOperationProfileImport } from "../../../services/operations/operation-profile-validator";
 import {
   createOperationBlock,
   listOperationBlocks,
   resolveImportedOperationBlockName,
 } from "../../../services/operations/operation-blocks-repository";
+import { validateOperationProfileImport } from "../../../services/operations/operation-profile-validator";
 import {
   createOperationProfile,
   listOperationProfiles,

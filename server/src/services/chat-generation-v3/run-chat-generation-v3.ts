@@ -1,3 +1,5 @@
+import { structuredLogger } from "../../core/logging/structured-logger";
+
 import { ProfileSessionArtifactStore } from "./artifacts/profile-session-artifact-store";
 import { RunArtifactStore } from "./artifacts/run-artifact-store";
 import { defaultGenerationControlPort } from "./control/generation-control-port";
@@ -7,8 +9,8 @@ import {
   normalizeOperationActivationConfig,
   resolveOperationActivationState,
 } from "./operations/operation-activation-intervals";
-import { runOperationHookPhase } from "./orchestration/run-operation-hook-phase";
 import { RunEventStream } from "./orchestration/run-event-stream";
+import { runOperationHookPhase } from "./orchestration/run-operation-hook-phase";
 import {
   buildRunDebugStateSnapshot,
   buildRunResult,
@@ -20,6 +22,7 @@ import {
 } from "./orchestration/run-state-helpers";
 import { defaultGenerationPersistencePort } from "./persist/generation-persistence-port";
 import { resolveRunContext } from "./prepare/resolve-run-context";
+import { buildBasePrompt } from "./prompt/build-base-prompt";
 import {
   buildPromptDiagnosticsDebugJson,
   buildRedactedSnapshot,
@@ -28,14 +31,12 @@ import {
   normalizeLlmMessagesForDebug,
   sumContextTokensByMessages,
 } from "./prompt/generation-debug-payload";
-import { buildBasePrompt } from "./prompt/build-base-prompt";
 import {
   ChatRuntimeStateRepository,
   type ChatRuntimeStatePayload,
   type ChatRuntimeStateScope,
 } from "./runtime/chat-runtime-state-repository";
 import { loadOrBootstrapRuntimeState } from "./runtime/operation-runtime-state";
-import { structuredLogger } from "../../core/logging/structured-logger";
 
 import type { OperationSkipDetails, RunEvent, RunRequest, RunState } from "./contracts";
 import type { OperationInProfile } from "@shared/types/operation-profiles";

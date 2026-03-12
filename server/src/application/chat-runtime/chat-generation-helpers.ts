@@ -1,3 +1,8 @@
+import { getGenerationByIdWithDebug } from "../../services/chat-core/generations-repository";
+import {
+  getActiveVariantWithParts,
+  listEntries,
+} from "../../services/chat-entry-parts/entries-repository";
 import { createPart } from "../../services/chat-entry-parts/parts-repository";
 import {
   createVariant,
@@ -6,11 +11,6 @@ import {
   listEntryVariants,
   updateVariantDerived,
 } from "../../services/chat-entry-parts/variants-repository";
-import {
-  getActiveVariantWithParts,
-  listEntries,
-} from "../../services/chat-entry-parts/entries-repository";
-import { getGenerationByIdWithDebug } from "../../services/chat-core/generations-repository";
 
 import { pickPreviousUserEntries, resolveContinueUserTurnTarget } from "./chat-entry-helpers";
 

@@ -1,12 +1,3 @@
-import { z } from "zod";
-
-import { HttpError } from "@core/middleware/error-handler";
-
-import { validateLiquidTemplate } from "../chat-core/prompt-template-renderer";
-
-import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
-import { llmOperationParamsSchema } from "./llm-operation-params";
-
 import {
   normalizeOperationArtifactConfig,
   type ArtifactExposure,
@@ -26,6 +17,15 @@ import {
   type OperationTrigger,
   type PromptTimeMessageRole,
 } from "@shared/types/operation-profiles";
+import { z } from "zod";
+
+import { HttpError } from "@core/middleware/error-handler";
+
+import { validateLiquidTemplate } from "../chat-core/prompt-template-renderer";
+
+import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
+import { llmOperationParamsSchema } from "./llm-operation-params";
+
 
 const uuidSchema = z.string().uuid();
 

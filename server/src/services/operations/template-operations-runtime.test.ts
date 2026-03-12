@@ -1,3 +1,9 @@
+import {
+  buildOperationArtifactId,
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationProfile,
+} from "@shared/types/operation-profiles";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -5,12 +11,6 @@ import {
   applyTemplateOperationsToPromptDraft,
 } from "./template-operations-runtime";
 
-import {
-  buildOperationArtifactId,
-  normalizeOperationArtifactConfig,
-  type LegacyOperationOutput,
-  type OperationProfile,
-} from "@shared/types/operation-profiles";
 
 function toArtifact(opId: string, title: string, output: LegacyOperationOutput) {
   return normalizeOperationArtifactConfig({

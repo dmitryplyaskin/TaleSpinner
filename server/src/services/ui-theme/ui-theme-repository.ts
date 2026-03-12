@@ -1,3 +1,5 @@
+import { randomUUID as uuidv4 } from "node:crypto";
+
 import {
   BUILT_IN_UI_THEME_PRESETS,
   DEFAULT_UI_THEME_PAYLOAD,
@@ -11,7 +13,6 @@ import {
   type UiThemeSettings,
 } from "@shared/types/ui-theme";
 import { and, desc, eq, or } from "drizzle-orm";
-import { randomUUID as uuidv4 } from "node:crypto";
 
 import { HttpError } from "@core/middleware/error-handler";
 

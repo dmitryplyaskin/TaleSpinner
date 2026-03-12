@@ -1,8 +1,8 @@
 import { HttpError } from "@core/middleware/error-handler";
 
+import { renderLiquidTemplate } from "../../services/chat-core/prompt-template-renderer";
 import { getUiProjection } from "../../services/chat-entry-parts/projection";
 import { normalizePromptDiagnosticsDebugJson } from "../../services/chat-generation-v3/prompt/generation-debug-payload";
-import { renderLiquidTemplate } from "../../services/chat-core/prompt-template-renderer";
 
 import type { GenerationWithDebugDto } from "../../services/chat-core/generations-repository";
 import type { InstructionRenderContext } from "../../services/chat-core/prompt-template-renderer";

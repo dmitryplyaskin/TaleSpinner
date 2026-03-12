@@ -3,6 +3,7 @@ import {
 	getSillyTavernPresetValidationError,
 	SILLY_TAVERN_PREFERRED_CHARACTER_ID,
 } from '@shared/utils/sillytavern-preset';
+
 import type {
 	StBaseConfig,
 	StBasePrompt,

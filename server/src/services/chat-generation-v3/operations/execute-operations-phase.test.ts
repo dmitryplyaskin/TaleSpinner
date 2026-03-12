@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
-
-import { executeOperationsPhase } from "./execute-operations-phase";
-
-import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 import {
   normalizeOperationArtifactConfig,
   type LegacyOperationOutput,
   type OperationInProfile,
 } from "@shared/types/operation-profiles";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+import { executeOperationsPhase } from "./execute-operations-phase";
+
+import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
 
 
 const mocks = vi.hoisted(() => ({

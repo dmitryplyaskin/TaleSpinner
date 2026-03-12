@@ -1,4 +1,5 @@
 import { Accordion, Alert, Button, Collapse, Group, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { isValidSillyTavernPromptIdentifier } from '@shared/utils/sillytavern-preset';
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,7 +16,6 @@ import {
 	ST_SYSTEM_PROMPT_DEFAULTS,
 } from '@model/instructions/st-preset';
 import { LiquidDocsButton } from '@ui/liquid-template-docs';
-import { isValidSillyTavernPromptIdentifier } from '@shared/utils/sillytavern-preset';
 
 import { prerenderInstruction } from '../../../api/instructions';
 

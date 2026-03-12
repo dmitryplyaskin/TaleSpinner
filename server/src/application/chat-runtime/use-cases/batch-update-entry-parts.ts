@@ -2,7 +2,6 @@ import { HttpError } from "@core/middleware/error-handler";
 
 import { getActiveVariantWithParts, getEntryById } from "../../../services/chat-entry-parts/entries-repository";
 import { applyPartMutableBatchPatches } from "../../../services/chat-entry-parts/parts-repository";
-
 import {
   assertBatchUpdateVariantIsActive,
   buildBatchUpdatePartPlan,

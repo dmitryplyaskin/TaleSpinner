@@ -1,18 +1,19 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { randomUUID as uuidv4 } from "node:crypto";
+
+import { and, eq, inArray } from "drizzle-orm";
 
 import { safeJsonParse, safeJsonStringify } from "../../../chat-core/json";
 import { initDb } from "../../../db/client";
 import { operationProfileSessionArtifacts } from "../../../db/schema";
 
 import type { ArtifactValue } from "../contracts";
+import type { OperationActivationState } from "../operations/operation-activation-intervals";
 import type {
   ArtifactFormat,
   ArtifactSemantics,
   ArtifactWriteMode,
   OperationProfile,
 } from "@shared/types/operation-profiles";
-import type { OperationActivationState } from "../operations/operation-activation-intervals";
 
 
 const MAX_HISTORY_ITEMS = 20;

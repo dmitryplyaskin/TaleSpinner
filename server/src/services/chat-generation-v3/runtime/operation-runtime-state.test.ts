@@ -19,6 +19,7 @@ import {
 } from "./operation-runtime-state";
 
 import type { Entry, Part, Variant } from "@shared/types/chat-entry-parts";
+
 import {
   normalizeOperationArtifactConfig,
   type LegacyOperationOutput,

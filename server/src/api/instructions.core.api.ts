@@ -12,6 +12,7 @@ import {
   updateInstructionBodySchema,
 } from "../chat-core/schemas";
 import { getRequestOwnerId } from "../core/request-context/request-context";
+import { loadBuiltInSillyTavernPreset } from "../services/chat-core/instruction-st-base";
 import {
   createInstruction,
   deleteInstruction,
@@ -23,7 +24,6 @@ import {
   buildInstructionRenderContext,
   resolveAndApplyWorldInfoToTemplateContext,
 } from "../services/chat-core/prompt-template-context";
-import { loadBuiltInSillyTavernPreset } from "../services/chat-core/instruction-st-base";
 import {
   renderLiquidTemplate,
   validateLiquidTemplate,

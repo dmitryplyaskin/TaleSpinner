@@ -2,11 +2,11 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { HttpError } from "../../core/middleware/error-handler";
 
+import { chromaClient } from "./chroma-client";
 import {
   bootstrapChroma,
   createChromaRagService,
 } from "./chroma-rag.service";
-import { chromaClient } from "./chroma-client";
 
 afterEach(() => {
   vi.restoreAllMocks();

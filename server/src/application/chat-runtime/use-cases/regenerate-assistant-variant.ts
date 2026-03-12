@@ -1,5 +1,6 @@
 import { HttpError } from "@core/middleware/error-handler";
 
+import { withDbTransaction } from "../../../db/client";
 import { getChatById } from "../../../services/chat-core/chats-repository";
 import {
   getBranchCurrentTurn,
@@ -8,8 +9,6 @@ import {
 import { getEntryById } from "../../../services/chat-entry-parts/entries-repository";
 import { createPart } from "../../../services/chat-entry-parts/parts-repository";
 import { selectActiveVariant } from "../../../services/chat-entry-parts/variants-repository";
-import { withDbTransaction } from "../../../db/client";
-
 import {
   createAssistantReasoningPart,
   createDetachedGenerationVariant,

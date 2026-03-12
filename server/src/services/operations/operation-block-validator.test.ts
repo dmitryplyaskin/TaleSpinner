@@ -1,6 +1,6 @@
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
 import { describe, expect, test } from "vitest";
 
-import { buildOperationArtifactId } from "@shared/types/operation-profiles";
 
 import { validateOperationBlockUpsertInput } from "./operation-block-validator";
 

@@ -17,8 +17,8 @@ import { initDb, resetDbForTests } from "../../../db/client";
 import { chatBranches, chats, entityProfiles } from "../../../db/schema";
 import { createTempDataDir, removeTempDataDir } from "../../../e2e/helpers/tmp-dir";
 import * as entriesRepository from "../../../services/chat-entry-parts/entries-repository";
-import * as partsRepository from "../../../services/chat-entry-parts/parts-repository";
 import { createEntryWithVariant, getActiveVariantWithParts, getEntryById } from "../../../services/chat-entry-parts/entries-repository";
+import * as partsRepository from "../../../services/chat-entry-parts/parts-repository";
 import { createPart, getPartById } from "../../../services/chat-entry-parts/parts-repository";
 import {
   createVariant,

@@ -1,8 +1,8 @@
+import { safeJsonStringify } from "../../../../chat-core/json";
 import {
   createPart,
   getPartWithVariantContextById,
 } from "../../../chat-entry-parts/parts-repository";
-import { safeJsonStringify } from "../../../../chat-core/json";
 
 import type { UserTurnTarget } from "../../contracts";
 
