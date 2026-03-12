@@ -3,7 +3,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuDownload, LuPencilLine, LuPlus, LuRefreshCw, LuTrash2, LuUpload } from 'react-icons/lu';
+import { LuCopy, LuPencilLine, LuPlus, LuRefreshCw, LuTrash2 } from 'react-icons/lu';
 
 import { $currentChat } from '@model/chat-core';
 import {
@@ -32,6 +32,7 @@ import {
 	worldInfoSettingsSaveRequested,
 } from '@model/world-info';
 import { Drawer } from '@ui/drawer';
+import { EXPORT_FILE_ICON, IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
@@ -191,8 +192,8 @@ export const WorldInfoSidebar = () => {
 									worldInfoBookDuplicateRequested({ id: selectedId });
 								}}
 							/>
-							<IconButtonWithTooltip tooltip={t('common.import')} icon={<LuUpload />} aria-label={t('worldInfo.actions.importBook')} onClick={() => fileInputRef.current?.click()} />
-							<IconButtonWithTooltip tooltip={t('common.export')} icon={<LuDownload />} aria-label={t('worldInfo.actions.exportBook')} disabled={!selectedId} onClick={() => void handleExport()} />
+							<IconButtonWithTooltip tooltip={t('common.import')} icon={<IMPORT_FILE_ICON />} aria-label={t('worldInfo.actions.importBook')} onClick={() => fileInputRef.current?.click()} />
+							<IconButtonWithTooltip tooltip={t('common.export')} icon={<EXPORT_FILE_ICON />} aria-label={t('worldInfo.actions.exportBook')} disabled={!selectedId} onClick={() => void handleExport()} />
 							<IconButtonWithTooltip
 								tooltip={t('worldInfo.actions.openEditor')}
 								icon={<LuPencilLine />}

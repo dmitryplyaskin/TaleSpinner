@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuUpload } from 'react-icons/lu';
 
 import { importEntityProfilesFx } from '@model/chat-core';
+import { IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
@@ -50,7 +50,7 @@ export const Upload = ({ onImportFinished }: UploadProps) => {
 				onChange={(e) => handleFileChange(e.currentTarget.files)}
 			/>
 			<IconButtonWithTooltip
-				icon={<LuUpload />}
+				icon={<IMPORT_FILE_ICON />}
 				tooltip={t('common.import')}
 				aria-label={t('common.import')}
 				variant="ghost"

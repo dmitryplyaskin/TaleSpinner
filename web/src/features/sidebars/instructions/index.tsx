@@ -2,10 +2,8 @@ import { Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/c
 import { useUnit } from 'effector-react';
 import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuDownload, LuLink2, LuLink2Off, LuPencil, LuPlus, LuSave, LuTrash2, LuUpload } from 'react-icons/lu';
+import { LuLink2, LuLink2Off, LuPencil, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
-import { getRuntime, patchRuntime } from '../../../api/llm';
-import { getDefaultStPreset } from '../../../api/instructions';
 import { $appSettings, updateAppSettings } from '@model/app-settings';
 import {
 	$instructionEditorDraft,
@@ -25,8 +23,12 @@ import {
 	hasSensitivePresetFields,
 } from '@model/instructions/st-preset';
 import { Drawer } from '@ui/drawer';
+import { EXPORT_FILE_ICON, IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
+
+import { getDefaultStPreset } from '../../../api/instructions';
+import { getRuntime, patchRuntime } from '../../../api/llm';
 
 import { InstructionEditor } from './instruction-editor';
 
@@ -741,13 +743,13 @@ export const InstructionsSidebar = () => {
 						/>
 						<IconButtonWithTooltip
 							tooltip={t('instructions.presets.actions.import')}
-							icon={<LuUpload size={16} />}
+							icon={<IMPORT_FILE_ICON size={16} />}
 							aria-label={t('instructions.presets.actions.import')}
 							onClick={() => fileInputRef.current?.click()}
 						/>
 						<IconButtonWithTooltip
 							tooltip={t('instructions.presets.actions.export')}
-							icon={<LuDownload size={16} />}
+							icon={<EXPORT_FILE_ICON size={16} />}
 							aria-label={t('instructions.presets.actions.export')}
 							disabled={currentValues?.kind !== 'st_base'}
 							onClick={handleExport}

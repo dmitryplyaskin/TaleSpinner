@@ -1,8 +1,9 @@
 import { Group, Select } from '@mantine/core';
 import { type CommonModelItemType, type CommonModelSettingsType } from '@shared/types/common-model-types';
 import { useTranslation } from 'react-i18next';
-import { LuPlus, LuCopy, LuTrash2, LuUpload, LuDownload } from 'react-icons/lu';
+import { LuPlus, LuCopy, LuTrash2 } from 'react-icons/lu';
 
+import { EXPORT_FILE_ICON, IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
 import { useFileOperations } from './use-file-operations';
@@ -86,13 +87,13 @@ export const SidebarHeader = <SettingsType extends CommonModelSettingsType, Item
 					/>
 					<IconButtonWithTooltip
 						tooltip={t('common.import')}
-						icon={<LuUpload />}
+						icon={<IMPORT_FILE_ICON />}
 						aria-label={t('common.import')}
 						onClick={handleImport}
 					/>
 					<IconButtonWithTooltip
 						tooltip={t('common.export')}
-						icon={<LuDownload />}
+						icon={<EXPORT_FILE_ICON />}
 						aria-label={t('common.export')}
 						disabled={!settings.selectedId}
 						onClick={handleExport}

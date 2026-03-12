@@ -12,9 +12,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, Controller, useController, useFieldArray, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuArrowDown, LuArrowUp, LuDownload, LuExpand, LuPlus, LuStar, LuTrash2 } from 'react-icons/lu';
+import { LuArrowDown, LuArrowUp, LuExpand, LuPlus, LuStar, LuTrash2 } from 'react-icons/lu';
 
 import { Dialog } from '@ui/dialog';
+import { EXPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { FormInput, FormTextarea } from '@ui/form-components';
 import { TextareaFullscreenDialog } from '@ui/form-components/components/textarea-fullscreen-dialog';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
@@ -436,7 +437,7 @@ export const EntityProfileEditorModal = ({
 									/>
 									<Button
 										type="button"
-										leftSection={<LuDownload />}
+										leftSection={<EXPORT_FILE_ICON />}
 										variant="light"
 										disabled={isBusy}
 										loading={exporting}

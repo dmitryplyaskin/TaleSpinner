@@ -1,8 +1,9 @@
 import { Group } from '@mantine/core';
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopyPlus, LuDownload, LuPlus, LuTrash2, LuUpload } from 'react-icons/lu';
+import { LuCopyPlus, LuPlus, LuTrash2 } from 'react-icons/lu';
 
+import { EXPORT_FILE_ICON, IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
@@ -72,7 +73,7 @@ export const BlockActions: React.FC<Props> = ({ selected, onCreate, onDuplicate,
 			<IconButtonWithTooltip
 				aria-label={t('operationProfiles.blocks.actions.exportBlock')}
 				tooltip={t('operationProfiles.blocks.actions.exportBlock')}
-				icon={<LuDownload />}
+				icon={<EXPORT_FILE_ICON />}
 				size="input-sm"
 				variant="ghost"
 				tooltipSettings={QUICK_ACTION_TOOLTIP_SETTINGS}
@@ -121,7 +122,7 @@ export const BlockActions: React.FC<Props> = ({ selected, onCreate, onDuplicate,
 			<IconButtonWithTooltip
 				aria-label={t('operationProfiles.blocks.actions.importBlocks')}
 				tooltip={t('operationProfiles.blocks.actions.importBlocks')}
-				icon={<LuUpload />}
+				icon={<IMPORT_FILE_ICON />}
 				size="input-sm"
 				variant="ghost"
 				tooltipSettings={QUICK_ACTION_TOOLTIP_SETTINGS}
