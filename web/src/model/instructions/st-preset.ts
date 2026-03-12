@@ -1,16 +1,17 @@
+import {
+	isSillyTavernPreset,
+	getSillyTavernPresetValidationError,
+	SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+} from '@shared/utils/sillytavern-preset';
 import type {
-	InstructionMeta,
-	StAdvancedConfig,
-	StAdvancedResponseConfig,
-	StPrompt,
-	StPromptOrder,
-	TsInstructionMetaV1,
+	StBaseConfig,
+	StBasePrompt,
+	StBasePromptOrder,
+	StBaseResponseConfig,
 } from '@shared/types/instructions';
 import type { LlmProviderConfig, LlmProviderId } from '@shared/types/llm';
 
-const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;
-
-export const ST_SYSTEM_PROMPT_DEFAULTS: StPrompt[] = [
+export const ST_SYSTEM_PROMPT_DEFAULTS: StBasePrompt[] = [
 	{
 		identifier: 'main',
 		name: 'Main Prompt',
@@ -102,15 +103,6 @@ export const ST_PROMPT_SOURCE_LABELS: Partial<Record<string, string>> = {
 	chatHistory: 'Chat History',
 };
 
-const ST_PRESET_DETECT_KEYS = new Set([
-	'chat_completion_source',
-	'prompts',
-	'prompt_order',
-	'openai_max_tokens',
-	'openai_model',
-	'temperature',
-]);
-
 export const ST_SENSITIVE_FIELDS = [
 	'reverse_proxy',
 	'proxy_password',
@@ -127,7 +119,7 @@ export const ST_SENSITIVE_FIELDS = [
 type SensitiveImportMode = 'remove' | 'keep';
 type ConnectionFieldStatus = 'supported' | 'sensitive' | 'unsupported';
 
-type StResponseConfigKey = keyof StAdvancedResponseConfig;
+type StResponseConfigKey = keyof StBaseResponseConfig;
 type StResponseNumericKey =
 	| 'temperature'
 	| 'top_p'
@@ -203,19 +195,19 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 	return typeof value === 'boolean' ? value : undefined;
 }
 
-function normalizeStPromptRole(value: unknown): StPrompt['role'] | undefined {
+function normalizeStPromptRole(value: unknown): StBasePrompt['role'] | undefined {
 	if (value === 'system' || value === 'user' || value === 'assistant') {
 		return value;
 	}
 	return undefined;
 }
 
-function normalizePrompt(value: unknown): StPrompt | null {
+function normalizePrompt(value: unknown): StBasePrompt | null {
 	if (!isRecord(value)) return null;
 	const identifier = asString(value.identifier);
 	if (!identifier) return null;
 
-	const prompt: StPrompt = { identifier };
+	const prompt: StBasePrompt = { identifier };
 	const name = asString(value.name);
 	if (name) prompt.name = name;
 	const role = normalizeStPromptRole(value.role);
@@ -242,7 +234,7 @@ function normalizePromptOrderEntry(
 	};
 }
 
-function normalizePromptOrderItem(value: unknown): StPromptOrder | null {
+function normalizePromptOrderItem(value: unknown): StBasePromptOrder | null {
 	if (!isRecord(value)) return null;
 	const rawCharacterId = value.character_id;
 	const characterId =
@@ -264,8 +256,8 @@ function normalizePromptOrderItem(value: unknown): StPromptOrder | null {
 
 function normalizeResponseConfig(
 	preset: Record<string, unknown>
-): StAdvancedResponseConfig {
-	const responseConfig: StAdvancedResponseConfig = {};
+): StBaseResponseConfig {
+	const responseConfig: StBaseResponseConfig = {};
 	const numericKeys: StResponseNumericKey[] = [
 		'temperature',
 		'top_p',
@@ -304,53 +296,33 @@ function normalizeResponseConfig(
 	return responseConfig;
 }
 
-function normalizeMeta(meta: unknown): InstructionMeta {
-	if (!isRecord(meta)) return {};
-	return { ...meta };
-}
-
-export function getTsInstructionMeta(meta: unknown): TsInstructionMetaV1 | null {
-	if (!isRecord(meta) || !isRecord(meta.tsInstruction)) return null;
-	const tsInstruction = meta.tsInstruction;
-	if (tsInstruction.version !== 1) return null;
-	if (tsInstruction.mode !== 'basic' && tsInstruction.mode !== 'st_advanced') {
-		return null;
-	}
-	return tsInstruction as TsInstructionMetaV1;
-}
-
-export function withTsInstructionMeta(params: {
-	meta: unknown;
-	tsInstruction: TsInstructionMetaV1;
-}): InstructionMeta {
-	const normalized = normalizeMeta(params.meta);
+export function createEmptyStBaseConfig(): StBaseConfig {
 	return {
-		...normalized,
-		tsInstruction: params.tsInstruction,
-	};
-}
-
-export function createTsInstructionMeta(params: {
-	meta: unknown;
-	mode: TsInstructionMetaV1['mode'];
-	stAdvanced: StAdvancedConfig;
-}): InstructionMeta {
-	return withTsInstructionMeta({
-		meta: params.meta,
-		tsInstruction: {
-			version: 1,
-			mode: params.mode,
-			stAdvanced: params.stAdvanced,
+		rawPreset: {},
+		prompts: [],
+		promptOrder: [
+			{
+				character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+				order: [],
+			},
+		],
+		responseConfig: {},
+		importInfo: {
+			source: 'sillytavern',
+			fileName: 'manual',
+			importedAt: new Date().toISOString(),
 		},
-	});
+	};
 }
 
 export function detectStChatCompletionPreset(
 	input: unknown
 ): input is Record<string, unknown> {
-	if (!isRecord(input)) return false;
-	if (input.type === 'talespinner.instruction') return false;
-	return Object.keys(input).some((key) => ST_PRESET_DETECT_KEYS.has(key));
+	return isSillyTavernPreset(input);
+}
+
+export function getStPresetValidationError(input: unknown): string | null {
+	return getSillyTavernPresetValidationError(input);
 }
 
 export function hasSensitivePresetFields(preset: Record<string, unknown>): boolean {
@@ -367,38 +339,28 @@ export function stripSensitiveFieldsFromPreset(
 	return cloned;
 }
 
-export function normalizeStPrompts(input: unknown): StPrompt[] {
+export function normalizeStPrompts(input: unknown): StBasePrompt[] {
 	if (!Array.isArray(input)) return [];
-	const normalized = input.map(normalizePrompt).filter((item): item is StPrompt => Boolean(item));
-	const byIdentifier = new Map<string, StPrompt>();
-
-	for (const prompt of ST_SYSTEM_PROMPT_DEFAULTS) {
-		byIdentifier.set(prompt.identifier, { ...prompt });
-	}
-
-	for (const prompt of normalized) {
-		const existing = byIdentifier.get(prompt.identifier);
-		byIdentifier.set(prompt.identifier, {
-			...(existing ?? {}),
-			...prompt,
-		});
-	}
-
-	return Array.from(byIdentifier.values());
+	return input.map(normalizePrompt).filter((item): item is StBasePrompt => Boolean(item));
 }
 
-export function normalizeStPromptOrder(input: unknown): StPromptOrder[] {
+export function normalizeStPromptOrder(input: unknown): StBasePromptOrder[] {
 	if (!Array.isArray(input)) return [];
 	return input
 		.map(normalizePromptOrderItem)
-		.filter((item): item is StPromptOrder => Boolean(item));
+		.filter((item): item is StBasePromptOrder => Boolean(item));
 }
 
-export function createStAdvancedConfigFromPreset(params: {
+export function createStBaseConfigFromPreset(params: {
 	preset: Record<string, unknown>;
 	fileName: string;
 	sensitiveImportMode: SensitiveImportMode;
-}): StAdvancedConfig {
+}): StBaseConfig {
+	const validationError = getSillyTavernPresetValidationError(params.preset);
+	if (validationError) {
+		throw new Error(validationError);
+	}
+
 	const rawPreset =
 		params.sensitiveImportMode === 'remove'
 			? stripSensitiveFieldsFromPreset(params.preset)
@@ -416,19 +378,11 @@ export function createStAdvancedConfigFromPreset(params: {
 	};
 }
 
-export function deriveInstructionTemplateText(stAdvanced: StAdvancedConfig): string {
-	const mainPrompt = stAdvanced.prompts.find((item) => item.identifier === 'main');
-	if (typeof mainPrompt?.content === 'string' && mainPrompt.content.trim().length > 0) {
-		return mainPrompt.content;
-	}
-	return '{{char.name}}';
-}
-
-export function resolvePreferredPromptOrder(stAdvanced: StAdvancedConfig): StPromptOrder {
+export function resolvePreferredPromptOrder(stBase: StBaseConfig): StBasePromptOrder {
 	const preferred =
-		stAdvanced.promptOrder.find(
-			(item) => item.character_id === PROMPT_ORDER_PREFERRED_CHARACTER_ID
-		) ?? stAdvanced.promptOrder[0];
+		stBase.promptOrder.find(
+			(item) => item.character_id === SILLY_TAVERN_PREFERRED_CHARACTER_ID
+		) ?? stBase.promptOrder[0];
 
 	if (preferred) {
 		return {
@@ -438,19 +392,19 @@ export function resolvePreferredPromptOrder(stAdvanced: StAdvancedConfig): StPro
 	}
 
 	return {
-		character_id: PROMPT_ORDER_PREFERRED_CHARACTER_ID,
-		order: stAdvanced.prompts.map((item) => ({
+		character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+		order: stBase.prompts.map((item) => ({
 			identifier: item.identifier,
 			enabled: true,
 		})),
 	};
 }
 
-export function getStPromptDefinition(identifier: string): StPrompt | null {
+export function getStPromptDefinition(identifier: string): StBasePrompt | null {
 	return ST_SYSTEM_PROMPT_DEFAULTS.find((item) => item.identifier === identifier) ?? null;
 }
 
-export function isSystemMarkerPrompt(prompt: StPrompt | null | undefined): boolean {
+export function isSystemMarkerPrompt(prompt: StBasePrompt | null | undefined): boolean {
 	return prompt?.marker === true;
 }
 
@@ -458,16 +412,16 @@ export function getStPromptSourceLabel(identifier: string): string | null {
 	return ST_PROMPT_SOURCE_LABELS[identifier] ?? null;
 }
 
-export function buildStPresetFromAdvanced(stAdvanced: StAdvancedConfig): Record<string, unknown> {
-	const preset = structuredClone(stAdvanced.rawPreset ?? {});
-	preset.prompts = stAdvanced.prompts.map((item) => ({ ...item }));
-	preset.prompt_order = stAdvanced.promptOrder.map((item) => ({
+export function buildStPresetFromStBase(stBase: StBaseConfig): Record<string, unknown> {
+	const preset = structuredClone(stBase.rawPreset ?? {});
+	preset.prompts = stBase.prompts.map((item) => ({ ...item }));
+	preset.prompt_order = stBase.promptOrder.map((item) => ({
 		character_id: item.character_id,
 		order: item.order.map((orderItem) => ({ ...orderItem })),
 	}));
 
 	for (const key of ST_RESPONSE_CONFIG_KEYS) {
-		const value = stAdvanced.responseConfig[key];
+		const value = stBase.responseConfig[key];
 		if (typeof value === 'undefined') {
 			delete preset[key];
 			continue;
@@ -498,8 +452,8 @@ export function listConnectionFieldWarnings(preset: Record<string, unknown>): st
 	return warnings;
 }
 
-export function createBestEffortLlmBindingPlan(stAdvanced: StAdvancedConfig): StPresetBindingPlan {
-	const preset = stAdvanced.rawPreset ?? {};
+export function createBestEffortLlmBindingPlan(stBase: StBaseConfig): StPresetBindingPlan {
+	const preset = stBase.rawPreset ?? {};
 	const warnings = [...listConnectionFieldWarnings(preset)];
 	const source = asString(preset.chat_completion_source);
 	const model = asString(preset.openai_model);

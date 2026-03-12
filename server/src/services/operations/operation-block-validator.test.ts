@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
+
 import { validateOperationBlockUpsertInput } from "./operation-block-validator";
 
 describe("operation block validator", () => {
@@ -37,7 +39,7 @@ describe("operation block validator", () => {
       ],
     });
     expect(out.operations).toHaveLength(1);
-    expect(out.operations[0]?.config.params.artifact.artifactId).toBe("world_state");
+    expect(out.operations[0]?.config.params.artifact.artifactId).toBe(buildOperationArtifactId("6ff77029-5037-4d21-8ace-c9836f58a14b"));
     expect(out.operations[0]?.config.params.artifact.tag).toBe("world_state");
   });
 

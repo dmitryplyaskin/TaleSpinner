@@ -1,13 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import {
-  createStAdvancedConfigFromPreset,
+  createStBaseConfigFromPreset,
   detectStChatCompletionPreset,
-  resolveStAdvancedInstructionRuntime,
+  loadBuiltInSillyTavernPreset,
+  resolveStBaseInstructionRuntime,
   stripSensitiveFieldsFromPreset,
-} from "./instruction-st-preset";
+} from "./instruction-st-base";
 
-describe("instruction-st-preset", () => {
+describe("instruction-st-base", () => {
   test("parses ST Default.json compatible preset shape", () => {
     const rawDefault = `{
       "chat_completion_source": "openai",
@@ -37,7 +38,7 @@ describe("instruction-st-preset", () => {
     const parsed = JSON.parse(rawDefault) as Record<string, unknown>;
     expect(detectStChatCompletionPreset(parsed)).toBe(true);
 
-    const normalized = createStAdvancedConfigFromPreset({
+    const normalized = createStBaseConfigFromPreset({
       preset: parsed,
       fileName: "Default.json",
       sensitiveImportMode: "keep",
@@ -61,6 +62,8 @@ describe("instruction-st-preset", () => {
       detectStChatCompletionPreset({
         chat_completion_source: "openai",
         openai_model: "gpt-4-turbo",
+        prompts: [{ identifier: "main" }],
+        prompt_order: [{ character_id: 100001, order: [] }],
       })
     ).toBe(true);
 
@@ -69,6 +72,39 @@ describe("instruction-st-preset", () => {
         type: "talespinner.instruction",
       })
     ).toBe(false);
+
+    expect(
+      detectStChatCompletionPreset({
+        temperature: 0.8,
+      })
+    ).toBe(false);
+
+    expect(
+      detectStChatCompletionPreset({
+        openai_model: "gpt-4-turbo",
+        prompts: [{ identifier: "main" }],
+      })
+    ).toBe(false);
+  });
+
+  test("loads built-in Default.json preset", async () => {
+    const builtInPreset = await loadBuiltInSillyTavernPreset();
+
+    expect(builtInPreset.fileName).toBe("Default.json");
+    expect(detectStChatCompletionPreset(builtInPreset.preset)).toBe(true);
+
+    const normalized = createStBaseConfigFromPreset({
+      preset: builtInPreset.preset,
+      fileName: builtInPreset.fileName,
+      sensitiveImportMode: "keep",
+    });
+
+    expect(normalized.prompts.length).toBeGreaterThan(0);
+    expect(normalized.promptOrder.length).toBeGreaterThan(0);
+    expect(normalized.rawPreset.prompts).toEqual(builtInPreset.preset.prompts);
+    expect(normalized.rawPreset.prompt_order).toEqual(
+      builtInPreset.preset.prompt_order
+    );
   });
 
   test("strips sensitive fields", () => {
@@ -92,11 +128,11 @@ describe("instruction-st-preset", () => {
       openai_max_tokens: 512,
       openai_model: "gpt-4-turbo",
       custom_url: "https://proxy.local/v1",
-      prompts: [],
-      prompt_order: [],
+      prompts: [{ identifier: "main", role: "system", content: "Main" }],
+      prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
     };
 
-    const removed = createStAdvancedConfigFromPreset({
+    const removed = createStBaseConfigFromPreset({
       preset,
       fileName: "Default.json",
       sensitiveImportMode: "remove",
@@ -110,7 +146,7 @@ describe("instruction-st-preset", () => {
       Object.prototype.hasOwnProperty.call(removed.responseConfig, "openai_model")
     ).toBe(false);
 
-    const kept = createStAdvancedConfigFromPreset({
+    const kept = createStBaseConfigFromPreset({
       preset,
       fileName: "Default.json",
       sensitiveImportMode: "keep",
@@ -119,7 +155,7 @@ describe("instruction-st-preset", () => {
   });
 
   test("uses prompt_order with preferred character id and splits pre/post history prompts", async () => {
-    const stAdvanced = createStAdvancedConfigFromPreset({
+    const stBase = createStBaseConfigFromPreset({
       preset: {
         prompts: [
           {
@@ -163,8 +199,8 @@ describe("instruction-st-preset", () => {
       sensitiveImportMode: "keep",
     });
 
-    const resolved = await resolveStAdvancedInstructionRuntime({
-      stAdvanced,
+    const resolved = await resolveStBaseInstructionRuntime({
+      stBase,
       context: {
         char: { name: "Lilly" },
         user: { name: "Dima" },

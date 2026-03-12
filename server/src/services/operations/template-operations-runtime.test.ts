@@ -6,6 +6,7 @@ import {
 } from "./template-operations-runtime";
 
 import {
+  buildOperationArtifactId,
   normalizeOperationArtifactConfig,
   type LegacyOperationOutput,
   type OperationProfile,
@@ -176,10 +177,12 @@ describe("template operations runtime", () => {
       },
     });
 
-    expect(out.artifacts.sys_copy?.value).toBe("sys one\n\nsys two");
+    expect(out.artifacts[buildOperationArtifactId("4b7c0a14-5528-4f65-beb0-f8a65ef6a1f2")]?.value).toBe(
+      "sys one\n\nsys two"
+    );
   });
 
-  test("provides artifact tag access for cross-operation artifact references", async () => {
+  test("provides artifact tag and artByOpId access for cross-operation artifact references", async () => {
     const profile = makeProfile([
       {
         opId: "producer-op",
@@ -217,7 +220,7 @@ describe("template operations runtime", () => {
           order: 20,
           dependsOn: ["producer-op"],
           params: {
-            template: "{{artByOpId[\"producer-op\"].value}}",
+            template: "{{art.producer_value.value}}|{{artByOpId[\"producer-op\"].value}}",
             artifact: toArtifact("consumer-op", "consumer", {
               type: "artifacts",
               writeArtifact: {
@@ -248,7 +251,9 @@ describe("template operations runtime", () => {
       },
     });
 
-    expect(out.artifacts.consumer_value?.value).toBe("VALUE_FROM_PRODUCER");
+    expect(out.artifacts[buildOperationArtifactId("consumer-op")]?.value).toBe(
+      "VALUE_FROM_PRODUCER|VALUE_FROM_PRODUCER"
+    );
   });
 });
 

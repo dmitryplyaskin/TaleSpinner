@@ -138,45 +138,40 @@ describe("buildBasePrompt world-info integration", () => {
     );
   });
 
-  test("uses st_advanced meta to build system/pre/post prompts and derived settings", async () => {
+  test("uses st_base instructions to build system/pre/post prompts and derived settings", async () => {
     mocks.pickInstructionForChat.mockResolvedValue({
       id: "tpl-1",
       ownerId: "global",
       name: "tpl",
+      kind: "st_base",
       engine: "liquidjs",
-      templateText: "ignored",
-      meta: {
-        tsInstruction: {
-          version: 1,
-          mode: "st_advanced",
-          stAdvanced: {
-            rawPreset: {},
-            prompts: [
-              { identifier: "main", content: "Main {{char.name}}" },
-              { identifier: "jailbreak", content: "Post {{user.name}}" },
+      stBase: {
+        rawPreset: {},
+        prompts: [
+          { identifier: "main", content: "Main {{char.name}}" },
+          { identifier: "jailbreak", content: "Post {{user.name}}" },
+        ],
+        promptOrder: [
+          {
+            character_id: 100001,
+            order: [
+              { identifier: "main", enabled: true },
+              { identifier: "chatHistory", enabled: true },
+              { identifier: "jailbreak", enabled: true },
             ],
-            promptOrder: [
-              {
-                character_id: 100001,
-                order: [
-                  { identifier: "main", enabled: true },
-                  { identifier: "chatHistory", enabled: true },
-                  { identifier: "jailbreak", enabled: true },
-                ],
-              },
-            ],
-            responseConfig: {
-              temperature: 0.6,
-              openai_max_tokens: 444,
-            },
-            importInfo: {
-              source: "sillytavern",
-              fileName: "Default.json",
-              importedAt: new Date("2026-02-13T00:00:00.000Z").toISOString(),
-            },
           },
+        ],
+        responseConfig: {
+          temperature: 0.6,
+          openai_max_tokens: 444,
+        },
+        importInfo: {
+          source: "sillytavern",
+          fileName: "Default.json",
+          importedAt: new Date("2026-02-13T00:00:00.000Z").toISOString(),
         },
       },
+      meta: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -215,5 +210,55 @@ describe("buildBasePrompt world-info integration", () => {
       temperature: 0.6,
       maxTokens: 444,
     });
+  });
+
+  test("fails when selected st_base instruction has no resolvable system prompt", async () => {
+    mocks.pickInstructionForChat.mockResolvedValue({
+      id: "tpl-1",
+      ownerId: "global",
+      name: "tpl",
+      kind: "st_base",
+      engine: "liquidjs",
+      stBase: {
+        rawPreset: {},
+        prompts: [{ identifier: "main", content: "" }],
+        promptOrder: [
+          {
+            character_id: 100001,
+            order: [{ identifier: "main", enabled: true }],
+          },
+        ],
+        responseConfig: {},
+        importInfo: {
+          source: "sillytavern",
+          fileName: "Default.json",
+          importedAt: new Date("2026-02-13T00:00:00.000Z").toISOString(),
+        },
+      },
+      meta: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    mocks.buildInstructionRenderContext.mockResolvedValue({
+      char: {},
+      user: {},
+      chat: {},
+      messages: [],
+      rag: {},
+      art: {},
+      now: new Date().toISOString(),
+    });
+    mocks.renderLiquidTemplate.mockResolvedValue("");
+
+    await expect(
+      buildBasePrompt({
+        ownerId: "global",
+        chatId: "chat",
+        branchId: "branch",
+        entityProfileId: "entity",
+        historyLimit: 50,
+        trigger: "generate",
+      })
+    ).rejects.toThrow("st_base instruction did not resolve a system prompt");
   });
 });

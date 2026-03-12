@@ -176,6 +176,13 @@
       "when": 1773012000000,
       "tag": "0028_ui_app_settings_bind_chat_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1773100000000,
+      "tag": "0029_instruction_kinds",
+      "breakpoints": true
     }
   ]
 }

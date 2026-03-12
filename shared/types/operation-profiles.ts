@@ -509,7 +509,6 @@ function legacyOutputToArtifactConfig(params: {
   if (params.output.type === "artifacts") {
     return {
       ...base,
-      artifactId: params.output.writeArtifact.tag,
       tag: normalizeArtifactTag(params.output.writeArtifact.tag, base.tag),
       persistence: params.output.writeArtifact.persistence,
       semantics: params.output.writeArtifact.semantics,
@@ -612,7 +611,8 @@ export function normalizeOperationArtifactConfig(params: {
     const rawTag = asString(artifact.tag)?.trim();
     const migratedLegacyTag = !rawTag && rawArtifactId && !rawArtifactId.startsWith("artifact:") ? rawArtifactId : undefined;
     return {
-      artifactId: rawArtifactId || fallback.artifactId,
+      artifactId:
+        rawArtifactId && !migratedLegacyTag ? rawArtifactId : fallback.artifactId,
       tag: normalizeArtifactTag(rawTag ?? migratedLegacyTag, fallback.tag),
       title: asString(artifact.title)?.trim() || fallback.title,
       description: asString(artifact.description)?.trim() || undefined,

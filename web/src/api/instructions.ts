@@ -1,16 +1,36 @@
 import { apiJson } from './api-json';
 
-import type { InstructionMeta } from '@shared/types/instructions';
+import type {
+	InstructionKind,
+	InstructionMeta,
+	StBaseConfig,
+} from '@shared/types/instructions';
 
-export type InstructionDto = {
+type InstructionDtoBase = {
 	id: string;
 	ownerId: string;
 	name: string;
 	engine: 'liquidjs';
-	templateText: string;
 	meta: InstructionMeta | null;
 	createdAt: string;
 	updatedAt: string;
+};
+
+export type BasicInstructionDto = InstructionDtoBase & {
+	kind: 'basic';
+	templateText: string;
+};
+
+export type StBaseInstructionDto = InstructionDtoBase & {
+	kind: 'st_base';
+	stBase: StBaseConfig;
+};
+
+export type InstructionDto = BasicInstructionDto | StBaseInstructionDto;
+
+export type DefaultStPresetDto = {
+	fileName: string;
+	preset: Record<string, unknown>;
 };
 
 export async function listInstructions(params?: { ownerId?: string }): Promise<InstructionDto[]> {
@@ -20,22 +40,25 @@ export async function listInstructions(params?: { ownerId?: string }): Promise<I
 	return apiJson<InstructionDto[]>(`/instructions${suffix}`);
 }
 
+export async function getDefaultStPreset(): Promise<DefaultStPresetDto> {
+	return apiJson<DefaultStPresetDto>('/instructions/default-st-preset');
+}
+
 export async function createInstruction(params: {
 	name: string;
 	engine?: 'liquidjs';
-	templateText: string;
-	meta?: InstructionMeta;
 	ownerId?: string;
-}): Promise<InstructionDto> {
+	meta?: InstructionMeta;
+} & ({
+	kind: 'basic';
+	templateText: string;
+} | {
+	kind: 'st_base';
+	stBase: StBaseConfig;
+})): Promise<InstructionDto> {
 	return apiJson<InstructionDto>('/instructions', {
 		method: 'POST',
-		body: JSON.stringify({
-			ownerId: params.ownerId,
-			name: params.name,
-			engine: params.engine ?? 'liquidjs',
-			templateText: params.templateText,
-			meta: params.meta,
-		}),
+		body: JSON.stringify(params),
 	});
 }
 
@@ -43,18 +66,37 @@ export async function updateInstruction(params: {
 	id: string;
 	name?: string;
 	engine?: 'liquidjs';
-	templateText?: string;
 	meta?: InstructionMeta;
-}): Promise<InstructionDto> {
-	return apiJson<InstructionDto>(`/instructions/${encodeURIComponent(params.id)}`, {
+} & ({
+	kind: 'basic';
+	templateText?: string;
+} | {
+	kind: 'st_base';
+	stBase?: StBaseConfig;
+})): Promise<InstructionDto> {
+	const { id, ...body } = params;
+	return apiJson<InstructionDto>(`/instructions/${encodeURIComponent(id)}`, {
 		method: 'PUT',
-		body: JSON.stringify({
-			name: params.name,
-			engine: params.engine,
-			templateText: params.templateText,
-			meta: params.meta,
-		}),
+		body: JSON.stringify(body),
 	});
+}
+
+export type CreateInstructionDraft =
+	| {
+			kind: 'basic';
+			name: string;
+			templateText: string;
+			meta?: InstructionMeta;
+	  }
+	| {
+			kind: 'st_base';
+			name: string;
+			stBase: StBaseConfig;
+			meta?: InstructionMeta;
+	  };
+
+export function getInstructionKindLabel(kind: InstructionKind): string {
+	return kind === 'st_base' ? 'SillyTavern-like' : 'Simple';
 }
 
 export async function deleteInstruction(id: string): Promise<{ id: string }> {
