@@ -3,7 +3,6 @@ import {
   type ArtifactExposure,
   type ArtifactFormat,
   type ArtifactPersistence,
-  type ArtifactSemantics,
   type ArtifactUsage,
   type ArtifactWriteMode,
   type OperationActivationConfig,
@@ -25,7 +24,6 @@ import { validateLiquidTemplate } from "../chat-core/prompt-template-renderer";
 
 import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
 import { llmOperationParamsSchema } from "./llm-operation-params";
-
 
 const uuidSchema = z.string().uuid();
 

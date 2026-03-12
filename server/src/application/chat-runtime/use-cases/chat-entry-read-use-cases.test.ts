@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -38,8 +39,6 @@ vi.mock("../../../services/chat-core/generations-repository", async () => {
     getLatestGenerationByChatBranchWithDebug: mocks.getLatestGenerationByChatBranchWithDebug,
   };
 });
-
-import { eq } from "drizzle-orm";
 
 import { applyMigrations } from "../../../db/apply-migrations";
 import { initDb, resetDbForTests } from "../../../db/client";

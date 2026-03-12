@@ -1,6 +1,5 @@
 import { runOrchestrator } from "@core/operation-orchestrator";
 
-
 import { renderLiquidTemplate } from "../../chat-core/prompt-template-renderer";
 import {
   compileArtifactExposureEffect,
@@ -54,17 +53,6 @@ function resolvePromptSystem(messages: PromptDraftMessage[]): string {
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
-}
-
-function normalizePromptTimeRole(value: unknown): PromptDraftMessage["role"] {
-  if (value === "assistant" || value === "user" || value === "system") return value;
-  if (value === "developer") return "system";
-  return "system";
-}
-
-function normalizeDepthFromEnd(value: unknown): number {
-  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  return Math.abs(Math.floor(n));
 }
 
 function clonePreview(state: PreviewState): PreviewState {

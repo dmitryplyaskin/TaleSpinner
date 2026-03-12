@@ -10,17 +10,7 @@ import { importOperationProfiles } from "../application/operations/use-cases/imp
 import { setActiveOperationProfileWithValidation } from "../application/operations/use-cases/set-active-operation-profile";
 import { idSchema, jsonValueSchema, ownerIdSchema } from "../chat-core/schemas";
 import { getRequestOwnerId } from "../core/request-context/request-context";
-import {
-  createOperationBlock,
-  getOperationBlockById,
-  listOperationBlocks,
-  resolveImportedOperationBlockName,
-} from "../services/operations/operation-blocks-repository";
-import {
-  getOperationProfileSettings,
-  setActiveOperationProfile,
-} from "../services/operations/operation-profile-settings-repository";
-import { validateOperationProfileImport } from "../services/operations/operation-profile-validator";
+import { getOperationProfileSettings } from "../services/operations/operation-profile-settings-repository";
 import {
   createOperationProfile,
   deleteOperationProfile,
@@ -42,16 +32,6 @@ const updateBodySchema = z.object({
   ownerId: ownerIdSchema.optional(),
   patch: jsonValueSchema,
 });
-
-function resolveImportedProfileName(input: string, existingNames: string[]): string {
-  const base = input.trim() || "Imported profile";
-  if (!existingNames.includes(base)) return base;
-  for (let idx = 2; idx <= 9999; idx += 1) {
-    const candidate = `${base} (imported ${idx})`;
-    if (!existingNames.includes(candidate)) return candidate;
-  }
-  return `${base} (imported ${Date.now()})`;
-}
 
 router.get(
   "/operation-profiles",

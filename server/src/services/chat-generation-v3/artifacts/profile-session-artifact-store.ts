@@ -15,8 +15,6 @@ import type {
   OperationProfile,
 } from "@shared/types/operation-profiles";
 
-
-const MAX_HISTORY_ITEMS = 20;
 const INTERNAL_OPERATION_ACTIVATION_TAG_PREFIX = "__sys_op_activation__:";
 
 function normalizeHistory(input: unknown, nextValue: unknown, maxItems: number): unknown[] {

@@ -23,12 +23,13 @@ type LiquidDocsDialogProps = {
 export const LiquidDocsDialog: React.FC<LiquidDocsDialogProps> = ({ context, open, onOpenChange }) => {
 	const { t } = useTranslation();
 	const [search, setSearch] = useState('');
-	const model = LIQUID_DOCS_BY_CONTEXT[context];
-	if (!model) return null;
 
 	useEffect(() => {
 		if (!open) setSearch('');
 	}, [open]);
+
+	const model = LIQUID_DOCS_BY_CONTEXT[context];
+	if (!model) return null;
 
 	const normalizedQuery = search.trim().toLocaleLowerCase();
 	const filteredVariables =

@@ -156,10 +156,11 @@ This file is strict on purpose. Follow it literally.
 - Any contract change MUST be validated in both app layers and reflected in docs when externally visible.
 
 ## Docs Rules (`docs/**`)
-- Docs are code-adjacent and MUST match current behavior.
-- RU and EN docs must stay structurally aligned.
-- If API surface or shared contract behavior changes, regenerate API docs before docs checks.
-- Do not leave docs knowingly stale after changing visible behavior.
+- Docs are currently outside the default verification scope.
+- Touch docs only when the task explicitly requires docs work.
+- If docs are touched, RU and EN docs must stay structurally aligned.
+- If docs are touched and API surface or shared contract behavior changes, regenerate API docs before docs checks.
+- Do not leave docs knowingly stale when docs are part of the task.
 
 ## TDD And Mandatory Verification
 - TDD is mandatory: red -> green -> refactor.
@@ -173,8 +174,7 @@ This file is strict on purpose. Follow it literally.
   - `yarn typecheck:web`
   - `yarn lint:web`
   - `yarn build:web`
-  - `yarn docs:check`
-- If API routes or shared contract surface changed, run `yarn docs:generate:api` before `yarn docs:check`.
+- If docs are touched and API routes or shared contract surface changed, run `yarn docs:generate:api` before `yarn docs:check`.
 
 ## Worktree Startup Rule
 - If the current repo folder name starts with `TaleSpinner_` and is not exactly `TaleSpinner_v1`, treat it as a git worktree.

@@ -1,6 +1,7 @@
 import path from "node:path";
 
-import { beforeEach, afterEach, describe, expect, test, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   buildInstructionRenderContext: vi.fn(),
@@ -31,13 +32,11 @@ vi.mock("../../../services/chat-core/generations-repository", async () => {
   };
 });
 
-import { eq } from "drizzle-orm";
-
 import { applyMigrations } from "../../../db/apply-migrations";
 import { resetDbForTests, initDb } from "../../../db/client";
 import { chatBranches, chatEntries, chats, entityProfiles, entryVariants, variantParts } from "../../../db/schema";
 import { createTempDataDir, removeTempDataDir } from "../../../e2e/helpers/tmp-dir";
-import { createEntryWithVariant, getEntryById } from "../../../services/chat-entry-parts/entries-repository";
+import { createEntryWithVariant } from "../../../services/chat-entry-parts/entries-repository";
 import * as partsRepository from "../../../services/chat-entry-parts/parts-repository";
 import { listEntryVariants } from "../../../services/chat-entry-parts/variants-repository";
 
