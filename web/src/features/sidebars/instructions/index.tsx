@@ -30,6 +30,7 @@ import { toaster } from '@ui/toaster';
 import { getDefaultStPreset } from '../../../api/instructions';
 import { getRuntime, patchRuntime } from '../../../api/llm';
 
+import { InstructionBundleActions } from './instruction-bundle-actions';
 import { InstructionEditor } from './instruction-editor';
 
 import type { CreateInstructionDraft, InstructionDto } from '../../../api/instructions';
@@ -747,6 +748,7 @@ export const InstructionsSidebar = () => {
 							aria-label={t('instructions.presets.actions.import')}
 							onClick={() => fileInputRef.current?.click()}
 						/>
+						<InstructionBundleActions selectedInstruction={selectedInstruction} />
 						<IconButtonWithTooltip
 							tooltip={t('instructions.presets.actions.export')}
 							icon={<EXPORT_FILE_ICON size={16} />}

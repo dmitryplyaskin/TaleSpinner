@@ -93,6 +93,41 @@ const enInstructions = {
 		discardTitle: 'Discard changes?',
 		sensitiveImportTitle: 'Sensitive import fields',
 	},
+	bundle: {
+		actions: {
+			import: 'Import TaleSpinner set',
+			export: 'Export TaleSpinner set',
+		},
+		dialogs: {
+			exportTitle: 'Export TaleSpinner set',
+			exportDescription: 'Choose the active/current resources to include in the bundle.',
+		},
+		candidates: {
+			kinds: {
+				instruction: 'Instruction',
+				operationProfile: 'Operation profile',
+				uiThemePreset: 'UI theme preset',
+				entityProfile: 'Entity profile',
+				worldInfoBook: 'World info book',
+			},
+			descriptions: {
+				sourceInstruction: 'Source instruction. Selected by default and imported as a new instruction preset.',
+				instruction: 'Instruction. Imported as a new instruction preset.',
+				operationProfile: 'Active operation profile. Its related enabled operation blocks will be exported with it.',
+				uiThemePreset: 'Active UI theme preset. It can be applied immediately after import.',
+				entityProfile: 'Current entity profile. Its avatar is included as well when present.',
+				worldInfoBook: 'Active world info book from the current chat. Imported as a separate book.',
+			},
+		},
+		toasts: {
+			exportErrorTitle: 'Bundle export failed',
+			importErrorTitle: 'Bundle import failed',
+			importWarningTitle: 'Bundle imported with warnings',
+			importSuccessTitle: 'Bundle imported',
+			selectAtLeastOne: 'Select at least one resource to export.',
+			importedCount: 'Imported resources: {{count}}',
+		},
+	},
 	validation: {
 		promptIdentifierRequired: 'Provide a block identifier.',
 		promptIdentifierInvalid: 'Identifier may contain only letters, numbers, dots, underscores, and hyphens.',

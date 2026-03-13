@@ -11,8 +11,7 @@ import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 type SelectedProfile = { profileId: string; name: string } | null;
 const QUICK_ACTION_TOOLTIP_SETTINGS = TOOLTIP_PORTAL_SETTINGS;
 
-function downloadJson(filename: string, data: unknown) {
-	const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+function downloadJson(filename: string, blob: Blob) {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
 	a.href = url;
@@ -28,8 +27,8 @@ type Props = {
 	onCreate: () => void;
 	onDuplicate: (profileId: string) => void;
 	onDelete: (profileId: string) => void;
-	onExport: (profileId: string) => Promise<unknown>;
-	onImport: (payload: unknown) => Promise<void>;
+	onExport: (profileId: string) => Promise<{ blob: Blob; filename: string }>;
+	onImport: (file: File) => Promise<void>;
 };
 
 export const ProfileActions: React.FC<Props> = ({ selected, onCreate, onDuplicate, onDelete, onExport, onImport }) => {
@@ -82,7 +81,7 @@ export const ProfileActions: React.FC<Props> = ({ selected, onCreate, onDuplicat
 					if (!selected?.profileId) return;
 					try {
 						const exported = await onExport(selected.profileId);
-						downloadJson(`operation-profile-${selected.name}.json`, exported);
+						downloadJson(exported.filename, exported.blob);
 					} catch (e) {
 						toaster.error({
 							title: t('operationProfiles.toasts.exportError'),
@@ -100,22 +99,16 @@ export const ProfileActions: React.FC<Props> = ({ selected, onCreate, onDuplicat
 				onChange={(e) => {
 					const file = e.currentTarget.files?.[0];
 					if (!file) return;
-					const reader = new FileReader();
-					reader.onload = async () => {
-						try {
-							const text = String(reader.result ?? '');
-							const parsed = JSON.parse(text) as unknown;
-							await onImport(parsed);
-						} catch (err) {
+					void onImport(file)
+						.catch((err) => {
 							toaster.error({
 								title: t('operationProfiles.toasts.importError'),
 								description: err instanceof Error ? err.message : String(err),
 							});
-						} finally {
+						})
+						.finally(() => {
 							e.currentTarget.value = '';
-						}
-					};
-					reader.readAsText(file);
+						});
 				}}
 			/>
 

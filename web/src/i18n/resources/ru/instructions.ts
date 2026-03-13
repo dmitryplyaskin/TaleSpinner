@@ -93,6 +93,41 @@ const ruInstructions = {
 		discardTitle: 'Отбросить изменения?',
 		sensitiveImportTitle: 'Чувствительные поля импорта',
 	},
+	bundle: {
+		actions: {
+			import: 'Импортировать набор TaleSpinner',
+			export: 'Экспортировать набор TaleSpinner',
+		},
+		dialogs: {
+			exportTitle: 'Экспорт набора TaleSpinner',
+			exportDescription: 'Выберите активные и текущие сущности, которые нужно включить в набор.',
+		},
+		candidates: {
+			kinds: {
+				instruction: 'Инструкция',
+				operationProfile: 'Профиль операций',
+				uiThemePreset: 'Тема интерфейса',
+				entityProfile: 'Профиль сущности',
+				worldInfoBook: 'Книга мира',
+			},
+			descriptions: {
+				sourceInstruction: 'Исходная инструкция. Выбрана по умолчанию и импортируется как новый пресет инструкции.',
+				instruction: 'Инструкция. Импортируется как новый пресет инструкции.',
+				operationProfile: 'Активный профиль операций. Связанные включённые блоки операций будут экспортированы вместе с ним.',
+				uiThemePreset: 'Активный пресет темы интерфейса. После импорта его можно сразу применить.',
+				entityProfile: 'Текущий профиль сущности. Если у него есть аватар, он тоже войдёт в набор.',
+				worldInfoBook: 'Активная книга World Info из текущего чата. Импортируется как отдельная книга.',
+			},
+		},
+		toasts: {
+			exportErrorTitle: 'Не удалось экспортировать набор',
+			importErrorTitle: 'Не удалось импортировать набор',
+			importWarningTitle: 'Набор импортирован с предупреждениями',
+			importSuccessTitle: 'Набор импортирован',
+			selectAtLeastOne: 'Выберите хотя бы одну сущность для экспорта.',
+			importedCount: 'Импортировано сущностей: {{count}}',
+		},
+	},
 	validation: {
 		promptIdentifierRequired: 'Укажите identifier для блока.',
 		promptIdentifierInvalid: 'Identifier может содержать только буквы, цифры, точки, подчёркивания и дефисы.',

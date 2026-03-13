@@ -10,8 +10,6 @@ import {
 	createOperationBlockFx,
 	deleteOperationBlockFx,
 	duplicateOperationBlockRequested,
-	exportOperationBlockFx,
-	importOperationBlocksFx,
 	loadOperationBlocksFx,
 } from '@model/operation-blocks';
 import {
@@ -20,16 +18,18 @@ import {
 	createOperationProfileFx,
 	deleteOperationProfileFx,
 	duplicateOperationProfileRequested,
-	exportOperationProfileFx,
-	importOperationProfilesFx,
 	loadActiveOperationProfileFx,
 	loadOperationProfilesFx,
-	setActiveOperationProfileRequested
+	setActiveOperationProfileRequested,
 } from '@model/operation-profiles';
 import { $sidebars } from '@model/sidebars';
 import { Drawer } from '@ui/drawer';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
+import { toaster } from '@ui/toaster';
 import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
+
+import { exportBundle, importBundle } from '../../../api/bundles';
+import { resolveBundleAutoApplyTargets } from '../common/bundle-helpers';
 
 import { OperationBlockNodeEditorModal } from './node-editor/block-node-editor-modal';
 import { OperationBlockEditor, type OperationBlockToolbarState } from './operation-block-editor';
@@ -57,14 +57,10 @@ export const OperationProfilesSidebar: React.FC = () => {
 	const doCreateProfile = useUnit(createOperationProfileFx);
 	const doDeleteProfile = useUnit(deleteOperationProfileFx);
 	const doSetActiveProfile = useUnit(setActiveOperationProfileRequested);
-	const doExportProfile = useUnit(exportOperationProfileFx);
-	const doImportProfiles = useUnit(importOperationProfilesFx);
 	const doDuplicateProfile = useUnit(duplicateOperationProfileRequested);
 
 	const doCreateBlock = useUnit(createOperationBlockFx);
 	const doDeleteBlock = useUnit(deleteOperationBlockFx);
-	const doExportBlock = useUnit(exportOperationBlockFx);
-	const doImportBlocks = useUnit(importOperationBlocksFx);
 	const doDuplicateBlock = useUnit(duplicateOperationBlockRequested);
 
 	const [activeTab, setActiveTab] = React.useState<TabValue>('profiles');
@@ -92,6 +88,49 @@ export const OperationProfilesSidebar: React.FC = () => {
 	const currentProfileId = settings?.activeProfileId ?? null;
 	const selectedProfile = profiles.find((p) => p.profileId === currentProfileId) ?? null;
 	const selectedBlock = blocks.find((b) => b.blockId === selectedBlockId) ?? null;
+
+	const handleImportProfiles = async (file: File) => {
+		const result = await importBundle(file);
+		await loadProfiles();
+		await loadBlocks();
+		const applyTargets = resolveBundleAutoApplyTargets(result);
+		if (applyTargets.operationProfileId) {
+			doSetActiveProfile(applyTargets.operationProfileId);
+		}
+		if (applyTargets.warnings.length > 0) {
+			toaster.warning({
+				title: t('operationProfiles.toasts.importTitle'),
+				description: applyTargets.warnings.join(' '),
+			});
+		}
+		toaster.success({
+			title: t('operationProfiles.toasts.importTitle'),
+			description: t('operationProfiles.toasts.importedCount', {
+				count: result.created.operationProfiles.length,
+			}),
+		});
+	};
+
+	const handleImportBlocks = async (file: File) => {
+		const result = await importBundle(file);
+		await loadBlocks();
+		const firstBlockId = result.created.operationBlocks[0]?.blockId ?? null;
+		if (firstBlockId) {
+			setSelectedBlockId(firstBlockId);
+		}
+		if (result.warnings.length > 0) {
+			toaster.warning({
+				title: t('operationProfiles.toasts.importTitle'),
+				description: result.warnings.join(' '),
+			});
+		}
+		toaster.success({
+			title: t('operationProfiles.toasts.importTitle'),
+			description: t('operationProfiles.toasts.importedCount', {
+				count: result.created.operationBlocks.length,
+			}),
+		});
+	};
 
 	const sidebarState = sidebars.operationProfiles;
 	const preferSplitLayout = sidebarState.isFullscreen || sidebarState.size === 'full';
@@ -127,9 +166,19 @@ export const OperationProfilesSidebar: React.FC = () => {
 									}
 									onDuplicate={(profileId) => doDuplicateProfile({ sourceProfileId: profileId })}
 									onDelete={(profileId) => doDeleteProfile({ profileId })}
-									onExport={(profileId) => doExportProfile(profileId)}
-									onImport={async (payload) => {
-										await doImportProfiles(payload as any);
+									onExport={async (profileId) => {
+										const exported = await exportBundle({
+											source: { kind: 'operation_profile', id: profileId },
+											selections: [{ kind: 'operation_profile', id: profileId }],
+											format: 'auto',
+										});
+										return {
+											blob: exported.blob,
+											filename: exported.filename,
+										};
+									}}
+									onImport={async (file) => {
+										await handleImportProfiles(file);
 									}}
 								/>
 							</div>
@@ -225,9 +274,19 @@ export const OperationProfilesSidebar: React.FC = () => {
 									}}
 									onDuplicate={(blockId) => doDuplicateBlock({ sourceBlockId: blockId })}
 									onDelete={(blockId) => doDeleteBlock({ blockId })}
-									onExport={(blockId) => doExportBlock(blockId)}
-									onImport={async (payload) => {
-										await doImportBlocks(payload as any);
+									onExport={async (blockId) => {
+										const exported = await exportBundle({
+											source: { kind: 'operation_block', id: blockId },
+											selections: [{ kind: 'operation_block', id: blockId }],
+											format: 'auto',
+										});
+										return {
+											blob: exported.blob,
+											filename: exported.filename,
+										};
+									}}
+									onImport={async (file) => {
+										await handleImportBlocks(file);
 									}}
 								/>
 							</div>

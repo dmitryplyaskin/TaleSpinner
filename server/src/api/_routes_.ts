@@ -1,4 +1,5 @@
 import appSettingsRoutes from "./app-settings.api";
+import bundlesCoreRoutes from "./bundles.core.api";
 import chatEntriesRoutes from "./chat-entries.api";
 import chatCoreRoutes from "./chats.core.api";
 import entityProfilesCoreRoutes from "./entity-profiles.core.api";
@@ -22,6 +23,7 @@ import userPersonsCoreRoutes from "./user-persons.core.api";
 import worldInfoCoreRoutes from "./world-info.core.api";
 
 export const routes = [
+  bundlesCoreRoutes,
   entityProfilesCoreRoutes,
   entityProfilesImportRoutes,
   chatCoreRoutes,

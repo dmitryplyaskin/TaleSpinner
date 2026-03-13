@@ -20,8 +20,6 @@ import { type AppSettings } from "@shared/types/app-settings";
 import {
   DEFAULT_UI_THEME_PAYLOAD,
   UI_THEME_BUILT_IN_IDS,
-  UI_THEME_EXPORT_TYPE,
-  type UiThemeExportV1,
 } from "@shared/types/ui-theme";
 import { useUnit } from "effector-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -45,8 +43,6 @@ import {
   $uiThemeSettings,
   createUiThemePresetFx,
   deleteUiThemePresetFx,
-  exportUiThemePresetFx,
-  importUiThemePresetsFx,
   patchUiThemeSettingsFx,
   updateUiThemePresetFx,
 } from "@model/ui-themes";
@@ -54,7 +50,8 @@ import { Drawer } from "@ui/drawer";
 import { FormCheckbox, FormSelect } from "@ui/form-components";
 import { toaster } from "@ui/toaster";
 
-import { downloadJsonFile } from "../../../api/ui-theme";
+import { downloadBlobFile, exportBundle, importBundle } from "../../../api/bundles";
+import { resolveBundleAutoApplyTargets } from "../common/bundle-helpers";
 
 type AppSettingsTab = "general" | "theming" | "debug";
 type ColorSchemeValue = "light" | "dark" | "auto";
@@ -214,8 +211,12 @@ export const AppSettingsSidebar: React.FC = () => {
   const handleExportPreset = async () => {
     if (!draftPreset) return;
     try {
-      const exported = await exportUiThemePresetFx(draftPreset.presetId);
-      downloadJsonFile(`ui-theme-${draftPreset.name}.json`, exported);
+      const exported = await exportBundle({
+        source: { kind: "ui_theme_preset", id: draftPreset.presetId },
+        selections: [{ kind: "ui_theme_preset", id: draftPreset.presetId }],
+        format: "auto",
+      });
+      downloadBlobFile(exported.filename, exported.blob);
     } catch (error) {
       toaster.error({
         title: t("appSettings.theming.toasts.exportFailed"),
@@ -227,17 +228,23 @@ export const AppSettingsSidebar: React.FC = () => {
   const handleImportPreset = async (file: File | null) => {
     if (!file) return;
     try {
-      const content = await file.text();
-      const parsed = JSON.parse(content) as UiThemeExportV1 | UiThemeExportV1[];
-      const items = Array.isArray(parsed) ? parsed : [parsed];
-      if (items.some((item) => item?.type !== UI_THEME_EXPORT_TYPE)) {
-        throw new Error(t("appSettings.theming.errors.invalidFormat"));
+      const imported = await importBundle(file);
+      const applyTargets = resolveBundleAutoApplyTargets(imported);
+      if (applyTargets.uiThemePresetId) {
+        await patchUiThemeSettingsFx({ activePresetId: applyTargets.uiThemePresetId });
       }
-      const imported = await importUiThemePresetsFx(items);
-      const first = imported.created[0];
-      if (first) {
-        await patchUiThemeSettingsFx({ activePresetId: first.presetId });
+      if (applyTargets.warnings.length > 0) {
+        toaster.warning({
+          title: t("appSettings.theming.toasts.importDone"),
+          description: applyTargets.warnings.join(" "),
+        });
       }
+      toaster.success({
+        title: t("appSettings.theming.toasts.importDone"),
+        description: t("appSettings.theming.toasts.importedCount", {
+          count: imported.created.uiThemePresets.length,
+        }),
+      });
     } catch (error) {
       toaster.error({
         title: t("appSettings.theming.toasts.importFailed"),
