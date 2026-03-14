@@ -15,6 +15,7 @@ import { getEntityProfileById } from "../chat-core/entity-profiles-repository";
 import { getInstructionById } from "../chat-core/instructions-repository";
 import { getOperationBlockById } from "../operations/operation-blocks-repository";
 import { getOperationProfileById } from "../operations/operation-profiles-repository";
+import { samplersService } from "../samplers.service";
 import { getUiThemePresetById } from "../ui-theme/ui-theme-repository";
 import { getWorldInfoBookById } from "../world-info/world-info-repositories";
 
@@ -229,6 +230,25 @@ export async function exportBundleSelection(params: {
           name: preset.name,
           description: preset.description,
           payload: preset.payload,
+        },
+      });
+      if (handle.kind === params.source.kind && handle.id === params.source.id) sourceResourceId = resourceId;
+      return;
+    }
+
+    if (handle.kind === "sampler_preset") {
+      const preset = await samplersService.samplers.getById(handle.id);
+      if (!preset) throw new Error(`Sampler preset not found: ${handle.id}`);
+      const resourceId = createBundleResourceId("sampler_preset", `${preset.name}-${preset.id}`);
+      resources.push({
+        resourceId,
+        kind: "sampler_preset",
+        schemaVersion: 1,
+        role,
+        title: preset.name,
+        payload: {
+          name: preset.name,
+          settings: preset.settings,
         },
       });
       if (handle.kind === params.source.kind && handle.id === params.source.id) sourceResourceId = resourceId;

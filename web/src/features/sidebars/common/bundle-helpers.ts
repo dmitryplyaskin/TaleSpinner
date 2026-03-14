@@ -4,6 +4,7 @@ export type BundleApplyTargets = {
   instructionId: string | null;
   operationProfileId: string | null;
   uiThemePresetId: string | null;
+  samplerPresetId: string | null;
   entityProfileId: string | null;
   worldInfoBookId: string | null;
   warnings: string[];
@@ -26,6 +27,7 @@ export function resolveBundleAutoApplyTargets(result: BundleImportResult): Bundl
     instructionId: result.applied.instructionId,
     operationProfileId: result.applied.operationProfileId,
     uiThemePresetId: result.applied.uiThemePresetId,
+    samplerPresetId: result.applied.samplerPresetId,
     entityProfileId: result.applied.entityProfileId,
     worldInfoBookId: result.applied.worldInfoBookId,
     warnings: [...result.warnings, ...result.skippedApply.map((item) => item.message)],
@@ -64,6 +66,13 @@ export function getBundleExportCandidateCopy(candidate: BundleExportCandidate): 
     };
   }
 
+  if (candidate.handle.kind === "sampler_preset") {
+    return {
+      kindLabelKey: "instructions.bundle.candidates.kinds.samplerPreset",
+      descriptionKey: "instructions.bundle.candidates.descriptions.samplerPreset",
+    };
+  }
+
   if (candidate.handle.kind === "entity_profile") {
     return {
       kindLabelKey: "instructions.bundle.candidates.kinds.entityProfile",
@@ -81,6 +90,7 @@ export function resolveInstructionBundleExportCandidates(params: {
   sourceInstruction: { id: string; name: string };
   activeOperationProfile?: { profileId: string; name: string } | null;
   activeUiThemePreset?: { presetId: string; name: string } | null;
+  activeSamplerPreset?: { presetId: string; name: string } | null;
   currentEntityProfile?: { id: string; name: string } | null;
   currentWorldInfoBooks?: Array<{ id: string; name: string }>;
 }): BundleExportCandidate[] {
@@ -107,6 +117,15 @@ export function resolveInstructionBundleExportCandidates(params: {
       key: `ui_theme_preset:${params.activeUiThemePreset.presetId}`,
       label: params.activeUiThemePreset.name,
       handle: { kind: "ui_theme_preset", id: params.activeUiThemePreset.presetId },
+      checkedByDefault: false,
+    });
+  }
+
+  if (params.activeSamplerPreset) {
+    candidates.push({
+      key: `sampler_preset:${params.activeSamplerPreset.presetId}`,
+      label: params.activeSamplerPreset.name,
+      handle: { kind: "sampler_preset", id: params.activeSamplerPreset.presetId },
       checkedByDefault: false,
     });
   }

@@ -3,6 +3,8 @@ import { LuCopy, LuPencil, LuPlus, LuSave, LuTrash2 } from 'react-icons/lu';
 
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
+import type { ReactNode } from 'react';
+
 type PresetOption = {
 	value: string;
 	label: string;
@@ -18,6 +20,8 @@ type PresetControlsLabels = {
 	delete: string;
 };
 
+type PresetControlsLayout = 'inline' | 'stacked';
+
 type Props = {
 	labels: PresetControlsLabels;
 	options: PresetOption[];
@@ -32,6 +36,8 @@ type Props = {
 	disableDuplicate?: boolean;
 	disableSave?: boolean;
 	disableDelete?: boolean;
+	layout?: PresetControlsLayout;
+	extraActions?: ReactNode;
 };
 
 export const PresetControls: React.FC<Props> = ({
@@ -48,41 +54,66 @@ export const PresetControls: React.FC<Props> = ({
 	disableDuplicate = false,
 	disableSave = false,
 	disableDelete = false,
+	layout = 'inline',
+	extraActions,
 }) => {
+	const actionButtons = (
+		<>
+			<IconButtonWithTooltip icon={<LuPlus />} tooltip={labels.create} aria-label={labels.create} onClick={onCreate} />
+			<IconButtonWithTooltip icon={<LuPencil />} tooltip={labels.rename} aria-label={labels.rename} onClick={onRename} disabled={disableRename} />
+			<IconButtonWithTooltip
+				icon={<LuCopy />}
+				tooltip={labels.duplicate}
+				aria-label={labels.duplicate}
+				onClick={onDuplicate}
+				disabled={disableDuplicate}
+			/>
+			{extraActions}
+			<IconButtonWithTooltip
+				icon={<LuSave />}
+				tooltip={labels.save}
+				aria-label={labels.save}
+				onClick={onSave}
+				disabled={disableSave}
+				variant="solid"
+			/>
+			<IconButtonWithTooltip icon={<LuTrash2 />} tooltip={labels.delete} aria-label={labels.delete} onClick={onDelete} disabled={disableDelete} />
+		</>
+	);
+
 	return (
 		<Stack gap="xs">
 			<Text fw={600}>{labels.title}</Text>
-			<Group align="flex-end">
-				<Select
-					style={{ flex: 1 }}
-					label={labels.active}
-					data={options}
-					value={value}
-					onChange={(nextValue) => onChange(nextValue ?? null)}
-					allowDeselect={false}
-					comboboxProps={{ withinPortal: false }}
-				/>
-				<Group gap="xs" pb={4}>
-					<IconButtonWithTooltip icon={<LuPlus />} tooltip={labels.create} aria-label={labels.create} onClick={onCreate} />
-					<IconButtonWithTooltip icon={<LuPencil />} tooltip={labels.rename} aria-label={labels.rename} onClick={onRename} disabled={disableRename} />
-					<IconButtonWithTooltip
-						icon={<LuCopy />}
-						tooltip={labels.duplicate}
-						aria-label={labels.duplicate}
-						onClick={onDuplicate}
-						disabled={disableDuplicate}
+			{layout === 'stacked' ? (
+				<>
+					<Select
+						label={labels.active}
+						data={options}
+						value={value}
+						onChange={(nextValue) => onChange(nextValue ?? null)}
+						allowDeselect={false}
+						comboboxProps={{ withinPortal: false }}
 					/>
-					<IconButtonWithTooltip
-						icon={<LuSave />}
-						tooltip={labels.save}
-						aria-label={labels.save}
-						onClick={onSave}
-						disabled={disableSave}
-						variant="solid"
+					<Group gap="xs" justify="flex-end">
+						{actionButtons}
+					</Group>
+				</>
+			) : (
+				<Group align="flex-end">
+					<Select
+						style={{ flex: 1 }}
+						label={labels.active}
+						data={options}
+						value={value}
+						onChange={(nextValue) => onChange(nextValue ?? null)}
+						allowDeselect={false}
+						comboboxProps={{ withinPortal: false }}
 					/>
-					<IconButtonWithTooltip icon={<LuTrash2 />} tooltip={labels.delete} aria-label={labels.delete} onClick={onDelete} disabled={disableDelete} />
+					<Group gap="xs" pb={4}>
+						{actionButtons}
+					</Group>
 				</Group>
-			</Group>
+			)}
 		</Stack>
 	);
 };

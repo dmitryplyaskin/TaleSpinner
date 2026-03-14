@@ -21,6 +21,7 @@ describe("bundle helpers", () => {
         worldInfoBooks: [],
         entityProfiles: [],
         uiThemePresets: [],
+        samplerPresets: [],
       },
       applied: {
         instructionId: "inst-1",
@@ -28,6 +29,7 @@ describe("bundle helpers", () => {
         uiThemePresetId: null,
         entityProfileId: null,
         worldInfoBookId: null,
+        samplerPresetId: null,
       },
       skippedApply: [],
       warnings: [],
@@ -49,6 +51,7 @@ describe("bundle helpers", () => {
         worldInfoBooks: [],
         entityProfiles: [],
         uiThemePresets: [],
+        samplerPresets: [],
       },
       applied: {
         instructionId: null,
@@ -56,6 +59,7 @@ describe("bundle helpers", () => {
         uiThemePresetId: null,
         entityProfileId: null,
         worldInfoBookId: null,
+        samplerPresetId: null,
       },
       skippedApply: [
         {
@@ -76,6 +80,7 @@ describe("bundle helpers", () => {
       sourceInstruction: { id: "inst-1", name: "Main instruction" },
       activeOperationProfile: { profileId: "prof-1", name: "Main profile" },
       activeUiThemePreset: { presetId: "theme-1", name: "Night" },
+      activeSamplerPreset: { presetId: "sampler-1", name: "Storyteller" },
       currentEntityProfile: { id: "entity-1", name: "Hero" },
       currentWorldInfoBooks: [{ id: "book-1", name: "Lore" }],
     });
@@ -84,6 +89,7 @@ describe("bundle helpers", () => {
       expect.objectContaining({ key: "instruction:inst-1", checkedByDefault: true }),
       expect.objectContaining({ key: "operation_profile:prof-1", checkedByDefault: false }),
       expect.objectContaining({ key: "ui_theme_preset:theme-1", checkedByDefault: false }),
+      expect.objectContaining({ key: "sampler_preset:sampler-1", checkedByDefault: false }),
       expect.objectContaining({ key: "entity_profile:entity-1", checkedByDefault: false }),
       expect.objectContaining({ key: "world_info_book:book-1", checkedByDefault: false }),
     ]);
@@ -115,6 +121,12 @@ describe("bundle helpers", () => {
       handle: { kind: "operation_profile" as const, id: "prof-1" },
       checkedByDefault: false,
     };
+    const samplerCandidate = {
+      key: "sampler_preset:sampler-1",
+      label: "Storyteller",
+      handle: { kind: "sampler_preset" as const, id: "sampler-1" },
+      checkedByDefault: false,
+    };
 
     expect(getBundleExportCandidateCopy(sourceCandidate)).toEqual({
       kindLabelKey: "instructions.bundle.candidates.kinds.instruction",
@@ -124,5 +136,35 @@ describe("bundle helpers", () => {
       kindLabelKey: "instructions.bundle.candidates.kinds.operationProfile",
       descriptionKey: "instructions.bundle.candidates.descriptions.operationProfile",
     });
+    expect(getBundleExportCandidateCopy(samplerCandidate)).toEqual({
+      kindLabelKey: "instructions.bundle.candidates.kinds.samplerPreset",
+      descriptionKey: "instructions.bundle.candidates.descriptions.samplerPreset",
+    });
+  });
+
+  it("returns sampler preset auto-apply target", () => {
+    const resolved = resolveBundleAutoApplyTargets({
+      created: {
+        instructions: [],
+        operationBlocks: [],
+        operationProfiles: [],
+        worldInfoBooks: [],
+        entityProfiles: [],
+        uiThemePresets: [],
+        samplerPresets: [{ resourceId: "sampler_preset:main", presetId: "sampler-1", name: "Storyteller" }],
+      },
+      applied: {
+        instructionId: null,
+        operationProfileId: null,
+        uiThemePresetId: null,
+        entityProfileId: null,
+        worldInfoBookId: null,
+        samplerPresetId: "sampler-1",
+      },
+      skippedApply: [],
+      warnings: [],
+    });
+
+    expect(resolved.samplerPresetId).toBe("sampler-1");
   });
 });

@@ -6,6 +6,48 @@ import {
 import { describe, expect, test } from "vitest";
 
 describe("bundle contract", () => {
+  test("parses valid sampler preset resource", () => {
+    const samplerResourceId = createBundleResourceId("sampler_preset", "storyteller");
+
+    const parsed = parseTaleSpinnerBundle({
+      type: "talespinner.bundle",
+      version: 1,
+      bundleId: "bundle-sampler-1",
+      createdAt: "2026-03-13T10:00:00.000Z",
+      container: "json",
+      sourceResourceId: samplerResourceId,
+      resources: [
+        {
+          resourceId: samplerResourceId,
+          kind: "sampler_preset",
+          schemaVersion: 1,
+          role: "primary",
+          title: "Storyteller",
+          payload: {
+            name: "Storyteller",
+            settings: {
+              temperature: 0.9,
+              topP: 0.95,
+              reasoning: {
+                enabled: true,
+                effort: "medium",
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(parsed.resources).toHaveLength(1);
+    expect(parsed.resources[0]).toMatchObject({
+      kind: "sampler_preset",
+      payload: {
+        name: "Storyteller",
+      },
+    });
+    expect(() => validateBundleResourceGraph(parsed)).not.toThrow();
+  });
+
   test("parses valid bundle manifest", () => {
     const blockResourceId = createBundleResourceId("operation_block", "scene");
     const profileResourceId = createBundleResourceId("operation_profile", "main");

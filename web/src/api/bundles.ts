@@ -18,16 +18,18 @@ export type BundleImportResult = {
     worldInfoBooks: Array<{ resourceId: string; id: string; name: string }>;
     entityProfiles: Array<{ resourceId: string; id: string; name: string }>;
     uiThemePresets: Array<{ resourceId: string; presetId: string; name: string }>;
+    samplerPresets: Array<{ resourceId: string; presetId: string; name: string }>;
   };
   applied: {
     instructionId: string | null;
     operationProfileId: string | null;
     uiThemePresetId: string | null;
+    samplerPresetId: string | null;
     entityProfileId: string | null;
     worldInfoBookId: string | null;
   };
   skippedApply: Array<{
-    kind: "instruction" | "operation_profile" | "ui_theme_preset" | "entity_profile" | "world_info_book";
+    kind: "instruction" | "operation_profile" | "ui_theme_preset" | "sampler_preset" | "entity_profile" | "world_info_book";
     reason: "ambiguous";
     message: string;
   }>;

@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import {
   type EntityProfileBundleResource,
   type InstructionBundleResource,
   type OperationBlockBundleResource,
   type OperationProfileBundleResource,
   parseTaleSpinnerBundle,
+  type SamplerPresetBundleResource,
   type TaleSpinnerBundle,
   type UiThemePresetBundleResource,
   validateBundleResourceGraph,
@@ -17,6 +20,7 @@ import { createEntityProfile } from "../chat-core/entity-profiles-repository";
 import { createInstruction, listInstructions } from "../chat-core/instructions-repository";
 import { createOperationBlock, listOperationBlocks, resolveImportedOperationBlockName } from "../operations/operation-blocks-repository";
 import { createOperationProfile, listOperationProfiles } from "../operations/operation-profiles-repository";
+import { resolveImportedSamplerPresetName, samplersService } from "../samplers.service";
 import { createUiThemePreset, listUiThemePresets, resolveImportedPresetName } from "../ui-theme/ui-theme-repository";
 import { createWorldInfoBook } from "../world-info/world-info-repositories";
 
@@ -66,11 +70,16 @@ function isUiThemePresetResource(resource: TaleSpinnerBundle["resources"][number
   return resource.kind === "ui_theme_preset";
 }
 
+function isSamplerPresetResource(resource: TaleSpinnerBundle["resources"][number]): resource is SamplerPresetBundleResource {
+  return resource.kind === "sampler_preset";
+}
+
 type CreatedResourceItem = { resourceId: string };
 type AutoApplyKind =
   | "instruction"
   | "operation_profile"
   | "ui_theme_preset"
+  | "sampler_preset"
   | "entity_profile"
   | "world_info_book";
 
@@ -78,6 +87,7 @@ type BundleAppliedTargets = {
   instructionId: string | null;
   operationProfileId: string | null;
   uiThemePresetId: string | null;
+  samplerPresetId: string | null;
   entityProfileId: string | null;
   worldInfoBookId: string | null;
 };
@@ -133,6 +143,7 @@ export async function importBundleFile(params: {
     worldInfoBooks: Array<{ resourceId: string; id: string; name: string }>;
     entityProfiles: Array<{ resourceId: string; id: string; name: string }>;
     uiThemePresets: Array<{ resourceId: string; presetId: string; name: string }>;
+    samplerPresets: Array<{ resourceId: string; presetId: string; name: string }>;
   };
   applied: BundleAppliedTargets;
   skippedApply: BundleSkippedApplyItem[];
@@ -160,11 +171,13 @@ export async function importBundleFile(params: {
     listOperationProfiles({ ownerId: params.ownerId }),
     listUiThemePresets({ ownerId: params.ownerId }),
   ]);
+  const existingSamplerPresets = await samplersService.samplers.getAll();
 
   const instructionNames = new Set(existingInstructions.map((item) => item.name));
   const blockNames = new Set(existingBlocks.map((item) => item.name));
   const profileNames = new Set(existingProfiles.map((item) => item.name));
   const themeNames = new Set(existingThemes.map((item) => item.name));
+  const samplerPresetNames = new Set(existingSamplerPresets.map((item) => item.name));
   const blockIdMap = new Map<string, string>();
 
   const created = {
@@ -174,6 +187,7 @@ export async function importBundleFile(params: {
     worldInfoBooks: [] as Array<{ resourceId: string; id: string; name: string }>,
     entityProfiles: [] as Array<{ resourceId: string; id: string; name: string }>,
     uiThemePresets: [] as Array<{ resourceId: string; presetId: string; name: string }>,
+    samplerPresets: [] as Array<{ resourceId: string; presetId: string; name: string }>,
   };
   const warnings: string[] = [];
 
@@ -307,6 +321,25 @@ export async function importBundleFile(params: {
     });
   }
 
+  for (const resource of bundle.resources.filter(isSamplerPresetResource)) {
+    const presetId = randomUUID();
+    const now = new Date().toISOString();
+    const name = resolveImportedSamplerPresetName(resource.payload.name, Array.from(samplerPresetNames));
+    samplerPresetNames.add(name);
+    const preset = await samplersService.samplers.create({
+      id: presetId,
+      name,
+      settings: resource.payload.settings,
+      createdAt: now,
+      updatedAt: now,
+    });
+    created.samplerPresets.push({
+      resourceId: resource.resourceId,
+      presetId: preset.id,
+      name: preset.name,
+    });
+  }
+
   if (params.fileName.endsWith(".json") && params.buffer.toString("utf8").includes(UI_THEME_EXPORT_TYPE)) {
     warnings.push("Imported legacy UI theme preset format.");
   }
@@ -332,6 +365,13 @@ export async function importBundleFile(params: {
     "UI theme preset",
     (item) => item.presetId
   );
+  const samplerPresetApply = resolveAppliedTarget(
+    created.samplerPresets,
+    bundle.sourceResourceId,
+    "sampler_preset",
+    "sampler preset",
+    (item) => item.presetId
+  );
   const entityProfileApply = resolveAppliedTarget(
     created.entityProfiles,
     bundle.sourceResourceId,
@@ -350,6 +390,7 @@ export async function importBundleFile(params: {
     instructionApply.skipped,
     operationProfileApply.skipped,
     uiThemePresetApply.skipped,
+    samplerPresetApply.skipped,
     entityProfileApply.skipped,
     worldInfoBookApply.skipped,
   ].filter((item): item is BundleSkippedApplyItem => Boolean(item));
@@ -361,6 +402,7 @@ export async function importBundleFile(params: {
       instructionId: instructionApply.value,
       operationProfileId: operationProfileApply.value,
       uiThemePresetId: uiThemePresetApply.value,
+      samplerPresetId: samplerPresetApply.value,
       entityProfileId: entityProfileApply.value,
       worldInfoBookId: worldInfoBookApply.value,
     },

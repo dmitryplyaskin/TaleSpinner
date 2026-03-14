@@ -1,5 +1,6 @@
 import type { InstructionMeta, StBaseConfig } from "./instructions";
 import type { OperationExecutionMode, OperationInProfile } from "./operation-profiles";
+import type { SamplerItemSettingsType } from "./samplers";
 import type { UiThemePresetPayload } from "./ui-theme";
 
 export const TALESPINNER_BUNDLE_TYPE = "talespinner.bundle";
@@ -15,7 +16,8 @@ export type TaleSpinnerBundleResourceKind =
   | "operation_profile"
   | "world_info_book"
   | "entity_profile"
-  | "ui_theme_preset";
+  | "ui_theme_preset"
+  | "sampler_preset";
 
 export type BundleFileDescriptor = {
   path: string;
@@ -87,6 +89,11 @@ export type UiThemePresetBundlePayload = {
   payload: UiThemePresetPayload;
 };
 
+export type SamplerPresetBundlePayload = {
+  name: string;
+  settings: SamplerItemSettingsType;
+};
+
 type BundleResourceBase<TKind extends TaleSpinnerBundleResourceKind, TPayload> = {
   resourceId: string;
   kind: TKind;
@@ -102,6 +109,7 @@ export type OperationProfileBundleResource = BundleResourceBase<"operation_profi
 export type WorldInfoBookBundleResource = BundleResourceBase<"world_info_book", WorldInfoBookBundlePayload>;
 export type EntityProfileBundleResource = BundleResourceBase<"entity_profile", EntityProfileBundlePayload>;
 export type UiThemePresetBundleResource = BundleResourceBase<"ui_theme_preset", UiThemePresetBundlePayload>;
+export type SamplerPresetBundleResource = BundleResourceBase<"sampler_preset", SamplerPresetBundlePayload>;
 
 export type TaleSpinnerBundleResource =
   | InstructionBundleResource
@@ -109,7 +117,8 @@ export type TaleSpinnerBundleResource =
   | OperationProfileBundleResource
   | WorldInfoBookBundleResource
   | EntityProfileBundleResource
-  | UiThemePresetBundleResource;
+  | UiThemePresetBundleResource
+  | SamplerPresetBundleResource;
 
 export type TaleSpinnerBundle = {
   type: typeof TALESPINNER_BUNDLE_TYPE;
@@ -269,6 +278,16 @@ function parseUiThemePresetPayload(payload: unknown): UiThemePresetBundlePayload
   };
 }
 
+function parseSamplerPresetPayload(payload: unknown): SamplerPresetBundlePayload {
+  assert(isRecord(payload), "Sampler preset payload must be an object.");
+  assertString(payload.name, "Sampler preset payload requires name.");
+  assert(isRecord(payload.settings), "Sampler preset payload requires settings object.");
+  return {
+    name: payload.name,
+    settings: payload.settings as SamplerItemSettingsType,
+  };
+}
+
 function parseResource(input: unknown): TaleSpinnerBundleResource {
   assert(isRecord(input), "Bundle resource must be an object.");
   assertString(input.resourceId, "Bundle resource requires resourceId.");
@@ -337,6 +356,16 @@ function parseResource(input: unknown): TaleSpinnerBundleResource {
       role: input.role,
       title: input.title,
       payload: parseUiThemePresetPayload(input.payload),
+    };
+  }
+  if (input.kind === "sampler_preset") {
+    return {
+      resourceId: input.resourceId,
+      kind: "sampler_preset",
+      schemaVersion: 1,
+      role: input.role,
+      title: input.title,
+      payload: parseSamplerPresetPayload(input.payload),
     };
   }
 

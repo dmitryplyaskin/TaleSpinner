@@ -14,11 +14,21 @@ const enLlmSettings = {
 		rename: 'Rename',
 		renamePrompt: 'Enter new preset name',
 		duplicate: 'Duplicate',
+		import: 'Import',
+		export: 'Export',
 		delete: 'Delete',
 	},
 	confirm: {
 		delete: 'Delete selected preset?',
 		discardChanges: 'You have unsaved changes. Discard them and switch preset?',
+	},
+	toasts: {
+		exportDone: 'Preset exported',
+		exportFailed: 'Failed to export preset',
+		importDone: 'Presets imported',
+		importFailed: 'Failed to import presets',
+		importWarning: 'Import completed with warnings',
+		importedCount: 'Imported presets: {{count}}',
 	},
 	fields: {
 		maxTokens: {

@@ -21,6 +21,7 @@ const resourceKindSchema = z.enum([
   "world_info_book",
   "entity_profile",
   "ui_theme_preset",
+  "sampler_preset",
 ]);
 
 const exportBodySchema = z

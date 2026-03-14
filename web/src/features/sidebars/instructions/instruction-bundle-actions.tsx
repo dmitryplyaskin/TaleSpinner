@@ -8,6 +8,7 @@ import { $currentChat, $currentEntityProfile, $entityProfiles, loadEntityProfile
 import { instructionSelected, loadInstructionsFx } from "@model/instructions";
 import { loadOperationBlocksFx } from "@model/operation-blocks";
 import { $operationProfileSettings, $operationProfiles, loadActiveOperationProfileFx, loadOperationProfilesFx, setActiveOperationProfileRequested } from "@model/operation-profiles";
+import { samplersModel } from "@model/samplers";
 import { $activeUiThemePreset, loadUiThemePresetsFx, loadUiThemeSettingsFx, patchUiThemeSettingsFx } from "@model/ui-themes";
 import { $worldInfoBooks, $worldInfoChatBindings, loadWorldInfoBooksFx, worldInfoBookSelected } from "@model/world-info";
 import { IconButtonWithTooltip } from "@ui/icon-button-with-tooltip";
@@ -39,6 +40,8 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     operationProfiles,
     operationProfileSettings,
     activeUiThemePreset,
+    samplerPresets,
+    samplerSettings,
     worldInfoBooks,
     worldInfoChatBindings,
   ] = useUnit([
@@ -48,6 +51,8 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     $operationProfiles,
     $operationProfileSettings,
     $activeUiThemePreset,
+    samplersModel.$items,
+    samplersModel.$settings,
     $worldInfoBooks,
     $worldInfoChatBindings,
   ]);
@@ -58,8 +63,11 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     refreshBlocks,
     refreshThemes,
     refreshThemeSettings,
+    refreshSamplers,
+    refreshSamplerSettings,
     refreshEntities,
     refreshWorldInfo,
+    applySamplerPreset,
     applyEntityProfile,
     applyWorldInfoBook,
     applyOperationProfile,
@@ -71,8 +79,11 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     loadOperationBlocksFx,
     loadUiThemePresetsFx,
     loadUiThemeSettingsFx,
+    samplersModel.getItemsFx,
+    samplersModel.getSettingsFx,
     loadEntityProfilesFx,
     loadWorldInfoBooksFx,
+    samplersModel.updateSettingsFx,
     selectEntityProfile,
     worldInfoBookSelected,
     setActiveOperationProfileRequested,
@@ -83,6 +94,10 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     const activeId = operationProfileSettings?.activeProfileId ?? null;
     return operationProfiles.find((item) => item.profileId === activeId) ?? null;
   }, [operationProfileSettings?.activeProfileId, operationProfiles]);
+  const activeSamplerPreset = useMemo(() => {
+    const activeId = samplerSettings?.selectedId ?? null;
+    return samplerPresets.find((item) => item.id === activeId) ?? null;
+  }, [samplerPresets, samplerSettings?.selectedId]);
 
   const currentWorldInfoBooks = useMemo(() => {
     const enabledIds = new Set(
@@ -103,12 +118,13 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
       activeUiThemePreset: activeUiThemePreset
         ? { presetId: activeUiThemePreset.presetId, name: activeUiThemePreset.name }
         : null,
+      activeSamplerPreset: activeSamplerPreset ? { presetId: activeSamplerPreset.id, name: activeSamplerPreset.name } : null,
       currentEntityProfile: currentEntityProfile
         ? { id: currentEntityProfile.id, name: currentEntityProfile.name }
         : null,
       currentWorldInfoBooks,
     });
-  }, [activeOperationProfile, activeUiThemePreset, currentEntityProfile, currentWorldInfoBooks, selectedInstruction]);
+  }, [activeOperationProfile, activeSamplerPreset, activeUiThemePreset, currentEntityProfile, currentWorldInfoBooks, selectedInstruction]);
 
   useEffect(() => {
     if (!opened) return;
@@ -140,13 +156,15 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
   const handleBundleImport = async (file: File | null) => {
     if (!file) return;
     const imported = await importBundle(file);
-    const [, , , , , , reloadedEntities] = await Promise.all([
+    const [, , , , , , , , reloadedEntities] = await Promise.all([
       refreshInstructions(),
       refreshProfiles(),
       refreshProfileSettings(),
       refreshBlocks(),
       refreshThemes(),
       refreshThemeSettings(),
+      refreshSamplers(),
+      refreshSamplerSettings(),
       refreshEntities(),
       refreshWorldInfo(),
     ]);
@@ -164,6 +182,9 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
     }
     if (applyTargets.uiThemePresetId) {
       await applyThemePreset({ activePresetId: applyTargets.uiThemePresetId });
+    }
+    if (applyTargets.samplerPresetId) {
+      await applySamplerPreset({ selectedId: applyTargets.samplerPresetId });
     }
     if (applyTargets.entityProfileId) {
       const profile = (reloadedEntities ?? entityProfiles).find((item) => item.id === applyTargets.entityProfileId);
@@ -185,6 +206,7 @@ export const InstructionBundleActions: React.FC<Props> = ({ selectedInstruction 
       imported.created.operationProfiles.length +
       imported.created.entityProfiles.length +
       imported.created.uiThemePresets.length +
+      imported.created.samplerPresets.length +
       imported.created.worldInfoBooks.length;
     toaster.success({
       title: t("instructions.bundle.toasts.importSuccessTitle"),
