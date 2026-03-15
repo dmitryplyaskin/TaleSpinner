@@ -11,6 +11,7 @@
   - [16 — Effect Commit (как применяются эффекты)](./16-effect-commit.md)
   - [11 — Operation / kind=llm](./11-operation-kind-llm.md)
   - [12 — Operation / kind=template](./12-operation-kind-template.md)
+  - [13 — Operation / kind=guard](./13-operation-kind-guard.md)
 - [20 — OperationProfile (профиль операций)](./20-operation-profile.md)
 - [30 — Run (жизненный цикл запуска и граница main LLM)](./30-run.md)
 - [40 — Artifacts (артефакты)](./40-artifacts.md)

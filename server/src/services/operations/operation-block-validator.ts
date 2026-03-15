@@ -12,6 +12,7 @@ import {
   type OperationInProfile,
   type OperationKind,
   type OperationProfile,
+  type OperationRunCondition,
   type OperationTemplateParams,
   type OperationTrigger,
   type PromptTimeMessageRole,
@@ -22,6 +23,12 @@ import { HttpError } from "@core/middleware/error-handler";
 
 import { validateLiquidTemplate } from "../chat-core/prompt-template-renderer";
 
+import {
+  auxLlmGuardParamsSchema,
+  guardOperationParamsSchema,
+  liquidGuardParamsSchema,
+} from "./guard-operation-params";
+import { compileGuardOutputSchema } from "./guard-output-contract";
 import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
 import { llmOperationParamsSchema } from "./llm-operation-params";
 
@@ -183,6 +190,19 @@ const otherKindParamsSchema = z.object({
   output: legacyOperationOutputSchema.optional(),
 });
 
+const runConditionSchema: z.ZodType<OperationRunCondition> = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("guard_output"),
+    sourceOpId: uuidSchema,
+    outputKey: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[a-z][a-zA-Z0-9_]*$/, "guard output key must match ^[a-z][a-zA-Z0-9_]*$"),
+    operator: z.enum(["is_true", "is_false"]),
+  }),
+]);
+
 const operationConfigBaseSchema = z.object({
   enabled: z.boolean(),
   required: z.boolean(),
@@ -191,6 +211,7 @@ const operationConfigBaseSchema = z.object({
   activation: operationActivationSchema.optional(),
   order: z.number().finite(),
   dependsOn: z.array(uuidSchema).optional(),
+  runConditions: z.array(runConditionSchema).optional(),
 });
 
 const operationConfigTemplateSchema = operationConfigBaseSchema.extend({
@@ -207,6 +228,17 @@ const operationConfigLlmSchema = operationConfigBaseSchema.extend({
     artifact: artifactConfigSchema.optional(),
     output: legacyOperationOutputSchema.optional(),
   }),
+});
+
+const operationConfigGuardSchema = operationConfigBaseSchema.extend({
+  params: z.discriminatedUnion("engine", [
+    liquidGuardParamsSchema.extend({
+      artifact: artifactConfigSchema.optional(),
+    }),
+    auxLlmGuardParamsSchema.extend({
+      artifact: artifactConfigSchema.optional(),
+    }),
+  ]),
 });
 
 export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
@@ -229,13 +261,20 @@ export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
       opId: uuidSchema,
       name: z.string().trim().min(1),
       description: z.string().trim().min(1).optional(),
+      kind: z.literal("guard"),
+      config: operationConfigGuardSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
       kind: z.enum([
         "rag",
         "tool",
         "compute",
         "transform",
         "legacy",
-      ] satisfies Exclude<OperationKind, "template" | "llm">[]),
+      ] satisfies Exclude<OperationKind, "template" | "llm" | "guard">[]),
       config: operationConfigOtherSchema,
     }),
   ])
@@ -256,6 +295,11 @@ export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
               strictVariables: op.config.params.strictVariables,
               artifact,
             }
+          : op.kind === "guard"
+            ? {
+                ...op.config.params,
+                artifact,
+              }
           : {
               params: op.config.params.params,
               artifact,
@@ -295,6 +339,21 @@ function normalizeHooks(hooks: OperationHook[]): OperationHook[] {
 function normalizeDependsOn(dependsOn: string[] | undefined): string[] | undefined {
   if (!dependsOn?.length) return undefined;
   return Array.from(new Set(dependsOn));
+}
+
+function normalizeRunConditions(
+  runConditions: OperationRunCondition[] | undefined
+): OperationRunCondition[] | undefined {
+  if (!runConditions?.length) return undefined;
+  const seen = new Set<string>();
+  const normalized: OperationRunCondition[] = [];
+  for (const condition of runConditions) {
+    const key = `${condition.type}:${condition.sourceOpId}:${condition.outputKey}:${condition.operator}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(condition);
+  }
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function normalizeActivation(
@@ -429,6 +488,54 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
       }
     }
 
+    for (const condition of op.config.runConditions ?? []) {
+      if (condition.type !== "guard_output") continue;
+      if (!opIds.has(condition.sourceOpId)) {
+        throw new HttpError(400, "runCondition references unknown opId", "VALIDATION_ERROR", {
+          opId: op.opId,
+          sourceOpId: condition.sourceOpId,
+        });
+      }
+      if (!(op.config.dependsOn ?? []).includes(condition.sourceOpId)) {
+        throw new HttpError(
+          400,
+          "runCondition sourceOpId must also appear in dependsOn",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+          }
+        );
+      }
+
+      const sourceOp = opsById.get(condition.sourceOpId);
+      if (!sourceOp || sourceOp.kind !== "guard") {
+        throw new HttpError(
+          400,
+          "runCondition sourceOpId must reference guard operation",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+          }
+        );
+      }
+
+      const outputKeys = new Set(sourceOp.config.params.outputContract.map((item) => item.key));
+      if (!outputKeys.has(condition.outputKey)) {
+        throw new HttpError(
+          400,
+          "runCondition references unknown guard output",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+            outputKey: condition.outputKey,
+          }
+        );
+      }
+    }
+
     if (op.kind === "template") {
       try {
         validateLiquidTemplate((op.config.params as OperationTemplateParams).template);
@@ -499,6 +606,68 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
       }
     }
 
+    if (op.kind === "guard") {
+      const { artifact: _artifact, ...rawGuardParams } = op.config.params;
+      const guardParams = guardOperationParamsSchema.parse(rawGuardParams);
+      try {
+        compileGuardOutputSchema(guardParams.outputContract);
+      } catch (error) {
+        throw new HttpError(
+          400,
+          `Guard output contract is invalid: ${error instanceof Error ? error.message : String(error)}`,
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (op.config.params.artifact.format !== "json") {
+        throw new HttpError(
+          400,
+          "Guard artifact format must be json",
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (guardParams.engine === "liquid") {
+        try {
+          validateLiquidTemplate(guardParams.template);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `Guard template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
+        }
+      }
+
+      if (guardParams.engine === "aux_llm") {
+        try {
+          validateLiquidTemplate(guardParams.prompt);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `Guard prompt template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
+        }
+        if (typeof guardParams.system === "string" && guardParams.system.length > 0) {
+          try {
+            validateLiquidTemplate(guardParams.system);
+          } catch (error) {
+            throw new HttpError(
+              400,
+              `Guard system template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+              "VALIDATION_ERROR",
+              { opId: op.opId }
+            );
+          }
+        }
+      }
+    }
+
     const existingArtifactId = artifactIds.get(op.config.params.artifact.artifactId);
     if (existingArtifactId) {
       throw new HttpError(400, "Duplicate artifactId in block", "VALIDATION_ERROR", {
@@ -540,6 +709,7 @@ export function validateOperationBlockUpsertInput(raw: unknown): ValidatedOperat
       triggers: normalizeTriggers(op.config.triggers),
       activation: normalizeActivation(op.config.activation),
       dependsOn: normalizeDependsOn(op.config.dependsOn),
+      runConditions: normalizeRunConditions(op.config.runConditions),
     };
     return { ...op, config: normalizedConfig } as OperationInProfile;
   });

@@ -6,6 +6,8 @@ import { useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { LuPlus, LuSearch } from 'react-icons/lu';
 
+import { isOperationKind } from '../utils/operation-kind';
+
 import { OperationRowContainer } from './operation-row-container';
 
 import type { OperationFilterState, OperationListRowMeta } from './types';
@@ -38,18 +40,6 @@ type OperationRowFilterSnapshot = OperationListRowMeta & {
 const ROW_WATCH_STRIDE = 5;
 const VIRTUALIZATION_THRESHOLD = 25;
 const ROW_ESTIMATED_HEIGHT = 82;
-
-function isOperationKind(value: unknown): value is OperationKind {
-	return (
-		value === 'template' ||
-		value === 'llm' ||
-		value === 'rag' ||
-		value === 'tool' ||
-		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
-	);
-}
 
 function matchesEnabledFilter(item: OperationRowFilterSnapshot, filter: OperationFilterState['enabled']): boolean {
 	if (filter === 'all') return true;
@@ -124,7 +114,12 @@ export const OperationList: React.FC<Props> = ({
 
 	const kindOptions = useMemo(() => {
 		const set = new Set(rowFilterSnapshots.map((item) => item.kind));
-		return [{ value: 'all', label: t('operationProfiles.filters.allKinds') }, ...Array.from(set).sort().map((value) => ({ value, label: value }))];
+		return [
+			{ value: 'all', label: t('operationProfiles.filters.allKinds') },
+			...Array.from(set)
+				.sort()
+				.map((value) => ({ value, label: t(`operationProfiles.kind.${value}`) })),
+		];
 	}, [rowFilterSnapshots, t]);
 
 	const filteredRows = useMemo(() => {

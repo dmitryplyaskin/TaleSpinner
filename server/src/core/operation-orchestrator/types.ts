@@ -17,7 +17,8 @@ export type TaskSkipReason =
   | "filtered_out"
   | "dependency_missing"
   | "dependency_not_done"
-  | "orchestrator_aborted";
+  | "orchestrator_aborted"
+  | "runtime_condition";
 
 export type OrchestratorTask<TResult = unknown> = {
   taskId: TaskId;
@@ -135,4 +136,3 @@ export type OrchestratorRunOptions = {
   now?: () => number;
   classifyAbortError?: (error: unknown, ctx: { signal: AbortSignal }) => boolean;
 };
-

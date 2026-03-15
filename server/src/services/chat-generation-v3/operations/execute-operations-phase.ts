@@ -1,4 +1,4 @@
-import { runOrchestrator } from "@core/operation-orchestrator";
+import { createTaskSkip, runOrchestrator } from "@core/operation-orchestrator";
 
 import { renderLiquidTemplate } from "../../chat-core/prompt-template-renderer";
 import {
@@ -13,6 +13,8 @@ import {
 } from "../contracts";
 
 import { applyPromptEffect } from "./effect-handlers/prompt-effects";
+import { executeGuardOperation } from "./guard-operation-executor";
+import { evaluateGuardRunConditions } from "./guard-run-conditions";
 import { executeLlmOperation } from "./llm-operation-executor";
 
 import type { TaskResult } from "../../../core/operation-orchestrator/types";
@@ -236,6 +238,11 @@ function resolveSkipReasonAndDetails(params: {
   blockedByOpIds?: string[];
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
 }): { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails } {
+  if (params.reason === "guard_not_matched") {
+    return {
+      skipReason: "guard_not_matched",
+    };
+  }
   const blockedByOpIds = normalizeBlockedByOpIds(
     params.blockedByOpIds?.length
       ? params.blockedByOpIds
@@ -280,6 +287,10 @@ function mapTaskResult(params: {
   task: TaskResult;
   op: OperationInProfile;
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
+  runtimeSkippedMetaByOpId: ReadonlyMap<
+    string,
+    { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
+  >;
 }): OperationExecutionResult {
   const { task, op } = params;
   if (task.status === "done") {
@@ -340,6 +351,22 @@ function mapTaskResult(params: {
             message: task.reason,
           }
         : undefined,
+    };
+  }
+
+  const runtimeSkipped = params.runtimeSkippedMetaByOpId.get(op.opId);
+  if (runtimeSkipped) {
+    return {
+      opId: op.opId,
+      name: op.name,
+      required: op.config.required,
+      hook: params.hook,
+      status: "skipped",
+      order: op.config.order,
+      dependsOn: op.config.dependsOn ?? [],
+      effects: [],
+      skipReason: runtimeSkipped.skipReason,
+      skipDetails: runtimeSkipped.skipDetails,
     };
   }
 
@@ -448,14 +475,15 @@ export async function executeOperationsPhase(params: {
   }
 
   const executableOps = runnableOperations.filter(
-    (op): op is Extract<OperationInProfile, { kind: "template" | "llm" }> =>
-      op.kind === "template" || op.kind === "llm"
+    (op): op is Extract<OperationInProfile, { kind: "template" | "llm" | "guard" }> =>
+      op.kind === "template" || op.kind === "llm" || op.kind === "guard"
   );
   const executableOpsById = new Map(executableOps.map((op) => [op.opId, op]));
+  const operationsById = new Map(params.operations.map((op) => [op.opId, op] as const));
   const executableTaskIdSet = new Set(executableOps.map((op) => op.opId));
   const unsupportedOps = runnableOperations.filter(
-    (op): op is Exclude<OperationInProfile, Extract<OperationInProfile, { kind: "template" | "llm" }>> =>
-      op.kind !== "template" && op.kind !== "llm"
+    (op): op is Exclude<OperationInProfile, Extract<OperationInProfile, { kind: "template" | "llm" | "guard" }>> =>
+      op.kind !== "template" && op.kind !== "llm" && op.kind !== "guard"
   );
 
   const effectsByOpId = new Map<string, RuntimeEffect[]>();
@@ -469,6 +497,10 @@ export async function executeOperationsPhase(params: {
   };
 
   const skippedEventMetaByTaskId = new Map<
+    string,
+    { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
+  >();
+  const runtimeSkippedMetaByTaskId = new Map<
     string,
     { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
   >();
@@ -490,8 +522,22 @@ export async function executeOperationsPhase(params: {
           dependsOn: op.config.dependsOn,
           run: async () => {
             const depPreview = replayDependencyEffects(baseState, op.config.dependsOn ?? [], effectsByOpId);
+            const guardConditionResult = evaluateGuardRunConditions({
+              op,
+              operationsById,
+              artifacts: depPreview.artifacts,
+            });
+            if (!guardConditionResult.matched) {
+              runtimeSkippedMetaByTaskId.set(op.opId, {
+                skipReason: "guard_not_matched",
+                skipDetails: {
+                  guard: guardConditionResult.details,
+                },
+              });
+              throw createTaskSkip("runtime_condition", "guard_not_matched");
+            }
             const liquidContext = buildTemplateContext(params.templateContext, depPreview, params.operations);
-            let resolvedRendered = "";
+            let resolvedRendered: unknown = "";
             let debugSummary: string | undefined;
 
             if (op.kind === "template") {
@@ -512,6 +558,16 @@ export async function executeOperationsPhase(params: {
               });
               resolvedRendered = normalizeText(llmResult.rendered);
               debugSummary = llmResult.debugSummary;
+            }
+
+            if (op.kind === "guard") {
+              const guardResult = await executeGuardOperation({
+                op,
+                liquidContext,
+                abortSignal: params.abortSignal,
+              });
+              resolvedRendered = guardResult.value;
+              debugSummary = guardResult.debugSummary;
             }
 
             const artifact = op.config.params.artifact;
@@ -543,7 +599,10 @@ export async function executeOperationsPhase(params: {
                 opId: op.opId,
                 name: op.name,
                 template: op.config.params.template,
-                rendered: resolvedRendered,
+                rendered:
+                  typeof resolvedRendered === "string"
+                    ? resolvedRendered
+                    : JSON.stringify(resolvedRendered),
                 effect,
                 liquidContext: buildLiquidContextSnapshot({
                   base: liquidContext,
@@ -557,13 +616,17 @@ export async function executeOperationsPhase(params: {
               effects,
               debugSummary:
                 debugSummary ??
-                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${resolvedRendered.length}`,
+                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${normalizeText(
+                  typeof resolvedRendered === "string"
+                    ? resolvedRendered
+                    : JSON.stringify(resolvedRendered)
+                ).length}`,
             });
             return {
               effects,
               debugSummary:
                 debugSummary ??
-                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${resolvedRendered.length}`,
+                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${normalizeText(resolvedRendered).length}`,
             };
           },
         })),
@@ -579,6 +642,13 @@ export async function executeOperationsPhase(params: {
           if (evt.type === "orch.task.skipped") {
             const op = executableOpsById.get(evt.data.taskId);
             if (!op) return;
+            if (evt.data.reason === "runtime_condition") {
+              const runtimeMeta = runtimeSkippedMetaByTaskId.get(op.opId);
+              if (runtimeMeta) {
+                skippedEventMetaByTaskId.set(op.opId, runtimeMeta);
+              }
+              return;
+            }
             const missingDeps =
               evt.data.reason === "dependency_missing"
                 ? (op.config.dependsOn ?? []).filter((depId) => !executableTaskIdSet.has(depId))
@@ -639,6 +709,7 @@ export async function executeOperationsPhase(params: {
             op,
             task,
             activationSkippedByOpId,
+            runtimeSkippedMetaByOpId: runtimeSkippedMetaByTaskId,
           });
         })
         .filter((item): item is OperationExecutionResult => Boolean(item))

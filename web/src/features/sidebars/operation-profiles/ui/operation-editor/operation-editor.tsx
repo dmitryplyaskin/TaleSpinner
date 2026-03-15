@@ -8,6 +8,7 @@ import { FormInput } from '@ui/form-components';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 
+import { makeDefaultGuardKindParams, type FormGuardKindParams } from '../../form/guard-kind-form';
 import {
 	makeDefaultArtifactOutput,
 	makeDefaultLlmKindParams,
@@ -16,10 +17,11 @@ import {
 	type FormOtherKindParams,
 	type FormTemplateParams,
 } from '../../form/operation-profile-form-mapping';
+import { OPERATION_KIND_OPTIONS, isOperationKind } from '../../utils/operation-kind';
 
 import { OperationSectionsAccordion } from './operation-sections-accordion';
 
-import type { OperationKind } from '@shared/types/operation-profiles';
+import type { OperationArtifactConfig, OperationKind } from '@shared/types/operation-profiles';
 
 const ACTION_TOOLTIP_SETTINGS = TOOLTIP_PORTAL_SETTINGS;
 
@@ -38,23 +40,14 @@ type Props = {
 	onRemove?: () => void;
 };
 
-const kindOptions = ['template', 'llm', 'rag', 'tool', 'compute', 'transform', 'legacy'] as const;
-
-function isOperationKind(value: unknown): value is OperationKind {
-	return (
-		value === 'template' ||
-		value === 'llm' ||
-		value === 'rag' ||
-		value === 'tool' ||
-		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
-	);
-}
-
-function makeSafeOutput(output: unknown) {
-	if (output && typeof output === 'object') return output;
-	return makeDefaultArtifactOutput();
+function resolveArtifactForKind(opId: string, kind: OperationKind, currentValue: unknown): OperationArtifactConfig {
+	const fallback = makeDefaultArtifactOutput(opId, kind);
+	if (!currentValue || typeof currentValue !== 'object') return fallback;
+	return {
+		...fallback,
+		...(currentValue as OperationArtifactConfig),
+		format: kind === 'guard' ? 'json' : ((currentValue as OperationArtifactConfig).format ?? fallback.format),
+	};
 }
 
 export const OperationEditor: React.FC<Props> = memo(({ index, title, status, canSave, canDiscard, onSave, onDiscard, onRemove }) => {
@@ -122,13 +115,13 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 				<Select
 					{...kindField}
 					label={t('operationProfiles.fields.kind')}
-					data={kindOptions.map((kind) => ({ value: kind, label: t(`operationProfiles.kind.${kind}`) }))}
+					data={OPERATION_KIND_OPTIONS.map((kind) => ({ value: kind, label: t(`operationProfiles.kind.${kind}`) }))}
 					value={normalizedKind}
 					onChange={(next) => {
 						const nextKind: OperationKind = isOperationKind(next) ? next : 'template';
 						onKindChange(nextKind);
 
-						const safeArtifact = makeSafeOutput(artifact);
+						const safeArtifact = resolveArtifactForKind(safeOpId || 'temp-op', nextKind, artifact);
 
 						if (nextKind === 'template') {
 							const nextParams: FormTemplateParams = {
@@ -143,16 +136,22 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 						if (nextKind === 'llm') {
 							const nextParams: FormLlmKindParams = makeDefaultLlmKindParams(
 								safeOpId || 'temp-op',
-								safeArtifact as FormLlmKindParams['artifact'],
+								safeArtifact,
 							);
+							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
+							return;
+						}
+
+						if (nextKind === 'guard') {
+							const nextParams: FormGuardKindParams = makeDefaultGuardKindParams(safeOpId || 'temp-op', safeArtifact);
 							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
 							return;
 						}
 
 						const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(
 							safeOpId || 'temp-op',
-							nextKind as Exclude<OperationKind, 'template' | 'llm'>,
-							safeArtifact as FormOtherKindParams['artifact'],
+							nextKind as Exclude<OperationKind, 'template' | 'llm' | 'guard'>,
+							safeArtifact,
 						);
 						setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
 					}}

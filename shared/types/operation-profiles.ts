@@ -17,6 +17,7 @@ export type ArtifactSemantics =
 export type OperationKind =
   | "template"
   | "llm"
+  | "guard"
   | "rag"
   | "tool"
   | "compute"
@@ -196,6 +197,41 @@ export type LlmOperationParams = {
   retry?: LlmOperationRetry;
 };
 
+export type GuardEngine = "liquid" | "aux_llm";
+
+export type GuardOutputDefinition = {
+  key: string;
+  title: string;
+  description?: string;
+};
+
+export type GuardOutputContract = GuardOutputDefinition[];
+
+export type GuardLiquidParams = {
+  engine: "liquid";
+  outputContract: GuardOutputContract;
+  template: string;
+  strictVariables?: boolean;
+  artifact: OperationArtifactConfig;
+};
+
+export type GuardAuxLlmParams = {
+  engine: "aux_llm";
+  outputContract: GuardOutputContract;
+  providerId: "openrouter" | "openai_compatible";
+  credentialRef: string;
+  model?: string;
+  system?: string;
+  prompt: string;
+  strictVariables?: boolean;
+  samplers?: LlmOperationSamplers;
+  timeoutMs?: number;
+  retry?: LlmOperationRetry;
+  artifact: OperationArtifactConfig;
+};
+
+export type GuardOperationParams = GuardLiquidParams | GuardAuxLlmParams;
+
 export type OperationOtherKindParams<TParams extends Record<string, unknown> = Record<string, unknown>> = {
   params: TParams;
   artifact: OperationArtifactConfig;
@@ -206,7 +242,26 @@ export type OperationOtherKindLegacyParams<TParams extends Record<string, unknow
   output: LegacyOperationOutput;
 };
 
-export type OperationParams = OperationTemplateParams | OperationOtherKindParams;
+export type OperationRunCondition =
+  | {
+      type: "guard_output";
+      sourceOpId: string;
+      outputKey: string;
+      operator: "is_true";
+    }
+  | {
+      type: "guard_output";
+      sourceOpId: string;
+      outputKey: string;
+      operator: "is_false";
+    };
+
+export type OperationParams =
+  | OperationTemplateParams
+  | OperationGuardOperationParamsCompat
+  | OperationOtherKindParams;
+
+type OperationGuardOperationParamsCompat = GuardOperationParams;
 
 export type OperationActivationConfig = {
   everyNTurns?: number;
@@ -221,6 +276,7 @@ export type OperationConfig<TParams extends OperationParams = OperationParams> =
   activation?: OperationActivationConfig;
   order: number;
   dependsOn?: string[];
+  runConditions?: OperationRunCondition[];
   params: TParams;
 };
 
@@ -240,16 +296,25 @@ export type LlmOperationInProfile = {
   config: OperationConfig<OperationOtherKindParams<LlmOperationParams>>;
 };
 
+export type GuardOperationInProfile = {
+  opId: string;
+  name: string;
+  description?: string;
+  kind: "guard";
+  config: OperationConfig<GuardOperationParams>;
+};
+
 export type GenericNonTemplateOperationInProfile = {
   opId: string;
   name: string;
   description?: string;
-  kind: Exclude<OperationKind, "template" | "llm">;
+  kind: Exclude<OperationKind, "template" | "llm" | "guard">;
   config: OperationConfig<OperationOtherKindParams>;
 };
 
 export type NonTemplateOperationInProfile =
   | LlmOperationInProfile
+  | GuardOperationInProfile
   | GenericNonTemplateOperationInProfile;
 
 export type OperationInProfile = TemplateOperationInProfile | NonTemplateOperationInProfile;
@@ -413,6 +478,7 @@ export function inferDefaultArtifactFormat(params: {
   kind: OperationKind;
   llmOutputMode?: "text" | "json";
 }): ArtifactFormat {
+  if (params.kind === "guard") return "json";
   if (params.kind === "llm" && params.llmOutputMode === "json") return "json";
   return "markdown";
 }

@@ -12,22 +12,11 @@ import { FormInput, FormSwitch } from '@ui/form-components';
 import { fromOperationProfileForm, makeDefaultOperation, toOperationProfileForm, type OperationProfileFormValues } from './form/operation-profile-form-mapping';
 import { OperationEditor } from './ui/operation-editor/operation-editor';
 import { OperationList } from './ui/operation-list';
+import { isOperationKind } from './utils/operation-kind';
 
 import type { OperationListRowMeta } from './ui/types';
 import type { OperationBlockDto, OperationProfileDto } from '../../../api/chat-core';
 import type { OperationKind } from '@shared/types/operation-profiles';
-
-function isOperationKind(value: unknown): value is OperationKind {
-	return (
-		value === 'template' ||
-		value === 'llm' ||
-		value === 'rag' ||
-		value === 'tool' ||
-		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
-	);
-}
 
 type Props = {
 	block: OperationBlockDto;

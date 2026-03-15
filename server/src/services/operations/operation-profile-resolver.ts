@@ -35,6 +35,14 @@ function mapOperationToRuntime(params: {
   const blockPrefix = `${params.blockId}:`;
   const opId = `${blockPrefix}${params.op.opId}`;
   const dependsOn = params.op.config.dependsOn?.map((dep) => `${blockPrefix}${dep}`);
+  const runConditions = params.op.config.runConditions?.map((condition) =>
+    condition.type === "guard_output"
+      ? {
+          ...condition,
+          sourceOpId: `${blockPrefix}${condition.sourceOpId}`,
+        }
+      : condition
+  );
   const order = params.blockOrderIndex * ORDER_BUCKET + normalizeOrder(params.op.config.order);
   const artifact: OperationArtifactConfig = {
     ...params.op.config.params.artifact,
@@ -47,6 +55,7 @@ function mapOperationToRuntime(params: {
       ...params.op.config,
       order,
       dependsOn: dependsOn?.length ? dependsOn : undefined,
+      runConditions: runConditions?.length ? runConditions : undefined,
       params:
         params.op.kind === "template"
           ? {

@@ -7,9 +7,7 @@ import {
 	Background,
 	ConnectionLineType,
 	Controls,
-	type Edge,
 	type EdgeChange,
-	MarkerType,
 	type Node,
 	type NodeChange,
 	Panel,
@@ -29,12 +27,27 @@ import { v4 as uuidv4 } from 'uuid';
 import { updateOperationBlockFx } from '@model/operation-blocks';
 import { Z_INDEX } from '@ui/z-index';
 
-import { fromOperationProfileForm, makeDefaultOperation, toOperationProfileForm, type OperationProfileFormValues } from '../form/operation-profile-form-mapping';
+import {
+	fromOperationProfileForm,
+	makeDefaultOperation,
+	toOperationProfileForm,
+	type FormRunCondition,
+	type OperationProfileFormValues,
+} from '../form/operation-profile-form-mapping';
 import { OperationEditor } from '../ui/operation-editor/operation-editor';
+import { isOperationKind } from '../utils/operation-kind';
 
 import { OperationFlowNode, type OperationFlowNodeData } from './flow/operation-flow-node';
+import { buildOperationFlowNodeData, buildOperationFlowNodeSignature } from './flow/operation-flow-node-model';
 import { useGroupLabelDrag } from './hooks/use-group-label-drag';
 import { computeSimpleLayout, readNodeEditorMeta, writeNodeEditorMeta } from './meta/node-editor-meta';
+import {
+	applyConnectionToOperations,
+	buildOperationGraphEdges,
+	connectSourceToOperation,
+	removeEdgeFromOperations,
+	removeOperationReferences,
+} from './operation-graph';
 import { GroupEditorModal, type GroupEditorDraft } from './ui/group-editor-modal';
 import { GroupOverlays, type EditorGroup } from './ui/group-overlays';
 import { NodeEditorHeader } from './ui/node-editor-header';
@@ -51,48 +64,39 @@ type Props = {
 };
 
 type OpEdge = { source: string; target: string };
+type PendingConnection = { sourceId: string; sourceHandle: string | null };
 
 const GROUP_BG_ALPHA = 0.08;
 
-function buildEdges(operations: Array<{ opId: string; config?: { dependsOn?: string[] } }>): Edge[] {
-	const edges: Edge[] = [];
-	for (const op of operations) {
-		const target = op.opId;
-		const dependsOn = Array.isArray(op.config?.dependsOn) ? op.config!.dependsOn! : [];
-		for (const source of dependsOn) {
-			if (!source || source === target) continue;
-			edges.push({
-				id: `${source}=>${target}`,
-				source,
-				target,
-				animated: false,
-				markerEnd: { type: MarkerType.ArrowClosed },
-				style: { strokeWidth: 2 },
-			});
-		}
-	}
-	return edges;
-}
-
-function edgesToDeps(edges: Edge[]): OpEdge[] {
+function edgesToDeps(edges: Array<{ source: string; target: string }>): OpEdge[] {
 	return edges.map((e) => ({ source: e.source, target: e.target }));
-}
-
-function removeOpIdFromAllDependsOn(values: OperationProfileFormValues, removedOpId: string): OperationProfileFormValues {
-	return {
-		...values,
-		operations: values.operations.map((op) => ({
-			...op,
-			config: {
-				...op.config,
-				dependsOn: op.config.dependsOn.filter((id) => id !== removedOpId),
-			},
-		})),
-	};
 }
 
 function extractOpIds(values: OperationProfileFormValues): string[] {
 	return values.operations.map((o) => o.opId).filter(Boolean);
+}
+
+function readString(value: unknown): string {
+	return typeof value === 'string' ? value : '';
+}
+
+function readStringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function readRunConditions(value: unknown): FormRunCondition[] {
+	return Array.isArray(value)
+		? value.filter(
+				(item): item is FormRunCondition =>
+					Boolean(item) &&
+					typeof item === 'object' &&
+					(item as Record<string, unknown>).type === 'guard_output' &&
+					typeof (item as Record<string, unknown>).sourceOpId === 'string' &&
+					typeof (item as Record<string, unknown>).outputKey === 'string' &&
+					((item as Record<string, unknown>).operator === 'is_true' ||
+						(item as Record<string, unknown>).operator === 'is_false'),
+		  )
+		: [];
 }
 
 function isTextEditingTarget(target: EventTarget | null): boolean {
@@ -128,10 +132,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 
 	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
-	const { control, formState, setValue, reset: resetForm } = methods;
+	const { control, formState, reset: resetForm } = methods;
 
-	const { append, replace } = useFieldArray({ name: 'operations', control, keyName: '_key' });
-	const operations = useWatch({ control, name: 'operations' }) as OperationProfileFormValues['operations'] | undefined;
+	const { fields, append, replace } = useFieldArray({ name: 'operations', control, keyName: '_key' });
 
 	const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
 	const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
@@ -144,7 +147,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	const [viewState, setViewState] = useState<NodeEditorViewState>('graph');
 	const [isInspectorVisible, setIsInspectorVisible] = useState(true);
 
-	const connectingSourceIdRef = useRef<string | null>(null);
+	const connectingSourceRef = useRef<PendingConnection | null>(null);
 	const didConnectRef = useRef(false);
 	const prevNodeIdsKeyRef = useRef<string>('');
 	const flowWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -165,23 +168,16 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		setIsInspectorVisible(true);
 
 		const meta = readNodeEditorMeta(block.meta);
-		const resetEdges = buildEdges(initial.operations as Array<{ opId: string; config?: { dependsOn?: string[] } }>);
-		const fallbackPositions = computeSimpleLayout(extractOpIds(initial), edgesToDeps(resetEdges));
+		const resetEdges = buildOperationGraphEdges(initial.operations);
+		const resetFallbackPositions = computeSimpleLayout(extractOpIds(initial), edgesToDeps(resetEdges));
 		const nextNodes: Array<Node<OperationFlowNodeData>> = initial.operations.map((op) => {
-			const pos = meta?.nodes?.[op.opId] ?? fallbackPositions[op.opId] ?? { x: 0, y: 0 };
+			const pos = meta?.nodes?.[op.opId] ?? resetFallbackPositions[op.opId] ?? { x: 0, y: 0 };
 			return {
 				id: op.opId,
 				type: 'operation',
 				position: pos,
 				zIndex: Z_INDEX.flow.node,
-				data: {
-					opId: op.opId,
-					name: op.name,
-					description: op.description,
-					kind: op.kind,
-					isEnabled: Boolean(op.config.enabled),
-					isRequired: Boolean(op.config.required),
-				},
+				data: buildOperationFlowNodeData(op),
 			};
 		});
 		setNodes(nextNodes);
@@ -200,10 +196,67 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		return true;
 	}, []);
 
-	const safeOperations = useMemo(() => (Array.isArray(operations) ? operations : []), [operations]);
-	const opIndexById = useMemo(() => new Map(safeOperations.map((op, idx) => [op.opId, idx])), [safeOperations]);
-
-	const edges = useMemo(() => buildEdges(safeOperations), [safeOperations]);
+	const graphWatchPaths = useMemo(
+		() =>
+			fields.flatMap((_, index) => [
+				`operations.${index}.name`,
+				`operations.${index}.description`,
+				`operations.${index}.kind`,
+				`operations.${index}.config.enabled`,
+				`operations.${index}.config.required`,
+				`operations.${index}.config.dependsOn`,
+				`operations.${index}.config.runConditions`,
+				`operations.${index}.config.params.outputContract`,
+			]),
+		[fields],
+	);
+	const graphWatchValues = useWatch({ control, name: graphWatchPaths as any }) as unknown[] | undefined;
+	const graphOperations = useMemo(
+		() =>
+			fields.map((field, index) => {
+				const base = index * 8;
+				const kindValue = graphWatchValues?.[base + 2];
+				const kind = isOperationKind(kindValue) ? kindValue : 'template';
+				const outputContract = graphWatchValues?.[base + 7];
+				return {
+					opId: typeof field.opId === 'string' ? field.opId : '',
+					name: readString(graphWatchValues?.[base]),
+					description: readString(graphWatchValues?.[base + 1]),
+					kind,
+					config: {
+						enabled: Boolean(graphWatchValues?.[base + 3]),
+						required: Boolean(graphWatchValues?.[base + 4]),
+						dependsOn: readStringArray(graphWatchValues?.[base + 5]),
+						runConditions: readRunConditions(graphWatchValues?.[base + 6]),
+						params:
+							kind === 'guard'
+								? {
+										outputContract: Array.isArray(outputContract) ? outputContract : [],
+									}
+								: {},
+					},
+				};
+			}),
+		[fields, graphWatchValues],
+	);
+	const nodeDrafts = useMemo(
+		() =>
+			graphOperations.map((operation) => {
+				const data = buildOperationFlowNodeData(operation);
+				return {
+					opId: operation.opId,
+					data,
+					signature: buildOperationFlowNodeSignature(data),
+				};
+			}),
+		[graphOperations],
+	);
+	const opIndexById = useMemo(() => new Map(fields.map((field, idx) => [String(field.opId), idx])), [fields]);
+	const edges = useMemo(() => buildOperationGraphEdges(graphOperations), [graphOperations]);
+	const fallbackPositions = useMemo(
+		() => computeSimpleLayout(nodeDrafts.map((draft) => draft.opId), edgesToDeps(edges)),
+		[nodeDrafts, edges],
+	);
 	useEffect(() => {
 		nodesRef.current = nodes;
 	}, [nodes]);
@@ -212,22 +265,14 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	useEffect(() => {
 		if (!opened) return;
 		const meta = readNodeEditorMeta(block.meta);
-		const fallbackPositions = computeSimpleLayout(extractOpIds(methods.getValues()), edgesToDeps(edges));
-		const initialNodes: Array<Node<OperationFlowNodeData>> = safeOperations.map((op) => {
-			const pos = meta?.nodes?.[op.opId] ?? fallbackPositions[op.opId] ?? { x: 0, y: 0 };
+		const initialNodes: Array<Node<OperationFlowNodeData>> = nodeDrafts.map((draft) => {
+			const pos = meta?.nodes?.[draft.opId] ?? fallbackPositions[draft.opId] ?? { x: 0, y: 0 };
 			return {
-				id: op.opId,
+				id: draft.opId,
 				type: 'operation',
 				position: pos,
 				zIndex: Z_INDEX.flow.node,
-				data: {
-					opId: op.opId,
-					name: op.name,
-					description: op.description,
-					kind: op.kind,
-					isEnabled: Boolean(op.config.enabled),
-					isRequired: Boolean(op.config.required),
-				},
+				data: draft.data,
 			};
 		});
 		setNodes(initialNodes);
@@ -244,29 +289,19 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		if (!opened) return;
 		setNodes((prev) => {
 			const prevById = new Map(prev.map((n) => [String(n.id), n]));
-			const fallbackPositions = computeSimpleLayout(extractOpIds(methods.getValues()), edgesToDeps(edges));
-
-			const next = safeOperations.map((op) => {
-				const existing = prevById.get(op.opId);
-				const nextData: OperationFlowNodeData = {
-					opId: op.opId,
-					name: op.name,
-					description: op.description,
-					kind: op.kind,
-					isEnabled: Boolean(op.config.enabled),
-					isRequired: Boolean(op.config.required),
-				};
+			const next = nodeDrafts.map((draft) => {
+				const existing = prevById.get(draft.opId);
 
 				// Important: preserve measured/width/height/etc that ReactFlow stores in node state.
 				// Otherwise ReactFlow will keep re-measuring and emitting node changes, which can cause
 				// mount-time update loops ("Maximum update depth exceeded").
 				return {
 					...(existing ?? {}),
-					id: op.opId,
+					id: draft.opId,
 					type: 'operation',
-					position: existing?.position ?? fallbackPositions[op.opId] ?? { x: 0, y: 0 },
+					position: existing?.position ?? fallbackPositions[draft.opId] ?? { x: 0, y: 0 },
 					zIndex: existing?.zIndex ?? Z_INDEX.flow.node,
-					data: nextData,
+					data: draft.data,
 				} satisfies Node<OperationFlowNodeData>;
 			});
 
@@ -280,8 +315,6 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 						same = false;
 						break;
 					}
-					const ad = a.data as any;
-					const bd = b.data as any;
 					if (String(a.id) !== String(b.id)) {
 						same = false;
 						break;
@@ -294,14 +327,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 						same = false;
 						break;
 					}
-					if (
-						(ad?.opId ?? '') !== (bd?.opId ?? '') ||
-						(ad?.name ?? '') !== (bd?.name ?? '') ||
-						(ad?.description ?? '') !== (bd?.description ?? '') ||
-						(ad?.kind ?? '') !== (bd?.kind ?? '') ||
-						Boolean(ad?.isEnabled) !== Boolean(bd?.isEnabled) ||
-						Boolean(ad?.isRequired) !== Boolean(bd?.isRequired)
-					) {
+					if (nodeDrafts[i]?.signature !== buildOperationFlowNodeSignature(a.data as OperationFlowNodeData)) {
 						same = false;
 						break;
 					}
@@ -312,7 +338,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 			return next;
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [opened, safeOperations, edges]);
+	}, [opened, nodeDrafts, fallbackPositions]);
 
 	const selectedIndex = selectedOpId ? (opIndexById.get(selectedOpId) ?? null) : null;
 	const isDirty = formState.isDirty || isLayoutDirty;
@@ -360,7 +386,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		const next = makeDefaultOperation();
 		append(next);
 
-		let position = { x: 0, y: safeOperations.length * 160 };
+		let position = { x: 0, y: graphOperations.length * 160 };
 		if (flow && flowWrapperRef.current) {
 			const r = flowWrapperRef.current.getBoundingClientRect();
 			const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -374,14 +400,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 				type: 'operation',
 				position,
 				zIndex: Z_INDEX.flow.node,
-				data: {
-					opId: next.opId,
-					name: next.name,
-					description: next.description,
-					kind: next.kind,
-					isEnabled: true,
-					isRequired: false,
-				},
+				data: buildOperationFlowNodeData(next),
 			},
 		]);
 		setIsLayoutDirty(true);
@@ -394,10 +413,12 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		const ids = selectedNodeIds.length ? selectedNodeIds : selectedOpId ? [selectedOpId] : [];
 		if (ids.length === 0) return;
 
-		// Remove operations + cleanup dependsOn everywhere.
 		let current = methods.getValues();
 		for (const removedOpId of ids) {
-			current = removeOpIdFromAllDependsOn(current, removedOpId);
+			current = {
+				...current,
+				operations: removeOperationReferences(current.operations, removedOpId),
+			};
 		}
 		const nextOps = current.operations.filter((op) => !ids.includes(op.opId));
 		replace(nextOps);
@@ -548,25 +569,26 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		didConnectRef.current = true;
 		if (!conn.source || !conn.target) return;
 		if (conn.source === conn.target) return;
-		const targetIdx = opIndexById.get(conn.target);
-		if (targetIdx === undefined) return;
-
-		const path = `operations.${targetIdx}.config.dependsOn` as const;
-		const current = (methods.getValues(path) ?? []) as string[];
-		if (current.includes(conn.source)) return;
-		setValue(path, [...current, conn.source], { shouldDirty: true });
+		const nextOperations = applyConnectionToOperations(methods.getValues().operations, conn);
+		replace(nextOperations);
 	};
 
-	const onConnectStart = (_: unknown, params: { nodeId?: string | null; handleType?: 'source' | 'target' | null }) => {
+	const onConnectStart = (
+		_: unknown,
+		params: { nodeId?: string | null; handleType?: 'source' | 'target' | null; handleId?: string | null },
+	) => {
 		didConnectRef.current = false;
-		connectingSourceIdRef.current = params.handleType === 'source' && params.nodeId ? String(params.nodeId) : null;
+		connectingSourceRef.current =
+			params.handleType === 'source' && params.nodeId
+				? { sourceId: String(params.nodeId), sourceHandle: params.handleId ?? null }
+				: null;
 	};
 
 	const onConnectEnd = (event: MouseEvent | TouchEvent) => {
-		const sourceId = connectingSourceIdRef.current;
-		connectingSourceIdRef.current = null;
+		const pendingConnection = connectingSourceRef.current;
+		connectingSourceRef.current = null;
 
-		if (!sourceId) return;
+		if (!pendingConnection?.sourceId) return;
 		if (didConnectRef.current) return;
 		if (!flow) return;
 
@@ -589,27 +611,23 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') return;
 
 		const next = makeDefaultOperation();
-		next.config.dependsOn = [sourceId];
-		append(next);
+		const nextOperation = connectSourceToOperation(next, {
+			source: pendingConnection.sourceId,
+			sourceHandle: pendingConnection.sourceHandle,
+		});
+		append(nextOperation);
 
 		setNodes((prev) => [
 			...prev,
 			{
-				id: next.opId,
+				id: nextOperation.opId,
 				type: 'operation',
 				position: { x: pos.x, y: pos.y },
 				zIndex: Z_INDEX.flow.node,
-				data: {
-					opId: next.opId,
-					name: next.name,
-					description: next.description,
-					kind: next.kind,
-					isEnabled: Boolean(next.config.enabled),
-					isRequired: Boolean(next.config.required),
-				},
+				data: buildOperationFlowNodeData(nextOperation),
 			},
 		]);
-		setSelectedOpId(next.opId);
+		setSelectedOpId(nextOperation.opId);
 		setIsLayoutDirty(true);
 		if (isCompactLayout) setViewState('inspector');
 		else setIsInspectorVisible(true);
@@ -619,20 +637,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id);
 		if (removed.length === 0) return;
 
-		for (const id of removed) {
-			const [source, target] = String(id).split('=>');
-			if (!source || !target) continue;
-			const targetIdx = opIndexById.get(target);
-			if (targetIdx === undefined) continue;
-			const path = `operations.${targetIdx}.config.dependsOn` as const;
-			const current = (methods.getValues(path) ?? []) as string[];
-			if (!current.includes(source)) continue;
-			setValue(
-				path,
-				current.filter((v) => v !== source),
-				{ shouldDirty: true },
-			);
-		}
+		let nextOperations = methods.getValues().operations;
+		for (const id of removed) nextOperations = removeEdgeFromOperations(nextOperations, String(id));
+		replace(nextOperations);
 	};
 
 	const onNodesChange = (changes: NodeChange[]) => {
@@ -848,7 +855,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 												index={selectedIndex}
 												status={{
 													index: selectedIndex + 1,
-													kind: safeOperations[selectedIndex]?.kind ?? 'template',
+													kind: graphOperations[selectedIndex]?.kind ?? 'template',
 													isDirty,
 												}}
 												canSave={isDirty}

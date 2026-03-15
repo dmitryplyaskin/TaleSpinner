@@ -1,5 +1,5 @@
 import { Button, Group, Paper, Select, Stack, Text } from '@mantine/core';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 
@@ -67,13 +67,21 @@ export const OutputSection: React.FC<Props> = ({ index }) => {
 		| {
 				artifactId?: string;
 				exposures?: ArtifactExposure[];
+				format?: 'text' | 'markdown' | 'json';
 		  }
 		| undefined;
+	const kindValue = useWatch({ control, name: `operations.${index}.kind` }) as unknown;
+	const isGuardKind = kindValue === 'guard';
 
 	const exposuresArray = useFieldArray({
 		control,
 		name: `operations.${index}.config.params.artifact.exposures`,
 	});
+
+	useEffect(() => {
+		if (!isGuardKind || artifact?.format === 'json') return;
+		setValue(`operations.${index}.config.params.artifact.format`, 'json', { shouldDirty: true });
+	}, [artifact?.format, index, isGuardKind, setValue]);
 
 	return (
 		<Stack gap="md">
@@ -104,7 +112,14 @@ export const OutputSection: React.FC<Props> = ({ index }) => {
 					name={`operations.${index}.config.params.artifact.format`}
 					label={t('operationProfiles.sectionsLabels.format')}
 					infoTip={t('operationProfiles.tooltips.format')}
-					selectProps={{ options: formatOptions.map((value) => ({ value, label: t(`operationProfiles.valueLabel.${value}`) })), comboboxProps: { withinPortal: false } }}
+					selectProps={{
+						options: (isGuardKind ? ['json'] : formatOptions).map((value) => ({
+							value,
+							label: t(`operationProfiles.valueLabel.${value}`),
+						})),
+						comboboxProps: { withinPortal: false },
+						disabled: isGuardKind,
+					}}
 				/>
 			</Group>
 

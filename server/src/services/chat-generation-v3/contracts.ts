@@ -179,6 +179,7 @@ export type OperationSkipReason =
   | "activation_not_reached"
   | "dependency_not_done"
   | "dependency_missing"
+  | "guard_not_matched"
   | "unsupported_kind"
   | "orchestrator_aborted"
   | "filtered_out"
@@ -193,6 +194,12 @@ export type OperationSkipDetails = {
   };
   blockedByOpIds?: string[];
   blockedByReason?: "activation_not_reached";
+  guard?: {
+    sourceOpId: string;
+    outputKey: string;
+    operator: "is_true" | "is_false";
+    actual: boolean | null;
+  };
 };
 
 export type OperationExecutionResult = {

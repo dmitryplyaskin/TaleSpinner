@@ -6,6 +6,20 @@ export interface InstructionRenderContext {
   chat: unknown;
   messages: Array<{ role: string; content: string }>;
   rag: unknown;
+  worldInfo?: {
+    activatedCount: number;
+    activatedEntries: Array<{
+      hash: string;
+      bookId: string;
+      bookName: string;
+      uid: number;
+      comment: string;
+      content: string;
+      matchedKeys: string[];
+      reasons: string[];
+    }>;
+    warnings: string[];
+  };
   // Artifacts materialized as `art.<artifactId>.value/history`.
   // `artByOpId` is a convenience alias for cross-operation references from templates.
   art?: Record<string, unknown>;
@@ -160,6 +174,7 @@ function registerInternalFilters(liquid: Liquid): Liquid {
       return resolveRecentMessagesHelper(helperName, rawArg, messages);
     }
   );
+  liquid.registerFilter("json", (input: unknown) => JSON.stringify(input));
   return liquid;
 }
 
