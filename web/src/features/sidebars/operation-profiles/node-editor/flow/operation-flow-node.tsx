@@ -50,7 +50,10 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 	const guardOutputsSignature = d.guardOutputs.map((output) => `${output.key}:${output.title}`).join('|');
 
 	useLayoutEffect(() => {
-		updateNodeInternals(d.opId);
+		const frameId = window.requestAnimationFrame(() => {
+			updateNodeInternals(d.opId);
+		});
+		return () => window.cancelAnimationFrame(frameId);
 	}, [d.opId, d.kind, guardOutputsSignature, updateNodeInternals]);
 
 	return (
@@ -65,6 +68,7 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 				position: 'relative',
 				borderWidth: selected ? 2 : 1,
 				borderColor: selected ? 'var(--mantine-color-blue-6)' : undefined,
+				opacity: d.isEnabled ? 1 : 0.72,
 			}}
 		>
 			{/* dependsOn: incoming edges -> target handle on the left */}
@@ -73,7 +77,7 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 				<Handle id={DEFAULT_SOURCE_HANDLE_ID} type="source" position={Position.Right} style={HANDLE_STYLE} />
 			) : null}
 
-			<Stack gap={4}>
+			<Stack gap={8}>
 				<Group justify="space-between" wrap="nowrap" gap="xs">
 					<Text fw={700} size="sm" lineClamp={1} style={{ minWidth: 0 }}>
 						{d.name}
@@ -83,38 +87,27 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 					</Badge>
 				</Group>
 
-				<Group gap={6} wrap="wrap">
-					<Badge size="sm" color={d.isEnabled ? 'green' : 'gray'} variant="light">
-						{d.isEnabled ? 'enabled' : 'disabled'}
-					</Badge>
-					{d.isRequired && (
-						<Badge size="sm" color="orange" variant="light">
-							required
-						</Badge>
-					)}
-				</Group>
-
 				{d.description?.trim() ? (
-					<Text size="xs" c="dimmed" lineClamp={3}>
+					<Text size="xs" c="dimmed" lineClamp={2}>
 						{d.description}
 					</Text>
 				) : null}
 
 				{d.kind === 'guard' && d.guardOutputs.length > 0 ? (
-					<Stack gap={8} pt={2}>
+					<Stack gap={10}>
 						{d.guardOutputs.map((output) => (
 							<div
 								key={output.key}
 								style={{
 									position: 'relative',
-									minHeight: 22,
+									minHeight: 28,
 									display: 'flex',
 									alignItems: 'center',
 									justifyContent: 'flex-end',
-									paddingRight: 18,
+									paddingRight: 20,
 								}}
 							>
-								<Badge size="xs" color="teal" variant="light">
+								<Badge size="sm" color="teal" variant="light">
 									{output.title || output.key}
 								</Badge>
 								<Handle
@@ -124,7 +117,7 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 									style={{
 										...GUARD_HANDLE_STYLE,
 										top: '50%',
-										right: -5,
+										right: -6,
 										transform: 'translateY(-50%)',
 									}}
 								/>
@@ -132,10 +125,6 @@ export const OperationFlowNode: React.FC<NodeProps> = memo(({ data, selected }) 
 						))}
 					</Stack>
 				) : null}
-
-				<Text size="xs" c="dimmed" lineClamp={1}>
-					{d.opId}
-				</Text>
 			</Stack>
 		</Paper>
 	);

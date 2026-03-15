@@ -3,8 +3,8 @@ import { readGuardOutputContract } from '../../form/guard-kind-form';
 import type { OperationFlowNodeData } from './operation-flow-node';
 import type { FormOperation } from '../../form/operation-profile-form-mapping';
 
-const BASE_NODE_MIN_HEIGHT = 92;
-const GUARD_OUTPUT_ROW_HEIGHT = 30;
+const BASE_NODE_MIN_HEIGHT = 68;
+const GUARD_OUTPUT_ROW_HEIGHT = 34;
 
 export type OperationFlowNodeSource = Pick<FormOperation, 'opId' | 'name' | 'description' | 'kind'> & {
 	config: {

@@ -176,7 +176,6 @@ export function buildOperationGraphEdges(operations: OperationGraphSource[]): Ed
 				animated: false,
 				markerEnd: { type: MarkerType.ArrowClosed },
 				style: { strokeWidth: 2, stroke: 'var(--mantine-color-teal-6)' },
-				label: condition.operator === 'is_false' ? `${condition.outputKey} = false` : condition.outputKey,
 				data: {
 					kind: 'guard_output',
 					outputKey: condition.outputKey,

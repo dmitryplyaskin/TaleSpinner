@@ -1,27 +1,20 @@
 import '@xyflow/react/dist/style.css';
 import './node-editor-modal.css';
 
-import { Alert, Button, Divider, Group, Modal, ScrollArea, SegmentedControl, Select, Stack, Text } from '@mantine/core';
+import { Alert, Divider, Group, Modal, SegmentedControl, Stack } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
-	Background,
-	ConnectionLineType,
-	Controls,
 	type EdgeChange,
 	type Node,
 	type NodeChange,
-	Panel,
-	ReactFlow,
-	ReactFlowProvider,
 	type Connection,
 	type ReactFlowInstance,
 	useNodesState,
 } from '@xyflow/react';
 import { useUnit } from 'effector-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { LuPlus, LuTrash2 } from 'react-icons/lu';
 import { v4 as uuidv4 } from 'uuid';
 
 import { updateOperationBlockFx } from '@model/operation-blocks';
@@ -31,14 +24,11 @@ import {
 	fromOperationProfileForm,
 	makeDefaultOperation,
 	toOperationProfileForm,
-	type FormRunCondition,
 	type OperationProfileFormValues,
 } from '../form/operation-profile-form-mapping';
-import { OperationEditor } from '../ui/operation-editor/operation-editor';
-import { isOperationKind } from '../utils/operation-kind';
 
-import { OperationFlowNode, type OperationFlowNodeData } from './flow/operation-flow-node';
 import { buildOperationFlowNodeData, buildOperationFlowNodeSignature } from './flow/operation-flow-node-model';
+import { buildGraphOperations, buildGraphWatchPaths } from './graph-form-state';
 import { useGroupLabelDrag } from './hooks/use-group-label-drag';
 import { computeSimpleLayout, readNodeEditorMeta, writeNodeEditorMeta } from './meta/node-editor-meta';
 import {
@@ -49,11 +39,14 @@ import {
 	removeOperationReferences,
 } from './operation-graph';
 import { GroupEditorModal, type GroupEditorDraft } from './ui/group-editor-modal';
-import { GroupOverlays, type EditorGroup } from './ui/group-overlays';
-import { NodeEditorHeader } from './ui/node-editor-header';
+import { NodeEditorFormHeader } from './ui/node-editor-form-header';
+import { NodeEditorGraphPanel } from './ui/node-editor-graph-panel';
+import { NodeEditorInspectorPanel } from './ui/node-editor-inspector-panel';
 import { computeBoundsFromNodes } from './utils/bounds';
 import { DEFAULT_GROUP_COLOR_HEX, normalizeCssColorToOpaqueRgbString } from './utils/color';
 
+import type { OperationFlowNodeData } from './flow/operation-flow-node';
+import type { EditorGroup } from './ui/group-overlays';
 import type { OperationBlockDto, OperationProfileDto } from '../../../../api/chat-core';
 import type { NodeEditorViewState } from '../ui/types';
 
@@ -74,29 +67,6 @@ function edgesToDeps(edges: Array<{ source: string; target: string }>): OpEdge[]
 
 function extractOpIds(values: OperationProfileFormValues): string[] {
 	return values.operations.map((o) => o.opId).filter(Boolean);
-}
-
-function readString(value: unknown): string {
-	return typeof value === 'string' ? value : '';
-}
-
-function readStringArray(value: unknown): string[] {
-	return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
-function readRunConditions(value: unknown): FormRunCondition[] {
-	return Array.isArray(value)
-		? value.filter(
-				(item): item is FormRunCondition =>
-					Boolean(item) &&
-					typeof item === 'object' &&
-					(item as Record<string, unknown>).type === 'guard_output' &&
-					typeof (item as Record<string, unknown>).sourceOpId === 'string' &&
-					typeof (item as Record<string, unknown>).outputKey === 'string' &&
-					((item as Record<string, unknown>).operator === 'is_true' ||
-						(item as Record<string, unknown>).operator === 'is_false'),
-		  )
-		: [];
 }
 
 function isTextEditingTarget(target: EventTarget | null): boolean {
@@ -132,7 +102,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 
 	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
-	const { control, formState, reset: resetForm } = methods;
+	const { control, reset: resetForm } = methods;
 
 	const { fields, append, replace } = useFieldArray({ name: 'operations', control, keyName: '_key' });
 
@@ -187,8 +157,6 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		resetToInitialState();
 	}, [resetToInitialState]);
 
-	const nodeTypes = useMemo(() => ({ operation: OperationFlowNode }), []);
-
 	const areStringArraysEqual = useCallback((a: string[], b: string[]) => {
 		if (a === b) return true;
 		if (a.length !== b.length) return false;
@@ -196,52 +164,13 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		return true;
 	}, []);
 
-	const graphWatchPaths = useMemo(
-		() =>
-			fields.flatMap((_, index) => [
-				`operations.${index}.name`,
-				`operations.${index}.description`,
-				`operations.${index}.kind`,
-				`operations.${index}.config.enabled`,
-				`operations.${index}.config.required`,
-				`operations.${index}.config.dependsOn`,
-				`operations.${index}.config.runConditions`,
-				`operations.${index}.config.params.outputContract`,
-			]),
-		[fields],
-	);
+	const graphWatchPaths = useMemo(() => buildGraphWatchPaths(fields.length), [fields.length]);
 	const graphWatchValues = useWatch({ control, name: graphWatchPaths as any }) as unknown[] | undefined;
-	const graphOperations = useMemo(
-		() =>
-			fields.map((field, index) => {
-				const base = index * 8;
-				const kindValue = graphWatchValues?.[base + 2];
-				const kind = isOperationKind(kindValue) ? kindValue : 'template';
-				const outputContract = graphWatchValues?.[base + 7];
-				return {
-					opId: typeof field.opId === 'string' ? field.opId : '',
-					name: readString(graphWatchValues?.[base]),
-					description: readString(graphWatchValues?.[base + 1]),
-					kind,
-					config: {
-						enabled: Boolean(graphWatchValues?.[base + 3]),
-						required: Boolean(graphWatchValues?.[base + 4]),
-						dependsOn: readStringArray(graphWatchValues?.[base + 5]),
-						runConditions: readRunConditions(graphWatchValues?.[base + 6]),
-						params:
-							kind === 'guard'
-								? {
-										outputContract: Array.isArray(outputContract) ? outputContract : [],
-									}
-								: {},
-					},
-				};
-			}),
-		[fields, graphWatchValues],
-	);
+	const graphOperations = useMemo(() => buildGraphOperations(fields, graphWatchValues), [fields, graphWatchValues]);
+	const deferredGraphOperations = useDeferredValue(graphOperations);
 	const nodeDrafts = useMemo(
 		() =>
-			graphOperations.map((operation) => {
+			deferredGraphOperations.map((operation) => {
 				const data = buildOperationFlowNodeData(operation);
 				return {
 					opId: operation.opId,
@@ -249,10 +178,10 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 					signature: buildOperationFlowNodeSignature(data),
 				};
 			}),
-		[graphOperations],
+		[deferredGraphOperations],
 	);
 	const opIndexById = useMemo(() => new Map(fields.map((field, idx) => [String(field.opId), idx])), [fields]);
-	const edges = useMemo(() => buildOperationGraphEdges(graphOperations), [graphOperations]);
+	const edges = useMemo(() => buildOperationGraphEdges(deferredGraphOperations), [deferredGraphOperations]);
 	const fallbackPositions = useMemo(
 		() => computeSimpleLayout(nodeDrafts.map((draft) => draft.opId), edgesToDeps(edges)),
 		[nodeDrafts, edges],
@@ -341,7 +270,6 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	}, [opened, nodeDrafts, fallbackPositions]);
 
 	const selectedIndex = selectedOpId ? (opIndexById.get(selectedOpId) ?? null) : null;
-	const isDirty = formState.isDirty || isLayoutDirty;
 
 	const onSave = methods.handleSubmit(async (values) => {
 		setJsonError(null);
@@ -382,11 +310,11 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		}
 	});
 
-	const addOperation = () => {
+	const addOperation = useCallback(() => {
 		const next = makeDefaultOperation();
 		append(next);
 
-		let position = { x: 0, y: graphOperations.length * 160 };
+		let position = { x: 0, y: fields.length * 160 };
 		if (flow && flowWrapperRef.current) {
 			const r = flowWrapperRef.current.getBoundingClientRect();
 			const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -407,7 +335,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		setSelectedOpId(next.opId);
 		if (isCompactLayout) setViewState('inspector');
 		else setIsInspectorVisible(true);
-	};
+	}, [append, fields.length, flow, isCompactLayout, setNodes]);
 
 	const deleteSelectedNodes = useCallback(() => {
 		const ids = selectedNodeIds.length ? selectedNodeIds : selectedOpId ? [selectedOpId] : [];
@@ -565,15 +493,15 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		if (!groups[groupEditor.groupId]) setGroupEditor(null);
 	}, [groupEditor, groups]);
 
-	const onConnect = (conn: Connection) => {
+	const onConnect = useCallback((conn: Connection) => {
 		didConnectRef.current = true;
 		if (!conn.source || !conn.target) return;
 		if (conn.source === conn.target) return;
 		const nextOperations = applyConnectionToOperations(methods.getValues().operations, conn);
 		replace(nextOperations);
-	};
+	}, [methods, replace]);
 
-	const onConnectStart = (
+	const onConnectStart = useCallback((
 		_: unknown,
 		params: { nodeId?: string | null; handleType?: 'source' | 'target' | null; handleId?: string | null },
 	) => {
@@ -582,9 +510,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 			params.handleType === 'source' && params.nodeId
 				? { sourceId: String(params.nodeId), sourceHandle: params.handleId ?? null }
 				: null;
-	};
+	}, []);
 
-	const onConnectEnd = (event: MouseEvent | TouchEvent) => {
+	const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
 		const pendingConnection = connectingSourceRef.current;
 		connectingSourceRef.current = null;
 
@@ -631,21 +559,21 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		setIsLayoutDirty(true);
 		if (isCompactLayout) setViewState('inspector');
 		else setIsInspectorVisible(true);
-	};
+	}, [append, flow, isCompactLayout, setNodes]);
 
-	const onEdgesChange = (changes: EdgeChange[]) => {
+	const onEdgesChange = useCallback((changes: EdgeChange[]) => {
 		const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id);
 		if (removed.length === 0) return;
 
 		let nextOperations = methods.getValues().operations;
 		for (const id of removed) nextOperations = removeEdgeFromOperations(nextOperations, String(id));
 		replace(nextOperations);
-	};
+	}, [methods, replace]);
 
-	const onNodesChange = (changes: NodeChange[]) => {
+	const onNodesChange = useCallback((changes: NodeChange[]) => {
 		onNodesChangeBase(changes as any);
 		if (changes.some((c) => c.type === 'position')) setIsLayoutDirty(true);
-	};
+	}, [onNodesChangeBase]);
 
 	const onSelectionChange = useCallback(
 		({ nodes: selectedNodes }: { nodes: Array<{ id: string | number }> }) => {
@@ -670,12 +598,12 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		if (isCompactLayout) setViewState('graph');
 	}, [isCompactLayout]);
 
-	const onNodeDragStop = (_: unknown, node: Node) => {
+	const onNodeDragStop = useCallback((_: unknown, node: Node) => {
 		setNodes((prev) => prev.map((n) => (String(n.id) === String(node.id) ? { ...n, position: node.position } : n)));
 		setIsLayoutDirty(true);
-	};
+	}, [setNodes]);
 
-	const autoLayout = () => {
+	const autoLayout = useCallback(() => {
 		const opIds = extractOpIds(methods.getValues());
 		const deps = edgesToDeps(edges);
 		const positions = computeSimpleLayout(opIds, deps);
@@ -686,7 +614,18 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 			}),
 		);
 		setIsLayoutDirty(true);
-	};
+	}, [edges, methods, setNodes]);
+
+	const deleteSelectedAction = useCallback(() => {
+		if (!window.confirm(t('operationProfiles.confirm.deleteSelectedOperations'))) return;
+		deleteSelectedNodes();
+	}, [deleteSelectedNodes, t]);
+
+	const ungroupSelectedAction = useCallback(() => {
+		if (!selectedGroupId) return;
+		if (!window.confirm(t('operationProfiles.confirm.ungroupSelected'))) return;
+		ungroupSelected();
+	}, [selectedGroupId, t, ungroupSelected]);
 
 	const showGraphPanel = !isCompactLayout || viewState === 'graph';
 	const showInspectorPanel = isCompactLayout ? viewState === 'inspector' : isInspectorVisible;
@@ -706,9 +645,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		>
 			<FormProvider {...methods}>
 				<Stack gap="sm" style={{ flex: 1, minHeight: 0 }} className="opNodeShell">
-					<NodeEditorHeader
+					<NodeEditorFormHeader
 						profileName={block.name}
-						isDirty={isDirty}
+						isLayoutDirty={isLayoutDirty}
 						onAutoLayout={autoLayout}
 						onSave={onSave}
 						onClose={onClose}
@@ -738,140 +677,52 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 
 					<Group gap={0} wrap="nowrap" align="stretch" style={{ flex: 1, minHeight: 0 }}>
 						{showGraphPanel && (
-							<div ref={flowWrapperRef} className="opProfileNodeEditorFlow opNodePanel" style={{ flex: 1, minHeight: 0 }}>
-								<ReactFlowProvider>
-									<ReactFlow
-										nodes={nodes}
-										edges={edges}
-										nodeTypes={nodeTypes}
-										connectionLineType={ConnectionLineType.SmoothStep}
-										onInit={setFlow}
-										onConnect={onConnect}
-										onConnectStart={onConnectStart}
-										onConnectEnd={onConnectEnd}
-										onEdgesChange={onEdgesChange}
-										onNodesChange={onNodesChange}
-										onNodeDragStop={onNodeDragStop}
-										selectionOnDrag
-										selectionKeyCode={['Shift']}
-										multiSelectionKeyCode={['Control', 'Meta', 'Shift']}
-										deleteKeyCode={null}
-										onSelectionChange={onSelectionChange as any}
-										onNodeClick={onNodeClick}
-										onPaneClick={onPaneClick}
-									>
-										<Background />
-										<Controls />
-										<GroupOverlays
-											groups={groups}
-											selectedGroupId={selectedGroupId}
-											groupBgAlpha={GROUP_BG_ALPHA}
-											computeBounds={computeGroupBounds}
-											onLabelPointerDown={groupLabelDrag.onPointerDown}
-											onLabelPointerMove={groupLabelDrag.onPointerMove}
-											onLabelPointerUp={groupLabelDrag.onPointerUp}
-										/>
-										<Panel position="top-left">
-											<Stack gap={6} className="opNodeToolbar">
-												<Group gap="xs" wrap="nowrap">
-													<Button size="xs" leftSection={<LuPlus />} onClick={addOperation}>
-														{t('common.add')}
-													</Button>
-													<Button
-														size="xs"
-														color="red"
-														variant="light"
-														leftSection={<LuTrash2 />}
-														disabled={selectedNodeIds.length === 0 && !selectedOpId}
-														onClick={() => {
-															if (!window.confirm(t('operationProfiles.confirm.deleteSelectedOperations'))) return;
-															deleteSelectedNodes();
-														}}
-													>
-														{t('common.delete')}
-													</Button>
-													<Button
-														size="xs"
-														variant="light"
-														disabled={selectedNodeIds.length < 2}
-														onClick={createGroupFromSelection}
-													>
-														{t('operationProfiles.actions.group')}
-													</Button>
-												</Group>
-
-												<Group gap="xs" wrap="nowrap">
-													<Select
-														size="xs"
-														placeholder={t('operationProfiles.nodeEditor.groupsPlaceholder')}
-														data={groupSelectData}
-														value={selectedGroupId ?? ''}
-														onChange={(value) => setSelectedGroupId(value && value !== '' ? value : null)}
-														comboboxProps={{ withinPortal: false }}
-														style={{ minWidth: 200 }}
-													/>
-													<Button
-														size="xs"
-														variant="default"
-														disabled={!selectedGroupId}
-														onClick={() => {
-															if (!selectedGroupId) return;
-															if (!window.confirm(t('operationProfiles.confirm.ungroupSelected'))) return;
-															ungroupSelected();
-														}}
-													>
-														{t('operationProfiles.actions.ungroup')}
-													</Button>
-												</Group>
-											</Stack>
-										</Panel>
-									</ReactFlow>
-								</ReactFlowProvider>
-							</div>
+							<NodeEditorGraphPanel
+								flowWrapperRef={flowWrapperRef}
+								nodes={nodes}
+								edges={edges}
+								onInit={setFlow}
+								onConnect={onConnect}
+								onConnectStart={onConnectStart}
+								onConnectEnd={onConnectEnd}
+								onEdgesChange={onEdgesChange}
+								onNodesChange={onNodesChange}
+								onNodeDragStop={onNodeDragStop}
+								onSelectionChange={onSelectionChange}
+								onNodeClick={onNodeClick}
+								onPaneClick={onPaneClick}
+								groups={groups}
+								selectedGroupId={selectedGroupId}
+								groupBgAlpha={GROUP_BG_ALPHA}
+								computeGroupBounds={computeGroupBounds}
+								onGroupLabelPointerDown={groupLabelDrag.onPointerDown}
+								onGroupLabelPointerMove={groupLabelDrag.onPointerMove}
+								onGroupLabelPointerUp={groupLabelDrag.onPointerUp}
+								onAddOperation={addOperation}
+								onDeleteSelected={deleteSelectedAction}
+								onCreateGroup={createGroupFromSelection}
+								selectedNodeCount={selectedNodeIds.length}
+								hasSelectedOperation={Boolean(selectedOpId)}
+								groupOptions={groupSelectData}
+								onSelectedGroupChange={setSelectedGroupId}
+								onUngroup={ungroupSelectedAction}
+							/>
 						)}
 
 						{showInspectorPanel && (
 							<>
 								{!isCompactLayout && <Divider orientation="vertical" mx="md" />}
 
-								<ScrollArea className="opNodePanel" style={{ width: isCompactLayout ? '100%' : 480, height: '100%' }} p="md">
-									<Stack gap="md" className="opNodeInspector">
-										<div className="opNodeInspectorHeader">
-											<Group justify="space-between" wrap="nowrap">
-												<Text fw={800}>{t('operationProfiles.operationEditor.title')}</Text>
-												<Text size="xs" c="dimmed">
-													{selectedIndex === null ? '—' : `#${selectedIndex + 1}`}
-												</Text>
-											</Group>
-										</div>
-
-										{selectedIndex === null ? (
-											<Text size="sm" c="dimmed">
-												{t('operationProfiles.nodeEditor.selectNode')}
-											</Text>
-										) : (
-											<OperationEditor
-												key={selectedOpId ?? String(selectedIndex)}
-												index={selectedIndex}
-												status={{
-													index: selectedIndex + 1,
-													kind: graphOperations[selectedIndex]?.kind ?? 'template',
-													isDirty,
-												}}
-												canSave={isDirty}
-												canDiscard={isDirty}
-												onSave={onSave}
-												onDiscard={() => {
-													resetToInitialState();
-												}}
-												onRemove={() => {
-													if (!window.confirm(t('operationProfiles.confirm.deleteSelectedOperations'))) return;
-													deleteSelectedNodes();
-												}}
-											/>
-										)}
-									</Stack>
-								</ScrollArea>
+								<NodeEditorInspectorPanel
+									selectedIndex={selectedIndex}
+									selectedOpId={selectedOpId}
+									selectedKind={graphOperations[selectedIndex ?? -1]?.kind ?? 'template'}
+									isCompactLayout={isCompactLayout}
+									isLayoutDirty={isLayoutDirty}
+									onSave={onSave}
+									onDiscard={resetToInitialState}
+									onRemove={deleteSelectedAction}
+								/>
 							</>
 						)}
 					</Group>

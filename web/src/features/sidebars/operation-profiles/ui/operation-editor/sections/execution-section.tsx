@@ -37,9 +37,17 @@ export const ExecutionSection: React.FC<Props> = ({ index }) => {
 		keyName: '_key',
 	});
 
-	const namePaths = useMemo(() => fields.map((_, idx) => `operations.${idx}.name`), [fields]);
-	const watchedNames = useWatch({ control, name: namePaths as any }) as unknown[] | undefined;
-	const watchedOperations = useWatch({ control, name: 'operations' }) as OperationProfileFormValues['operations'] | undefined;
+	const operationMetaPaths = useMemo(
+		() =>
+			fields.flatMap((_, idx) => [
+				`operations.${idx}.name`,
+				`operations.${idx}.kind`,
+				`operations.${idx}.opId`,
+				`operations.${idx}.config.params.outputContract`,
+			]),
+		[fields],
+	);
+	const watchedOperationMeta = useWatch({ control, name: operationMetaPaths as any }) as unknown[] | undefined;
 	const runConditionSourcePaths = useMemo(
 		() => runConditionsArray.fields.map((_, conditionIndex) => `operations.${index}.config.runConditions.${conditionIndex}.sourceOpId`),
 		[index, runConditionsArray.fields],
@@ -48,31 +56,33 @@ export const ExecutionSection: React.FC<Props> = ({ index }) => {
 
 	const depOptions = useMemo(() => {
 		return fields
-			.map((field, idx) => {
-				const opId = typeof field.opId === 'string' ? field.opId : '';
+			.map((_field, idx) => {
+				const opId = typeof watchedOperationMeta?.[idx * 4 + 2] === 'string' ? watchedOperationMeta[idx * 4 + 2] : '';
 				if (!opId) return null;
-				const nameValue = watchedNames?.[idx];
+				const nameValue = watchedOperationMeta?.[idx * 4];
 				const name = typeof nameValue === 'string' ? nameValue : '';
 				return { value: opId, label: name.trim() ? `${name} — ${opId}` : opId };
 			})
 			.filter((option): option is { value: string; label: string } => option !== null);
-	}, [fields, watchedNames]);
+	}, [fields, watchedOperationMeta]);
 
-	const selfOpId = useWatch({ name: `operations.${index}.opId` }) as unknown;
-	const selfId = typeof selfOpId === 'string' ? selfOpId : '';
+	const selfId = typeof watchedOperationMeta?.[index * 4 + 2] === 'string' ? watchedOperationMeta[index * 4 + 2] : '';
 	const guardOptions = useMemo(() => {
-		return (watchedOperations ?? [])
-			.map((operation, operationIndex) => {
-				if (operation.opId === selfId || operation.kind !== 'guard') return null;
-				const nameValue = watchedNames?.[operationIndex];
-				const name = typeof nameValue === 'string' ? nameValue : operation.name;
+		return fields
+			.map((_, operationIndex) => {
+				const nameValue = watchedOperationMeta?.[operationIndex * 4];
+				const kindValue = watchedOperationMeta?.[operationIndex * 4 + 1];
+				const opIdValue = watchedOperationMeta?.[operationIndex * 4 + 2];
+				const opId = typeof opIdValue === 'string' ? opIdValue : '';
+				if (!opId || opId === selfId || kindValue !== 'guard') return null;
+				const name = typeof nameValue === 'string' ? nameValue : '';
 				return {
-					value: operation.opId,
-					label: name.trim() ? `${name} — ${operation.opId}` : operation.opId,
+					value: opId,
+					label: name.trim() ? `${name} — ${opId}` : opId,
 				};
 			})
 			.filter((option): option is { value: string; label: string } => option !== null);
-	}, [selfId, watchedNames, watchedOperations]);
+	}, [fields, selfId, watchedOperationMeta]);
 
 	return (
 		<Stack gap="xs">
@@ -165,19 +175,24 @@ export const ExecutionSection: React.FC<Props> = ({ index }) => {
 							{t('operationProfiles.execution.runConditionsEmpty')}
 						</Text>
 					) : (
-						runConditionsArray.fields.map((field, conditionIndex) => {
+						runConditionsArray.fields.map((conditionField, conditionIndex) => {
 							const selectedSourceId =
 								typeof watchedRunConditionSources?.[conditionIndex] === 'string'
 									? watchedRunConditionSources[conditionIndex]
 									: '';
-							const sourceOperation = (watchedOperations ?? []).find((operation) => operation.opId === selectedSourceId);
-							const outputOptions = readGuardOutputContract(sourceOperation?.config.params).map((output) => ({
+							const sourceIndex = fields.findIndex((operationField, operationIndex) => {
+								const opIdValue = watchedOperationMeta?.[operationIndex * 4 + 2];
+								return typeof opIdValue === 'string' && opIdValue === selectedSourceId && operationField.opId;
+							});
+							const outputOptions = readGuardOutputContract({
+								outputContract: sourceIndex >= 0 ? watchedOperationMeta?.[sourceIndex * 4 + 3] : [],
+							}).map((output) => ({
 								value: output.key,
 								label: output.title || output.key,
 							}));
 
 							return (
-								<Paper key={field._key} withBorder p="sm">
+								<Paper key={conditionField._key} withBorder p="sm">
 									<Stack gap="xs">
 										<Group justify="space-between" align="center">
 											<Text fw={600}>{t('operationProfiles.execution.runConditionLabel', { index: conditionIndex + 1 })}</Text>
