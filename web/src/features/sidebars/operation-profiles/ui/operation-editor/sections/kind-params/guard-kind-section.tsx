@@ -7,6 +7,8 @@ import { FormCheckbox, FormInput, FormMultiSelect, FormNumberInput, FormSelect, 
 
 import { makeDefaultGuardOutputDefinition } from '../../../../form/guard-kind-form';
 
+import { OperationLlmConfigControls } from './shared/operation-llm-config-controls';
+
 import type { OperationProfileFormValues } from '../../../../form/operation-profile-form-mapping';
 
 type Props = {
@@ -54,15 +56,13 @@ export const GuardKindSection: React.FC<Props> = ({ index }) => {
 			<Stack gap="xs">
 				<Group justify="space-between" align="center">
 					<Text fw={600}>{t('operationProfiles.kindSection.guard.outputContract')}</Text>
-						<Button
-							size="xs"
-							variant="light"
-							onClick={() =>
-								outputContractArray.append(makeDefaultGuardOutputDefinition(outputContractArray.fields.length))
-							}
-						>
-							{t('common.add')}
-						</Button>
+					<Button
+						size="xs"
+						variant="light"
+						onClick={() => outputContractArray.append(makeDefaultGuardOutputDefinition(outputContractArray.fields.length))}
+					>
+						{t('common.add')}
+					</Button>
 				</Group>
 				<Text size="xs" c="dimmed">
 					{t('operationProfiles.kindSection.guard.outputContractInfo')}
@@ -135,24 +135,9 @@ export const GuardKindSection: React.FC<Props> = ({ index }) => {
 						liquidDocsContext="operation_llm"
 						textareaProps={{ minRows: 8, maxRows: 20, autosize: false }}
 					/>
-					<Group grow wrap="wrap">
-						<FormSelect
-							name={`operations.${index}.config.params.providerId`}
-							label={t('operationProfiles.kindSection.guard.providerId')}
-							selectProps={{
-								options: [
-									{ value: 'openrouter', label: 'openrouter' },
-									{ value: 'openai_compatible', label: 'openai_compatible' },
-								],
-								comboboxProps: { withinPortal: false },
-							}}
-						/>
-						<FormInput
-							name={`operations.${index}.config.params.credentialRef`}
-							label={t('operationProfiles.kindSection.guard.credentialRef')}
-						/>
-					</Group>
-					<FormInput name={`operations.${index}.config.params.model`} label={t('operationProfiles.kindSection.guard.model')} />
+
+					<OperationLlmConfigControls index={index} />
+
 					<FormNumberInput
 						name={`operations.${index}.config.params.timeoutMs`}
 						label={t('operationProfiles.kindSection.guard.timeoutMs')}

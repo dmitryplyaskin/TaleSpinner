@@ -1,21 +1,12 @@
-import { Accordion, Button, Divider, Select, Stack, Text } from '@mantine/core';
-import { useUnit } from 'effector-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Divider, Stack, Text } from '@mantine/core';
+import React, { useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 
-import { getLlmSettingsFields } from '@model/llm-settings';
-import { llmProviderModel } from '@model/provider';
-import { samplersModel } from '@model/samplers';
 import { Dialog } from '@ui/dialog';
 import { FormCheckbox, FormInput, FormMultiSelect, FormNumberInput, FormSelect, FormTextarea } from '@ui/form-components';
 
-import { LlmRuntimeSelectorFields } from '../../../../../../llm-provider/runtime-selector-fields';
-import { SamplerSettingsGrid } from '../../../../../../llm-provider/sampler-settings-grid';
-
-import type { LlmProviderId } from '@shared/types/llm';
-import type { LlmOperationSamplers } from '@shared/types/operation-profiles';
-import type { SamplersItemType } from '@shared/types/samplers';
+import { OperationLlmConfigControls } from './shared/operation-llm-config-controls';
 
 type Props = {
 	index: number;
@@ -31,158 +22,33 @@ const JSON_SCHEMA_EXAMPLE = `{
   "report_id": "string: Unique report identifier",
   "created_at": "string: ISO timestamp",
   "status": "string: Processing status",
-  "confidence?": "number: Optional confidence score from 0 to 1",
-  "summary": {
-    "title": "string: Short title",
-    "items_count": 0
-  },
-  "items": [
-    {
-      "id": "string: Item identifier",
-      "label": "string: Item label",
-      "score?": "number: Optional score"
-    }
-  ]
+  "confidence?": "number: Optional confidence score from 0 to 1"
 }`;
-
-type SelectOption = { value: string; label: string };
-
-function toSafeOption(value: unknown, label: unknown): SelectOption | null {
-	if (typeof value !== 'string' || value.length === 0) return null;
-	return {
-		value,
-		label: typeof label === 'string' && label.length > 0 ? label : value,
-	};
-}
-
-function normalizeProviderId(value: unknown): LlmProviderId {
-	return value === 'openai_compatible' ? 'openai_compatible' : 'openrouter';
-}
-
-function toOperationSamplers(settings: unknown): LlmOperationSamplers {
-	if (!settings || typeof settings !== 'object') return {};
-	const source = settings as Record<string, unknown>;
-	const out: LlmOperationSamplers = {};
-	if (typeof source.temperature === 'number' && Number.isFinite(source.temperature)) out.temperature = source.temperature;
-	if (typeof source.topP === 'number' && Number.isFinite(source.topP)) out.topP = source.topP;
-	if (typeof source.topK === 'number' && Number.isFinite(source.topK)) out.topK = source.topK;
-	if (typeof source.minP === 'number' && Number.isFinite(source.minP)) out.minP = source.minP;
-	if (typeof source.topA === 'number' && Number.isFinite(source.topA)) out.topA = source.topA;
-	if (typeof source.frequencyPenalty === 'number' && Number.isFinite(source.frequencyPenalty)) out.frequencyPenalty = source.frequencyPenalty;
-	if (typeof source.presencePenalty === 'number' && Number.isFinite(source.presencePenalty)) out.presencePenalty = source.presencePenalty;
-	if (typeof source.repetitionPenalty === 'number' && Number.isFinite(source.repetitionPenalty)) out.repetitionPenalty = source.repetitionPenalty;
-	if (typeof source.seed === 'number' && Number.isFinite(source.seed)) out.seed = source.seed;
-	if (typeof source.maxTokens === 'number' && Number.isFinite(source.maxTokens)) out.maxTokens = source.maxTokens;
-	if (source.reasoning && typeof source.reasoning === 'object') {
-		const reasoningSource = source.reasoning as Record<string, unknown>;
-		const reasoning: NonNullable<LlmOperationSamplers['reasoning']> = {};
-		if (typeof reasoningSource.enabled === 'boolean') reasoning.enabled = reasoningSource.enabled;
-		if (
-			typeof reasoningSource.effort === 'string' &&
-			(reasoningSource.effort === 'low' || reasoningSource.effort === 'medium' || reasoningSource.effort === 'high')
-		) {
-			reasoning.effort = reasoningSource.effort;
-		}
-		if (typeof reasoningSource.maxTokens === 'number' && Number.isFinite(reasoningSource.maxTokens)) {
-			reasoning.maxTokens = reasoningSource.maxTokens;
-		}
-		if (typeof reasoningSource.exclude === 'boolean') reasoning.exclude = reasoningSource.exclude;
-		if (Object.keys(reasoning).length > 0) out.reasoning = reasoning;
-	}
-	return out;
-}
 
 export const LlmKindSection: React.FC<Props> = ({ index }) => {
 	const { t } = useTranslation();
-	const { control, setValue, getValues } = useFormContext();
+	const { control } = useFormContext();
 	const [isSchemaHelpOpen, setSchemaHelpOpen] = useState(false);
-	const [
-		providers,
-		tokensByProvider,
-		modelsByProviderToken,
-		loadProvidersFx,
-		loadTokensFx,
-		loadModelsFx,
-		samplerPresets,
-	] = useUnit([
-		llmProviderModel.$providers,
-		llmProviderModel.$tokensByProviderId,
-		llmProviderModel.$modelsByProviderTokenKey,
-		llmProviderModel.loadProvidersFx,
-		llmProviderModel.loadTokensFx,
-		llmProviderModel.loadModelsFx,
-		samplersModel.$items,
-	]);
-
-	const llmSettingsFields = getLlmSettingsFields(t);
-	const providerPath = `operations.${index}.config.params.providerId` as const;
-	const tokenPath = `operations.${index}.config.params.credentialRef` as const;
-	const modelPath = `operations.${index}.config.params.model` as const;
-	const samplerPresetPath = `operations.${index}.config.params.samplerPresetId` as const;
-	const samplersPath = `operations.${index}.config.params.samplers` as const;
-	const retryPath = `operations.${index}.config.params.retry.retryOn` as const;
 	const outputModePath = `operations.${index}.config.params.outputMode` as const;
 	const jsonParseModePath = `operations.${index}.config.params.jsonParseMode` as const;
 	const jsonCustomPatternPath = `operations.${index}.config.params.jsonCustomPattern` as const;
 	const jsonCustomFlagsPath = `operations.${index}.config.params.jsonCustomFlags` as const;
 	const strictSchemaValidationPath = `operations.${index}.config.params.strictSchemaValidation` as const;
 	const jsonSchemaTextPath = `operations.${index}.config.params.jsonSchemaText` as const;
+	const retryPath = `operations.${index}.config.params.retry.retryOn` as const;
 
-	const rawProviderId = useWatch({ control, name: providerPath }) as unknown;
-	const activeProviderId = normalizeProviderId(rawProviderId);
-	const credentialRef = useWatch({ control, name: tokenPath }) as unknown;
-	const activeTokenId = typeof credentialRef === 'string' && credentialRef.length > 0 ? credentialRef : null;
-	const rawModel = useWatch({ control, name: modelPath }) as unknown;
-	const activeModel = typeof rawModel === 'string' && rawModel.length > 0 ? rawModel : null;
-	const rawSamplerPresetId = useWatch({ control, name: samplerPresetPath }) as unknown;
-	const samplerPresetId = typeof rawSamplerPresetId === 'string' ? rawSamplerPresetId : '';
 	const rawOutputMode = useWatch({ control, name: outputModePath }) as unknown;
 	const outputMode = rawOutputMode === 'json' ? 'json' : 'text';
 	const rawJsonParseMode = useWatch({ control, name: jsonParseModePath }) as unknown;
 	const jsonParseMode =
 		rawJsonParseMode === 'markdown_code_block' || rawJsonParseMode === 'custom_regex' ? rawJsonParseMode : 'raw';
 
-	const tokens = tokensByProvider[activeProviderId] ?? [];
-	const modelsKey = `${activeProviderId}:${activeTokenId ?? 'none'}`;
-	const models = modelsByProviderToken[modelsKey] ?? [];
-
-	const samplerOptions = useMemo(
-		() =>
-			(samplerPresets as SamplersItemType[])
-				.map((item) => toSafeOption(item?.id, item?.name))
-				.filter((item): item is SelectOption => item !== null),
-		[samplerPresets],
-	);
-
-	useEffect(() => {
-		void loadProvidersFx();
-	}, [loadProvidersFx]);
-
-	useEffect(() => {
-		void loadTokensFx(activeProviderId);
-	}, [activeProviderId, loadTokensFx]);
-
-	const loadModels = async () => {
-		if (!activeTokenId) return;
-		await loadModelsFx({
-			providerId: activeProviderId,
-			scope: 'global',
-			scopeId: 'global',
-			tokenId: activeTokenId,
-		});
-	};
-
-	const retryOnOptions: SelectOption[] = RETRY_ON_OPTIONS.map((item) => toSafeOption(item.value, t(item.labelKey))).filter(
-		(item): item is SelectOption => item !== null,
-	);
-
+	const retryOnOptions = RETRY_ON_OPTIONS.map((item) => ({ value: item.value, label: t(item.labelKey) }));
 	const parseModeInfoContent = (
 		<Stack gap={4}>
 			<Text size="xs">{t('operationProfiles.kindSection.llm.jsonParseModeInfo')}</Text>
 			<Text size="xs">`raw`: {t('operationProfiles.kindSection.llm.jsonParseModeHintRaw')}</Text>
-			<Text size="xs">
-				`markdown_code_block`: {t('operationProfiles.kindSection.llm.jsonParseModeHintMarkdownCodeBlock')}
-			</Text>
+			<Text size="xs">`markdown_code_block`: {t('operationProfiles.kindSection.llm.jsonParseModeHintMarkdownCodeBlock')}</Text>
 			<Text size="xs">`custom_regex`: {t('operationProfiles.kindSection.llm.jsonParseModeHintCustomRegex')}</Text>
 		</Stack>
 	);
@@ -218,83 +84,7 @@ export const LlmKindSection: React.FC<Props> = ({ index }) => {
 
 			<Divider />
 
-			<Accordion multiple defaultValue={['provider', 'samplers']} variant="contained">
-				<Accordion.Item value="provider">
-					<Accordion.Control>{t('operationProfiles.kindSection.llm.blocks.provider')}</Accordion.Control>
-					<Accordion.Panel>
-						<Stack gap="xs">
-							<LlmRuntimeSelectorFields
-								providers={providers}
-								activeProviderId={activeProviderId}
-								tokens={tokens}
-								activeTokenId={activeTokenId}
-								models={models}
-								activeModel={activeModel}
-								onProviderSelect={(providerId) => {
-									const currentProviderId = normalizeProviderId(getValues(providerPath));
-									if (providerId === currentProviderId) return;
-									setValue(providerPath, providerId, { shouldDirty: true });
-									setValue(tokenPath, '', { shouldDirty: true });
-									setValue(modelPath, '', { shouldDirty: true });
-								}}
-								onTokenSelect={(tokenId) => {
-									const nextTokenId = tokenId ?? '';
-									const currentTokenIdRaw = getValues(tokenPath);
-									const currentTokenId = typeof currentTokenIdRaw === 'string' ? currentTokenIdRaw : '';
-									if (nextTokenId === currentTokenId) return;
-
-									setValue(tokenPath, nextTokenId, { shouldDirty: true });
-
-									const currentModelRaw = getValues(modelPath);
-									const currentModel = typeof currentModelRaw === 'string' ? currentModelRaw : '';
-									if (currentModel.length > 0) {
-										setValue(modelPath, '', { shouldDirty: true });
-									}
-								}}
-								onModelSelect={(model) => {
-									const nextModel = model ?? '';
-									const currentModelRaw = getValues(modelPath);
-									const currentModel = typeof currentModelRaw === 'string' ? currentModelRaw : '';
-									if (nextModel === currentModel) return;
-									setValue(modelPath, nextModel, { shouldDirty: true });
-								}}
-								onLoadModels={loadModels}
-								allowTokenManager={false}
-							/>
-						</Stack>
-					</Accordion.Panel>
-				</Accordion.Item>
-
-				<Accordion.Item value="samplers">
-					<Accordion.Control>{t('operationProfiles.kindSection.llm.blocks.samplers')}</Accordion.Control>
-					<Accordion.Panel>
-						<Stack gap="xs">
-							<Select
-								label={t('operationProfiles.kindSection.llm.samplerPreset')}
-								description={t('operationProfiles.kindSection.llm.samplerPresetInfo')}
-								data={samplerOptions}
-								value={samplerPresetId}
-								onChange={(next) => {
-									const presetId = next ?? '';
-									if (presetId === samplerPresetId) return;
-									setValue(samplerPresetPath, presetId, { shouldDirty: true });
-									const preset = (samplerPresets as SamplersItemType[]).find((item) => item.id === presetId);
-									if (!preset) return;
-									setValue(samplersPath, toOperationSamplers(preset.settings), { shouldDirty: true });
-								}}
-								clearable
-								searchable
-								comboboxProps={{ withinPortal: false }}
-							/>
-							<SamplerSettingsGrid
-								control={control}
-								fields={llmSettingsFields}
-								fieldPrefix={`operations.${index}.config.params.samplers`}
-							/>
-						</Stack>
-					</Accordion.Panel>
-				</Accordion.Item>
-			</Accordion>
+			<OperationLlmConfigControls index={index} />
 
 			<Divider />
 
@@ -382,12 +172,7 @@ export const LlmKindSection: React.FC<Props> = ({ index }) => {
 							name={jsonSchemaTextPath}
 							label={t('operationProfiles.kindSection.llm.jsonSchema')}
 							infoTip={t('operationProfiles.kindSection.llm.jsonSchemaInfo')}
-							textareaProps={{
-								minRows: 10,
-								maxRows: 24,
-								autosize: false,
-								placeholder: JSON_SCHEMA_EXAMPLE,
-							}}
+							textareaProps={{ minRows: 10, maxRows: 24, autosize: false, placeholder: JSON_SCHEMA_EXAMPLE }}
 						/>
 						<Button variant="light" size="xs" onClick={() => setSchemaHelpOpen(true)}>
 							{t('operationProfiles.kindSection.llm.schemaHelp.open')}

@@ -4,25 +4,25 @@ import {
 	type GuardOutputContract,
 	type GuardOutputDefinition,
 	type GuardOperationInProfile,
-	type LlmOperationParams,
 	type LlmOperationRetryOn,
-	type LlmOperationSamplers,
 	type OperationArtifactConfig,
 } from '@shared/types/operation-profiles';
 
-import { normalizeRetryOn, pickNumericSamplers } from './operation-llm-form-utils';
+import {
+	normalizeRetryOn,
+	pickNumericSamplers,
+	type OperationLlmRuntimeFields,
+	type OperationSamplerFields,
+} from './operation-llm-form-utils';
 
-export type FormGuardKindParams = {
+export type FormGuardKindParams = OperationLlmRuntimeFields &
+	OperationSamplerFields & {
 	engine: 'liquid' | 'aux_llm';
 	outputContract: GuardOutputContract;
 	template: string;
-	providerId: LlmOperationParams['providerId'];
-	credentialRef: string;
-	model: string;
 	system: string;
 	prompt: string;
 	strictVariables: boolean;
-	samplers: LlmOperationSamplers;
 	timeoutMs: number;
 	retry: {
 		maxAttempts: number;
@@ -78,9 +78,12 @@ export function makeDefaultGuardKindParams(
 		providerId: 'openrouter',
 		credentialRef: '',
 		model: '',
+		llmPresetId: '',
 		system: '',
 		prompt: '',
 		strictVariables: false,
+		samplersEnabled: false,
+		samplerPresetId: '',
 		samplers: {},
 		timeoutMs: 60000,
 		retry: {
@@ -112,9 +115,12 @@ export function normalizeGuardKindParams(op: GuardOperationInProfile): FormGuard
 		providerId: raw.providerId === 'openai_compatible' ? 'openai_compatible' : 'openrouter',
 		credentialRef: typeof raw.credentialRef === 'string' ? raw.credentialRef : '',
 		model: typeof raw.model === 'string' ? raw.model : '',
+		llmPresetId: '',
 		system: typeof raw.system === 'string' ? raw.system : '',
 		prompt: typeof raw.prompt === 'string' ? raw.prompt : '',
 		strictVariables: raw.strictVariables === true,
+		samplersEnabled: Object.keys(pickNumericSamplers(raw.samplers)).length > 0,
+		samplerPresetId: '',
 		samplers: pickNumericSamplers(raw.samplers),
 		timeoutMs: typeof raw.timeoutMs === 'number' && Number.isFinite(raw.timeoutMs) ? raw.timeoutMs : 60000,
 		retry: {
@@ -136,7 +142,7 @@ export function serializeGuardKindParams(params: FormGuardKindParams, opId: stri
 	const system = params.system.trim();
 	const credentialRef = params.credentialRef.trim();
 	const outputContract = normalizeOutputContract(params.outputContract);
-	const samplers = pickNumericSamplers(params.samplers);
+	const samplers = params.samplersEnabled ? pickNumericSamplers(params.samplers) : {};
 	const timeoutMs = Number.isFinite(params.timeoutMs) ? Math.max(1, Math.floor(params.timeoutMs)) : undefined;
 	const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts) ? Math.max(1, Math.floor(params.retry.maxAttempts)) : 1;
 	const retryBackoffMs = Number.isFinite(params.retry.backoffMs) ? Math.max(0, Math.floor(params.retry.backoffMs)) : 0;
@@ -156,7 +162,7 @@ export function serializeGuardKindParams(params: FormGuardKindParams, opId: stri
 			system: system.length > 0 ? system : undefined,
 			prompt: params.prompt,
 			strictVariables: params.strictVariables ? true : undefined,
-			samplers: Object.keys(samplers).length > 0 ? samplers : undefined,
+			samplers: params.samplersEnabled && Object.keys(samplers).length > 0 ? samplers : undefined,
 			timeoutMs,
 			retry: {
 				maxAttempts: retryMaxAttempts,

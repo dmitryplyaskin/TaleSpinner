@@ -2,9 +2,7 @@ import {
 	buildOperationArtifactId,
 	makeDefaultOperationArtifactConfig,
 	normalizeOperationArtifactConfig,
-	type LlmOperationParams,
 	type LlmOperationRetryOn,
-	type LlmOperationSamplers,
 	type OperationArtifactConfig,
 	type OperationInProfile,
 	type OperationKind,
@@ -18,7 +16,12 @@ import {
 	serializeGuardKindParams,
 	type FormGuardKindParams,
 } from './guard-kind-form';
-import { normalizeRetryOn, pickNumericSamplers } from './operation-llm-form-utils';
+import {
+	normalizeRetryOn,
+	pickNumericSamplers,
+	type OperationLlmRuntimeFields,
+	type OperationSamplerFields,
+} from './operation-llm-form-utils';
 
 import type { OperationProfileDto } from '../../../../api/chat-core';
 
@@ -33,10 +36,8 @@ export type FormOtherKindParams = {
 
 export type FormRunCondition = OperationRunCondition;
 
-export type FormLlmKindParams = {
-	providerId: LlmOperationParams['providerId'];
-	credentialRef: string;
-	model: string;
+export type FormLlmKindParams = OperationLlmRuntimeFields &
+	OperationSamplerFields & {
 	system: string;
 	prompt: string;
 	strictVariables: boolean;
@@ -46,8 +47,6 @@ export type FormLlmKindParams = {
 	jsonCustomFlags: string;
 	jsonSchemaText: string;
 	strictSchemaValidation: boolean;
-	samplerPresetId: string;
-	samplers: LlmOperationSamplers;
 	timeoutMs: number;
 	retry: {
 		maxAttempts: number;
@@ -103,6 +102,7 @@ export function makeDefaultLlmKindParams(
 		providerId: 'openrouter',
 		credentialRef: '',
 		model: '',
+		llmPresetId: '',
 		system: '',
 		prompt: '',
 		strictVariables: false,
@@ -112,6 +112,7 @@ export function makeDefaultLlmKindParams(
 		jsonCustomFlags: '',
 		jsonSchemaText: '',
 		strictSchemaValidation: false,
+		samplersEnabled: false,
 		samplerPresetId: '',
 		samplers: {},
 		timeoutMs: 60000,
@@ -232,6 +233,7 @@ function normalizeLlmKindParams(op: Extract<OperationInProfile, { kind: 'llm' }>
 		providerId,
 		credentialRef: typeof llmParamsRaw.credentialRef === 'string' ? llmParamsRaw.credentialRef : '',
 		model: typeof llmParamsRaw.model === 'string' ? llmParamsRaw.model : '',
+		llmPresetId: '',
 		system: typeof llmParamsRaw.system === 'string' ? llmParamsRaw.system : '',
 		prompt: typeof llmParamsRaw.prompt === 'string' ? llmParamsRaw.prompt : '',
 		strictVariables: llmParamsRaw.strictVariables === true,
@@ -242,6 +244,10 @@ function normalizeLlmKindParams(op: Extract<OperationInProfile, { kind: 'llm' }>
 		jsonSchemaText:
 			typeof llmParamsRaw.jsonSchema === 'undefined' ? '' : JSON.stringify(llmParamsRaw.jsonSchema, null, 2),
 		strictSchemaValidation: llmParamsRaw.strictSchemaValidation === true,
+		samplersEnabled:
+			typeof llmParamsRaw.samplerPresetId === 'string' && llmParamsRaw.samplerPresetId.length > 0
+				? true
+				: Object.keys(pickNumericSamplers(llmParamsRaw.samplers)).length > 0,
 		samplerPresetId: typeof llmParamsRaw.samplerPresetId === 'string' ? llmParamsRaw.samplerPresetId : '',
 		samplers: pickNumericSamplers(llmParamsRaw.samplers),
 		timeoutMs:
@@ -385,7 +391,7 @@ export function fromOperationProfileForm(
 				const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts) ? Math.max(1, Math.floor(params.retry.maxAttempts)) : 1;
 				const retryBackoffMs = Number.isFinite(params.retry.backoffMs) ? Math.max(0, Math.floor(params.retry.backoffMs)) : 0;
 				const retryOn = normalizeRetryOn(params.retry.retryOn);
-				const samplers = pickNumericSamplers(params.samplers);
+				const samplers = params.samplersEnabled ? pickNumericSamplers(params.samplers) : {};
 				const hasSamplers = Object.keys(samplers).length > 0;
 				let parsedJsonSchema: unknown = undefined;
 				if (jsonSchemaText.length > 0) {
@@ -431,8 +437,9 @@ export function fromOperationProfileForm(
 										: undefined,
 								jsonSchema: typeof parsedJsonSchema === 'undefined' ? undefined : parsedJsonSchema,
 								strictSchemaValidation: params.strictSchemaValidation ? true : undefined,
-								samplerPresetId: samplerPresetId.length > 0 ? samplerPresetId : undefined,
-								samplers: hasSamplers ? samplers : undefined,
+								samplerPresetId:
+									params.samplersEnabled && samplerPresetId.length > 0 ? samplerPresetId : undefined,
+								samplers: params.samplersEnabled && hasSamplers ? samplers : undefined,
 								timeoutMs,
 								retry: {
 									maxAttempts: retryMaxAttempts,

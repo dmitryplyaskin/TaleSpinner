@@ -28,6 +28,7 @@ type Props = {
 	onModelSelect: (model: string | null) => void;
 	onLoadModels: () => Promise<void>;
 	allowTokenManager?: boolean;
+	showInlineTokenManager?: boolean;
 	tokenManagerScope?: LlmScope;
 	tokenManagerScopeId?: string;
 	onOpenTokenManager?: (open: boolean) => void;
@@ -45,6 +46,7 @@ export const LlmRuntimeSelectorFields: React.FC<Props> = ({
 	onModelSelect,
 	onLoadModels,
 	allowTokenManager = false,
+	showInlineTokenManager = true,
 	tokenManagerScope,
 	tokenManagerScopeId,
 	onOpenTokenManager,
@@ -132,7 +134,7 @@ export const LlmRuntimeSelectorFields: React.FC<Props> = ({
 					searchable
 					comboboxProps={{ withinPortal: false }}
 				/>
-				{allowTokenManager && tokenManagerScope && tokenManagerScopeId ? (
+				{allowTokenManager && showInlineTokenManager && tokenManagerScope && tokenManagerScopeId ? (
 					<TokenManager providerId={activeProviderId} scope={tokenManagerScope} scopeId={tokenManagerScopeId} />
 				) : null}
 			</Stack>

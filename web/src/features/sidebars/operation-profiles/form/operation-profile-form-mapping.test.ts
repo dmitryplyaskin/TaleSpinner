@@ -155,6 +155,9 @@ describe('operation profile form mapping', () => {
 							providerId: 'openrouter',
 							credentialRef: 'cred-1',
 							model: 'gpt-test',
+							llmPresetId: 'preset-1',
+							samplersEnabled: true,
+							samplerPresetId: 'sampler-1',
 							samplers: { temperature: 0.2 },
 							timeoutMs: 15000,
 							retry: {
@@ -234,5 +237,75 @@ describe('operation profile form mapping', () => {
 				operator: 'is_false',
 			},
 		]);
+	});
+
+	it('does not serialize sampler overrides when they are disabled', () => {
+		const values: OperationProfileFormValues = {
+			name: 'Profile',
+			description: '',
+			enabled: true,
+			executionMode: 'concurrent',
+			operationProfileSessionId: 'session-1',
+			operations: [
+				{
+					opId: 'llm-1',
+					name: 'LLM op',
+					description: '',
+					kind: 'llm',
+					config: {
+						enabled: true,
+						required: false,
+						hooks: ['before_main_llm'],
+						triggers: ['generate'],
+						activation: { everyNTurns: 0, everyNContextTokens: 0 },
+						order: 10,
+						dependsOn: [],
+						runConditions: [],
+						params: {
+							providerId: 'openrouter',
+							credentialRef: 'cred-1',
+							model: 'gpt-test',
+							system: '',
+							prompt: 'Prompt',
+							strictVariables: false,
+							outputMode: 'text',
+							jsonParseMode: 'raw',
+							jsonCustomPattern: '',
+							jsonCustomFlags: '',
+							jsonSchemaText: '',
+							strictSchemaValidation: false,
+							llmPresetId: 'preset-1',
+							samplersEnabled: false,
+							samplerPresetId: 'sampler-1',
+							samplers: { temperature: 0.2 },
+							timeoutMs: 60000,
+							retry: {
+								maxAttempts: 1,
+								backoffMs: 0,
+								retryOn: ['timeout'],
+							},
+							artifact: makeArtifact({ artifactId: 'artifact:llm-1', tag: 'llm_op', format: 'markdown' }),
+						},
+					},
+				},
+			],
+		};
+
+		const result = fromOperationProfileForm(values, { validateJson: true });
+		const llm = result.operations[0];
+
+		expect(llm).toMatchObject({
+			kind: 'llm',
+			config: {
+				params: {
+					params: {
+						providerId: 'openrouter',
+						credentialRef: 'cred-1',
+						model: 'gpt-test',
+					},
+				},
+			},
+		});
+		expect((llm as { config: { params: { params: { samplers?: unknown } } } }).config.params.params.samplers).toBeUndefined();
 	});
 });

@@ -1,4 +1,18 @@
+import type { LlmPresetPayload, LlmProviderDefinition, LlmTokenListItem } from '@shared/types/llm';
 import type { LlmOperationRetryOn, LlmOperationSamplers } from '@shared/types/operation-profiles';
+
+export type OperationLlmRuntimeFields = {
+	providerId: 'openrouter' | 'openai_compatible';
+	credentialRef: string;
+	model: string;
+	llmPresetId: string;
+};
+
+export type OperationSamplerFields = {
+	samplersEnabled: boolean;
+	samplerPresetId: string;
+	samplers: LlmOperationSamplers;
+};
 
 export function pickNumericSamplers(raw: unknown): LlmOperationSamplers {
 	if (!raw || typeof raw !== 'object') return {};
@@ -33,4 +47,58 @@ export function normalizeRetryOn(value: unknown): LlmOperationRetryOn[] {
 	);
 	const unique = Array.from(new Set(filtered));
 	return unique.length > 0 ? unique : ['timeout', 'provider_error', 'rate_limit'];
+}
+
+export function applyLlmPresetToOperationRuntime(
+	current: OperationLlmRuntimeFields,
+	preset: { presetId: string; payload: LlmPresetPayload } | null,
+): OperationLlmRuntimeFields {
+	if (!preset) {
+		return current;
+	}
+
+	return {
+		providerId: preset.payload.activeProviderId,
+		credentialRef: preset.payload.activeTokenId ?? '',
+		model: preset.payload.activeModel ?? '',
+		llmPresetId: preset.presetId,
+	};
+}
+
+export function buildLlmPresetPayloadFromOperationRuntime(current: OperationLlmRuntimeFields): LlmPresetPayload {
+	return {
+		activeProviderId: current.providerId,
+		activeTokenId: current.credentialRef.trim() || null,
+		activeModel: current.model.trim() || null,
+		providerConfigsById: {},
+	};
+}
+
+export function buildOperationLlmRuntimeSummary(params: {
+	providers: LlmProviderDefinition[];
+	tokens: LlmTokenListItem[];
+	providerId: OperationLlmRuntimeFields['providerId'];
+	credentialRef: string;
+	model: string;
+}): string {
+	const providerName = params.providers.find((item) => item.id === params.providerId)?.name ?? params.providerId;
+	const tokenName = params.tokens.find((item) => item.id === params.credentialRef)?.name ?? params.credentialRef.trim();
+	const model = params.model.trim();
+
+	return [providerName, tokenName, model].filter((item) => typeof item === 'string' && item.length > 0).join(' / ');
+}
+
+export function setOperationSamplersEnabled(current: OperationSamplerFields, enabled: boolean): OperationSamplerFields {
+	if (enabled) {
+		return {
+			...current,
+			samplersEnabled: true,
+		};
+	}
+
+	return {
+		samplersEnabled: false,
+		samplerPresetId: '',
+		samplers: {},
+	};
 }

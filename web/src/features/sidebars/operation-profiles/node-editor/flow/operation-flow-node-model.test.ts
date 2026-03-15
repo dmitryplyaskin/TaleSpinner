@@ -37,8 +37,11 @@ function makeOperation(kind: FormOperation['kind']): FormOperation {
 							providerId: 'openrouter',
 							credentialRef: '',
 							model: '',
+							llmPresetId: '',
 							system: '',
 							prompt: '',
+							samplersEnabled: false,
+							samplerPresetId: '',
 							samplers: {},
 							timeoutMs: 60000,
 							retry: {
