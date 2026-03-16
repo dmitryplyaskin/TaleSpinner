@@ -4,8 +4,12 @@
 				slug: 'Slug',
 				description: 'Описание',
 				bookDataJson: 'Book data JSON',
-				bindToChat: 'Привязать к чату: {{chatTitle}}',
-				noActiveChat: 'Нет активного чата для привязки',
+			},
+			globalBinding: {
+				title: 'Глобальная привязка',
+				label: 'Глобальная книга World Info',
+				none: 'Не привязано',
+				notBound: 'Глобальная книга World Info не привязана.',
 			},
 			actions: {
 				createBook: 'Создать книгу World Info',
@@ -140,7 +144,7 @@
 				saveBookErrorTitle: 'Не удалось сохранить книгу',
 				settingsSaved: 'Настройки World Info сохранены',
 				saveSettingsErrorTitle: 'Не удалось сохранить настройки',
-				bindingUpdated: 'Привязка к чату обновлена',
+				bindingUpdated: 'Привязка World Info обновлена',
 				bindingUpdateErrorTitle: 'Не удалось обновить привязку',
 				importedBook: 'Импортирован {{name}}{{warningSuffix}}',
 				importErrorTitle: 'Не удалось импортировать книгу',

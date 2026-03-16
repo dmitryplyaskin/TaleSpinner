@@ -1,13 +1,12 @@
-import { Accordion, Button, Group, NumberInput, Select, Stack, Switch, Text } from '@mantine/core';
+import { Accordion, Button, Group, NumberInput, Paper, Select, Stack, Switch, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuCopy, LuPencilLine, LuPlus, LuRefreshCw, LuTrash2 } from 'react-icons/lu';
 
-import { $currentChat } from '@model/chat-core';
 import {
-	$isWorldInfoBookBoundToCurrentChat,
+	$worldInfoGlobalBookId,
 	$worldInfoEditorLaunch,
 	$selectedWorldInfoBook,
 	$selectedWorldInfoBookId,
@@ -18,11 +17,11 @@ import {
 	duplicateWorldInfoBookFx,
 	importWorldInfoBookFx,
 	loadWorldInfoBooksFx,
-	loadWorldInfoChatBindingsFx,
+	loadWorldInfoGlobalBindingsFx,
 	loadWorldInfoSettingsFx,
 	saveWorldInfoBookFx,
 	saveWorldInfoSettingsFx,
-	worldInfoBookBindingToggleRequested,
+	setWorldInfoBookBoundToGlobalRequested,
 	worldInfoBookCreateRequested,
 	worldInfoBookDeleteRequested,
 	worldInfoBookDuplicateRequested,
@@ -51,13 +50,12 @@ export const WorldInfoSidebar = () => {
 	const [editorOpen, setEditorOpen] = useState(false);
 	const isMobile = useMediaQuery('(max-width: 48em)');
 
-	const [books, selectedId, selectedBook, settings, isBoundToCurrentChat, currentChat, worldInfoEditorLaunch] = useUnit([
+	const [books, selectedId, selectedBook, settings, globalBookId, worldInfoEditorLaunch] = useUnit([
 		$worldInfoBooks,
 		$selectedWorldInfoBookId,
 		$selectedWorldInfoBook,
 		$worldInfoSettings,
-		$isWorldInfoBookBoundToCurrentChat,
-		$currentChat,
+		$worldInfoGlobalBookId,
 		$worldInfoEditorLaunch,
 	]);
 
@@ -88,10 +86,8 @@ export const WorldInfoSidebar = () => {
 
 	useEffect(() => {
 		if (worldInfoEditorLaunch.nonce === 0) return;
-		if (worldInfoEditorLaunch.bookId) {
-			worldInfoBookSelected(worldInfoEditorLaunch.bookId);
-		}
-		setEditorOpen(true);
+		worldInfoBookSelected(worldInfoEditorLaunch.bookId);
+		setEditorOpen(Boolean(worldInfoEditorLaunch.bookId));
 	}, [worldInfoEditorLaunch]);
 
 	const [isCreatePending, isDuplicatePending, isDeletePending, isSaveBookPending, isSaveSettingsPending, isImportPending] = useUnit([
@@ -106,6 +102,14 @@ export const WorldInfoSidebar = () => {
 		isCreatePending || isDuplicatePending || isDeletePending || isSaveBookPending || isSaveSettingsPending || isImportPending;
 
 	const bookOptions = useMemo(() => books.map((item) => ({ value: item.id, label: item.name })), [books]);
+	const globalBindingOptions = useMemo(
+		() => [{ value: '__none__', label: t('worldInfo.globalBinding.none') }, ...bookOptions],
+		[bookOptions, t],
+	);
+	const globalBoundBook = useMemo(
+		() => books.find((item) => item.id === globalBookId) ?? null,
+		[books, globalBookId],
+	);
 
 	const handleSaveSettings = () => {
 		if (!settingsDraft) return;
@@ -208,9 +212,7 @@ export const WorldInfoSidebar = () => {
 								onClick={() => {
 									void loadWorldInfoBooksFx();
 									void loadWorldInfoSettingsFx();
-									if (currentChat?.id) {
-										void loadWorldInfoChatBindingsFx({ chatId: currentChat.id });
-									}
+									void loadWorldInfoGlobalBindingsFx();
 								}}
 							/>
 							<IconButtonWithTooltip
@@ -230,6 +232,40 @@ export const WorldInfoSidebar = () => {
 						</Group>
 					</Group>
 
+					<Paper withBorder p="md" radius="md">
+						<Stack gap="sm">
+							<Text size="sm" fw={600}>
+								{t('worldInfo.globalBinding.title')}
+							</Text>
+							<Select
+								label={t('worldInfo.globalBinding.label')}
+								value={globalBookId ?? '__none__'}
+								data={globalBindingOptions}
+								disabled={isBusy}
+								comboboxProps={{ withinPortal: false }}
+								onChange={(value) =>
+									setWorldInfoBookBoundToGlobalRequested({
+										bookId: value === '__none__' ? null : value ?? null,
+									})
+								}
+							/>
+							{globalBoundBook ? (
+								<Stack gap={4}>
+									<Text size="sm" fw={600}>
+										{globalBoundBook.name}
+									</Text>
+									<Text size="xs" c="dimmed">
+										slug: {globalBoundBook.slug}
+									</Text>
+								</Stack>
+							) : (
+								<Text size="sm" c="dimmed">
+									{t('worldInfo.globalBinding.notBound')}
+								</Text>
+							)}
+						</Stack>
+					</Paper>
+
 					{!selectedBook ? (
 						<Text c="dimmed" size="sm">{t('sidebars.selectBookToEdit')}</Text>
 					) : (
@@ -237,13 +273,6 @@ export const WorldInfoSidebar = () => {
 							<Text size="sm" fw={600}>{selectedBook.name}</Text>
 							<Text size="xs" c="dimmed">slug: {selectedBook.slug}</Text>
 							{selectedBook.description && <Text size="sm" c="dimmed">{selectedBook.description}</Text>}
-
-							<Switch
-								label={currentChat ? t('worldInfo.fields.bindToChat', { chatTitle: currentChat.title }) : t('worldInfo.fields.noActiveChat')}
-								checked={isBoundToCurrentChat}
-								disabled={!currentChat}
-								onChange={(event) => worldInfoBookBindingToggleRequested({ bookId: selectedBook.id, enabled: event.currentTarget.checked })}
-							/>
 
 							<Button leftSection={<LuPencilLine />} onClick={() => setEditorOpen(true)}>
 								{t('worldInfo.actions.openEditor')}

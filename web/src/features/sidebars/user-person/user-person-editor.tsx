@@ -28,6 +28,7 @@ import {
 	createAdditionalItem,
 	normalizeContentTypeExtended,
 } from './additional-description-utils';
+import { UserPersonWorldInfoSection } from './user-person-world-info-section';
 
 interface UserPersonEditorProps {
 	opened: boolean;
@@ -380,6 +381,8 @@ export const UserPersonEditor: React.FC<UserPersonEditorProps> = ({ opened, data
 								/>
 							</Stack>
 						</Paper>
+
+						<UserPersonWorldInfoSection personaId={data.id} />
 
 						<Paper withBorder p="md" radius="md">
 							<Stack gap="sm">

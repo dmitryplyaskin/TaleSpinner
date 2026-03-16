@@ -574,6 +574,12 @@ export const AgentCardsSidebar = () => {
 								isActive={currentProfile?.id === item.profile.id}
 								favoritePending={updatePendingId === item.profile.id}
 								worldInfoBookName={worldInfoBookNameByProfileId[item.profile.id] ?? null}
+								onWorldInfoStatusAltClick={(profile) => {
+									toggleSidebarOpen({ name: 'worldInfo', isOpen: true });
+									worldInfoEditorOpenRequested({
+										bookId: worldInfoEntityBookByProfileId[profile.id] ?? null,
+									});
+								}}
 								onEdit={(profile) => setEditingProfileId(profile.id)}
 								onDelete={setProfileToDelete}
 								onToggleFavorite={(profile) => requestUpdate({ id: profile.id, isFavorite: !profile.isFavorite })}

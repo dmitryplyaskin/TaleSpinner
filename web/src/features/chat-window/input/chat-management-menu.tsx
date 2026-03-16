@@ -2,7 +2,7 @@ import { ActionIcon, Badge, Box, Button, Checkbox, Group, Menu, Paper, Stack, Te
 import { useUnit } from 'effector-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuBookOpenText, LuCheck, LuFolderGit2, LuMessageSquare, LuPencil, LuPlus, LuSettings2, LuTrash2, LuX } from 'react-icons/lu';
+import { LuBookMarked, LuBookOpenText, LuCheck, LuFolderGit2, LuMessageSquare, LuPencil, LuPlus, LuSettings2, LuTrash2, LuX } from 'react-icons/lu';
 
 import {
 	$branches,
@@ -28,6 +28,8 @@ import { Z_INDEX } from '@ui/z-index';
 
 import { getLatestWorldInfoActivations, type LatestWorldInfoActivationsResponse } from '../../../api/chat-entry-parts';
 
+import { ChatWorldInfoBindingDialog } from './chat-world-info-binding-dialog';
+
 function normalizeName(value: string): string {
 	return value.trim();
 }
@@ -52,6 +54,7 @@ export const ChatManagementMenu = () => {
 	const [deleteCurrentOnQuickCreate, setDeleteCurrentOnQuickCreate] = useState(false);
 	const [chatsModalOpen, setChatsModalOpen] = useState(false);
 	const [branchesModalOpen, setBranchesModalOpen] = useState(false);
+	const [chatWorldInfoModalOpen, setChatWorldInfoModalOpen] = useState(false);
 	const [worldInfoModalOpen, setWorldInfoModalOpen] = useState(false);
 	const [worldInfoLoading, setWorldInfoLoading] = useState(false);
 	const [worldInfoError, setWorldInfoError] = useState<string | null>(null);
@@ -179,11 +182,25 @@ export const ChatManagementMenu = () => {
 					>
 						{t('chat.management.bulkDelete')}
 					</Menu.Item>
+					<Menu.Item
+						leftSection={<LuBookMarked />}
+						disabled={!currentChatId}
+						onClick={() => setChatWorldInfoModalOpen(true)}
+					>
+						{t('chat.management.worldInfoBinding')}
+					</Menu.Item>
 					<Menu.Item leftSection={<LuBookOpenText />} disabled={!currentChatId} onClick={() => void loadLatestWorldInfoActivations()}>
 						{t('chat.management.latestWorldInfoActivations')}
 					</Menu.Item>
 				</Menu.Dropdown>
 			</Menu>
+
+			<ChatWorldInfoBindingDialog
+				opened={chatWorldInfoModalOpen}
+				onOpenChange={setChatWorldInfoModalOpen}
+				chatId={currentChatId}
+				chatTitle={currentChat?.title ?? null}
+			/>
 
 			<Dialog
 				open={quickCreateModalOpen}

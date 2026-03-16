@@ -16,11 +16,14 @@ import {
 	type WorldInfoBookData,
 	type WorldInfoBookDto,
 	type WorldInfoBookSummaryDto,
+	type WorldInfoScope,
 	type WorldInfoSettingsDto,
 } from '../../api/world-info';
 import i18n from '../../i18n';
 import { toaster } from '../../ui/toaster';
 import { $currentChat, setOpenedChat } from '../chat-core';
+
+import { buildSingleBindingItems, createCanonicalBookMapByScopeId, pickCanonicalBinding } from './binding-utils';
 
 import type { ChatDto } from '../../api/chat-core';
 
@@ -30,6 +33,44 @@ const DEFAULT_BOOK_DATA: WorldInfoBookData = {
 	entries: {},
 	extensions: {},
 };
+
+type ScopeBindingParams = {
+	scope: WorldInfoScope;
+	scopeId?: string | null;
+	bookId: string | null;
+};
+
+type EntityBindingParams = {
+	entityProfileId: string;
+	bookId: string | null;
+	silent?: boolean;
+};
+
+type PersonaBindingParams = {
+	personaId: string;
+	bookId: string | null;
+	silent?: boolean;
+};
+
+async function replaceSingleBinding(params: ScopeBindingParams): Promise<WorldInfoBindingDto[]> {
+	return replaceWorldInfoBindings({
+		ownerId: DEFAULT_OWNER_ID,
+		scope: params.scope,
+		scopeId: params.scopeId,
+		items: buildSingleBindingItems(params.bookId),
+	});
+}
+
+function showBindingSuccessToast(): void {
+	toaster.success({ title: i18n.t('worldInfo.toasts.bindingUpdated') });
+}
+
+function showBindingErrorToast(error: unknown): void {
+	toaster.error({
+		title: i18n.t('worldInfo.toasts.bindingUpdateErrorTitle'),
+		description: error instanceof Error ? error.message : String(error),
+	});
+}
 
 export const worldInfoRefreshRequested = createEvent();
 export const worldInfoBookSelected = createEvent<string | null>();
@@ -47,14 +88,12 @@ export const worldInfoBookSaveRequested = createEvent<{
 export const worldInfoSettingsSaveRequested = createEvent<{
 	patch: Partial<Omit<WorldInfoSettingsDto, 'ownerId' | 'createdAt' | 'updatedAt'>>;
 }>();
-export const worldInfoBookBindingToggleRequested = createEvent<{ bookId: string; enabled: boolean }>();
 export const worldInfoImportBookRequested = createEvent<{ file: File }>();
 export const worldInfoEditorOpenRequested = createEvent<{ bookId: string | null }>();
-export const setWorldInfoBookBoundToEntityRequested = createEvent<{
-	entityProfileId: string;
-	bookId: string | null;
-	silent?: boolean;
-}>();
+export const setWorldInfoBookBoundToGlobalRequested = createEvent<{ bookId: string | null }>();
+export const setWorldInfoBookBoundToCurrentChatRequested = createEvent<{ chatId: string; bookId: string | null }>();
+export const setWorldInfoBookBoundToEntityRequested = createEvent<EntityBindingParams>();
+export const setWorldInfoBookBoundToPersonaRequested = createEvent<PersonaBindingParams>();
 
 export const loadWorldInfoBooksFx = createEffect(async (): Promise<WorldInfoBookSummaryDto[]> => {
 	const response = await listWorldInfoBooks({ ownerId: DEFAULT_OWNER_ID, limit: 200 });
@@ -69,6 +108,13 @@ export const loadWorldInfoSettingsFx = createEffect(async (): Promise<WorldInfoS
 	return getWorldInfoSettings(DEFAULT_OWNER_ID);
 });
 
+export const loadWorldInfoGlobalBindingsFx = createEffect(async (): Promise<WorldInfoBindingDto[]> => {
+	return listWorldInfoBindings({
+		ownerId: DEFAULT_OWNER_ID,
+		scope: 'global',
+	});
+});
+
 export const loadWorldInfoChatBindingsFx = createEffect(async (params: { chatId: string }): Promise<WorldInfoBindingDto[]> => {
 	return listWorldInfoBindings({
 		ownerId: DEFAULT_OWNER_ID,
@@ -81,6 +127,13 @@ export const loadWorldInfoEntityBindingsFx = createEffect(async (): Promise<Worl
 	return listWorldInfoBindings({
 		ownerId: DEFAULT_OWNER_ID,
 		scope: 'entity_profile',
+	});
+});
+
+export const loadWorldInfoPersonaBindingsFx = createEffect(async (): Promise<WorldInfoBindingDto[]> => {
+	return listWorldInfoBindings({
+		ownerId: DEFAULT_OWNER_ID,
+		scope: 'persona',
 	});
 });
 
@@ -120,95 +173,40 @@ export const saveWorldInfoSettingsFx = createEffect(
 	},
 );
 
-export const setWorldInfoBookBoundToCurrentChatFx = createEffect(
-	async (params: { chatId: string; bookId: string; enabled: boolean }): Promise<WorldInfoBindingDto[]> => {
-		const existing = await listWorldInfoBindings({
-			ownerId: DEFAULT_OWNER_ID,
-			scope: 'chat',
-			scopeId: params.chatId,
-		});
+export const setWorldInfoBookBoundToGlobalFx = createEffect(async (params: { bookId: string | null }) => {
+	return replaceSingleBinding({
+		scope: 'global',
+		bookId: params.bookId,
+	});
+});
 
-		const byBookId = new Map(existing.map((item) => [item.bookId, item]));
-		const ordered = existing
-			.slice()
-			.sort((a, b) => a.displayOrder - b.displayOrder)
-			.map((item) => ({
-				bookId: item.bookId,
-				bindingRole: item.bindingRole,
-				displayOrder: item.displayOrder,
-				enabled: item.enabled,
-			}));
+export const setWorldInfoBookBoundToCurrentChatFx = createEffect(async (params: { chatId: string; bookId: string | null }) => {
+	return replaceSingleBinding({
+		scope: 'chat',
+		scopeId: params.chatId,
+		bookId: params.bookId,
+	});
+});
 
-		if (byBookId.has(params.bookId)) {
-			const next = ordered.map((item) =>
-				item.bookId === params.bookId
-					? {
-						...item,
-						enabled: params.enabled,
-					}
-					: item,
-			);
-			const normalized = next.map((item, idx) => ({ ...item, displayOrder: idx }));
-			return replaceWorldInfoBindings({
-				ownerId: DEFAULT_OWNER_ID,
-				scope: 'chat',
-				scopeId: params.chatId,
-				items: normalized,
-			});
-		}
+export const setWorldInfoBookBoundToEntityFx = createEffect(async (params: EntityBindingParams): Promise<WorldInfoBindingDto[]> => {
+	return replaceSingleBinding({
+		scope: 'entity_profile',
+		scopeId: params.entityProfileId,
+		bookId: params.bookId,
+	});
+});
 
-		if (!params.enabled) {
-			return existing;
-		}
-
-		const normalized = [
-			...ordered,
-			{
-				bookId: params.bookId,
-				bindingRole: 'additional' as const,
-				displayOrder: ordered.length,
-				enabled: true,
-			},
-		].map((item, idx) => ({ ...item, displayOrder: idx }));
-
-		return replaceWorldInfoBindings({
-			ownerId: DEFAULT_OWNER_ID,
-			scope: 'chat',
-			scopeId: params.chatId,
-			items: normalized,
-		});
-	},
-);
+export const setWorldInfoBookBoundToPersonaFx = createEffect(async (params: PersonaBindingParams): Promise<WorldInfoBindingDto[]> => {
+	return replaceSingleBinding({
+		scope: 'persona',
+		scopeId: params.personaId,
+		bookId: params.bookId,
+	});
+});
 
 export const importWorldInfoBookFx = createEffect(async (params: { file: File }) => {
 	return importWorldInfoBook({ file: params.file, ownerId: DEFAULT_OWNER_ID, format: 'auto' });
 });
-
-export const setWorldInfoBookBoundToEntityFx = createEffect(
-	async (params: {
-		entityProfileId: string;
-		bookId: string | null;
-		silent?: boolean;
-	}): Promise<WorldInfoBindingDto[]> => {
-		const items =
-			typeof params.bookId === 'string' && params.bookId.trim().length > 0
-				? [
-					{
-						bookId: params.bookId,
-						bindingRole: 'primary' as const,
-						displayOrder: 0,
-						enabled: true,
-					},
-				]
-				: [];
-		return replaceWorldInfoBindings({
-			ownerId: DEFAULT_OWNER_ID,
-			scope: 'entity_profile',
-			scopeId: params.entityProfileId,
-			items,
-		});
-	},
-);
 
 export const $worldInfoBooks = createStore<WorldInfoBookSummaryDto[]>([]).on(loadWorldInfoBooksFx.doneData, (_, items) => items);
 
@@ -232,47 +230,41 @@ export const $worldInfoSettings = createStore<WorldInfoSettingsDto | null>(null)
 	.on(loadWorldInfoSettingsFx.doneData, (_, settings) => settings)
 	.on(saveWorldInfoSettingsFx.doneData, (_, settings) => settings);
 
+export const $worldInfoGlobalBindings = createStore<WorldInfoBindingDto[]>([])
+	.on(loadWorldInfoGlobalBindingsFx.doneData, (_, items) => items)
+	.on(setWorldInfoBookBoundToGlobalFx.doneData, (_, items) => items);
+
 export const $worldInfoChatBindings = createStore<WorldInfoBindingDto[]>([])
 	.on(loadWorldInfoChatBindingsFx.doneData, (_, items) => items)
 	.on(setWorldInfoBookBoundToCurrentChatFx.doneData, (_, items) => items);
 
-export const $worldInfoEntityBindings = createStore<WorldInfoBindingDto[]>(
-	[],
-).on(loadWorldInfoEntityBindingsFx.doneData, (_, items) => items);
+export const $worldInfoEntityBindings = createStore<WorldInfoBindingDto[]>([])
+	.on(loadWorldInfoEntityBindingsFx.doneData, (_, items) => items);
 
-export const $worldInfoEntityBookByProfileId = createStore<Record<string, string | null>>({}).on(
-	$worldInfoEntityBindings,
-	(_, bindings) => {
-		const grouped: Record<string, WorldInfoBindingDto[]> = {};
-		bindings.forEach((binding) => {
-			if (!binding.enabled || !binding.scopeId) return;
-			if (!grouped[binding.scopeId]) {
-				grouped[binding.scopeId] = [];
-			}
-			grouped[binding.scopeId].push(binding);
-		});
+export const $worldInfoPersonaBindings = createStore<WorldInfoBindingDto[]>([])
+	.on(loadWorldInfoPersonaBindingsFx.doneData, (_, items) => items);
 
-		const map: Record<string, string | null> = {};
-		Object.keys(grouped).forEach((profileId) => {
-			const sorted = grouped[profileId].slice().sort((a, b) => a.displayOrder - b.displayOrder);
-			map[profileId] = sorted[0]?.bookId ?? null;
-		});
-		return map;
-	},
-);
+export const $worldInfoGlobalBookId = $worldInfoGlobalBindings.map((bindings) => pickCanonicalBinding(bindings)?.bookId ?? null);
 
-export const $isWorldInfoBookBoundToCurrentChat = combine(
+export const $worldInfoCurrentChatBookId = combine(
+	$currentChat,
 	$worldInfoChatBindings,
-	$selectedWorldInfoBookId,
-	(bindings, selectedBookId) => {
-		if (!selectedBookId) return false;
-		return bindings.some((item) => item.bookId === selectedBookId && item.enabled);
-	},
+	(chat, bindings) => (chat ? pickCanonicalBinding(bindings)?.bookId ?? null : null),
 );
+
+export const $worldInfoEntityBookByProfileId = $worldInfoEntityBindings.map((bindings) => createCanonicalBookMapByScopeId(bindings));
+
+export const $worldInfoPersonaBookByPersonaId = $worldInfoPersonaBindings.map((bindings) => createCanonicalBookMapByScopeId(bindings));
 
 sample({
 	clock: worldInfoRefreshRequested,
-	target: [loadWorldInfoBooksFx, loadWorldInfoSettingsFx, loadWorldInfoEntityBindingsFx],
+	target: [
+		loadWorldInfoBooksFx,
+		loadWorldInfoSettingsFx,
+		loadWorldInfoGlobalBindingsFx,
+		loadWorldInfoEntityBindingsFx,
+		loadWorldInfoPersonaBindingsFx,
+	],
 });
 
 sample({
@@ -340,7 +332,15 @@ sample({
 
 sample({
 	clock: [deleteWorldInfoBookFx.doneData, importWorldInfoBookFx.doneData],
-	target: loadWorldInfoEntityBindingsFx,
+	target: [loadWorldInfoGlobalBindingsFx, loadWorldInfoEntityBindingsFx, loadWorldInfoPersonaBindingsFx],
+});
+
+sample({
+	clock: [deleteWorldInfoBookFx.doneData, importWorldInfoBookFx.doneData],
+	source: $currentChat,
+	filter: (chat): chat is ChatDto => Boolean(chat?.id),
+	fn: (chat) => ({ chatId: chat!.id }),
+	target: loadWorldInfoChatBindingsFx,
 });
 
 sample({
@@ -355,14 +355,12 @@ sample({
 });
 
 sample({
-	clock: worldInfoBookBindingToggleRequested,
-	source: $currentChat,
-	filter: (chat): chat is ChatDto => Boolean(chat?.id),
-	fn: (chat, payload) => ({
-		chatId: chat!.id,
-		bookId: payload.bookId,
-		enabled: payload.enabled,
-	}),
+	clock: setWorldInfoBookBoundToGlobalRequested,
+	target: setWorldInfoBookBoundToGlobalFx,
+});
+
+sample({
+	clock: setWorldInfoBookBoundToCurrentChatRequested,
 	target: setWorldInfoBookBoundToCurrentChatFx,
 });
 
@@ -372,8 +370,18 @@ sample({
 });
 
 sample({
+	clock: setWorldInfoBookBoundToPersonaRequested,
+	target: setWorldInfoBookBoundToPersonaFx,
+});
+
+sample({
 	clock: setWorldInfoBookBoundToEntityFx.doneData,
 	target: loadWorldInfoEntityBindingsFx,
+});
+
+sample({
+	clock: setWorldInfoBookBoundToPersonaFx.doneData,
+	target: loadWorldInfoPersonaBindingsFx,
 });
 
 createWorldInfoBookFx.failData.watch((error) => {
@@ -404,22 +412,40 @@ saveWorldInfoSettingsFx.failData.watch((error) => {
 	toaster.error({ title: i18n.t('worldInfo.toasts.saveSettingsErrorTitle'), description: error instanceof Error ? error.message : String(error) });
 });
 
-setWorldInfoBookBoundToCurrentChatFx.doneData.watch(() => {
-	toaster.success({ title: i18n.t('worldInfo.toasts.bindingUpdated') });
+setWorldInfoBookBoundToGlobalFx.doneData.watch(() => {
+	showBindingSuccessToast();
 });
 
-setWorldInfoBookBoundToCurrentChatFx.failData.watch((error) => {
-	toaster.error({ title: i18n.t('worldInfo.toasts.bindingUpdateErrorTitle'), description: error instanceof Error ? error.message : String(error) });
+setWorldInfoBookBoundToCurrentChatFx.doneData.watch(() => {
+	showBindingSuccessToast();
 });
 
 setWorldInfoBookBoundToEntityFx.done.watch(({ params }) => {
 	if (params.silent) return;
-	toaster.success({ title: i18n.t('worldInfo.toasts.bindingUpdated') });
+	showBindingSuccessToast();
+});
+
+setWorldInfoBookBoundToPersonaFx.done.watch(({ params }) => {
+	if (params.silent) return;
+	showBindingSuccessToast();
+});
+
+setWorldInfoBookBoundToGlobalFx.failData.watch((error) => {
+	showBindingErrorToast(error);
+});
+
+setWorldInfoBookBoundToCurrentChatFx.failData.watch((error) => {
+	showBindingErrorToast(error);
 });
 
 setWorldInfoBookBoundToEntityFx.fail.watch(({ params, error }) => {
 	if (params.silent) return;
-	toaster.error({ title: i18n.t('worldInfo.toasts.bindingUpdateErrorTitle'), description: error instanceof Error ? error.message : String(error) });
+	showBindingErrorToast(error);
+});
+
+setWorldInfoBookBoundToPersonaFx.fail.watch(({ params, error }) => {
+	if (params.silent) return;
+	showBindingErrorToast(error);
 });
 
 importWorldInfoBookFx.doneData.watch((result) => {

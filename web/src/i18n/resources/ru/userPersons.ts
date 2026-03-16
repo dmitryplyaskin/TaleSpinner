@@ -37,6 +37,16 @@ const ruUserPersons = {
 		title: 'Превью итогового описания',
 		info: 'Включенных дополнительных блоков: {{count}}',
 	},
+	worldInfo: {
+		title: 'World Info',
+		none: 'Не привязано',
+		notBound: 'Для этой персоны World Info не привязан.',
+		bindingLabel: 'Привязанная книга World Info',
+		openEditor: 'Открыть редактор World Info',
+		statusAria: 'Статус World Info',
+		statusBoundTooltip: 'World Info: {{name}}',
+		statusUnboundTooltip: 'World Info не привязан',
+	},
 	badges: {
 		active: 'Активная',
 	},

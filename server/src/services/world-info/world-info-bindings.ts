@@ -20,16 +20,6 @@ function sortBindings(items: WorldInfoBindingDto[]): WorldInfoBindingDto[] {
     });
 }
 
-function interleaveBindings(a: WorldInfoBindingDto[], b: WorldInfoBindingDto[]): WorldInfoBindingDto[] {
-  const result: WorldInfoBindingDto[] = [];
-  const maxLen = Math.max(a.length, b.length);
-  for (let i = 0; i < maxLen; i += 1) {
-    if (a[i]) result.push(a[i]);
-    if (b[i]) result.push(b[i]);
-  }
-  return result;
-}
-
 async function loadBindingsForScope(params: {
   ownerId: string;
   scope: WorldInfoScope;
@@ -71,18 +61,12 @@ export async function resolveActiveWorldInfoBooks(params: {
   const personaSorted = sortBindings(personaBindings);
   const globalSorted = sortBindings(globalBindings);
   const entitySorted = sortBindings(entityBindings);
-
-  let mixedGlobalEntity: WorldInfoBindingDto[] = [];
-  const insertionStrategy = params.settings.insertionStrategy ?? params.settings.characterStrategy;
-  if (insertionStrategy === 2) {
-    mixedGlobalEntity = [...globalSorted, ...entitySorted];
-  } else if (insertionStrategy === 1) {
-    mixedGlobalEntity = [...entitySorted, ...globalSorted];
-  } else {
-    mixedGlobalEntity = interleaveBindings(entitySorted, globalSorted);
-  }
-
-  const orderedBindings = [...chatSorted, ...personaSorted, ...mixedGlobalEntity];
+  const orderedBindings = [
+    ...globalSorted,
+    ...entitySorted,
+    ...personaSorted,
+    ...chatSorted,
+  ];
   const dedupedBindings: WorldInfoBindingDto[] = [];
   const seenBookIds = new Set<string>();
   for (const binding of orderedBindings) {

@@ -2,7 +2,7 @@ import { Avatar, Group, Paper, Stack, Text } from '@mantine/core';
 import { type UserPersonType } from '@shared/types/user-person';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuPencil, LuTrash2 } from 'react-icons/lu';
+import { LuBookMarked, LuPencil, LuTrash2 } from 'react-icons/lu';
 
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 
@@ -11,12 +11,20 @@ import { BACKEND_ORIGIN } from '../../../api/chat-core';
 interface UserPersonCardProps {
 	data: UserPersonType;
 	isActive: boolean;
+	worldInfoBookName: string | null;
 	onSelect: (person: UserPersonType) => void;
 	onEdit: (person: UserPersonType) => void;
 	onDelete: (person: UserPersonType) => void;
 }
 
-export const UserPersonCard: React.FC<UserPersonCardProps> = ({ data, isActive, onSelect, onEdit, onDelete }) => {
+export const UserPersonCard: React.FC<UserPersonCardProps> = ({
+	data,
+	isActive,
+	worldInfoBookName,
+	onSelect,
+	onEdit,
+	onDelete,
+}) => {
 	const { t } = useTranslation();
 	const avatarUrl = data.avatarUrl ? `${BACKEND_ORIGIN}${data.avatarUrl}` : undefined;
 
@@ -41,6 +49,18 @@ export const UserPersonCard: React.FC<UserPersonCardProps> = ({ data, isActive, 
 							<Text fw={700} truncate>
 								{data.name}
 							</Text>
+							<IconButtonWithTooltip
+								tooltip={
+									worldInfoBookName
+										? t('userPersons.worldInfo.statusBoundTooltip', { name: worldInfoBookName })
+										: t('userPersons.worldInfo.statusUnboundTooltip')
+								}
+								variant={worldInfoBookName ? 'subtle' : 'outline'}
+								colorPalette={worldInfoBookName ? 'cyan' : 'gray'}
+								size="xs"
+								aria-label={t('userPersons.worldInfo.statusAria')}
+								icon={<LuBookMarked />}
+							/>
 							{isActive && (
 								<Text c="cyan" size="xs" fw={600}>
 									{t('userPersons.badges.active')}

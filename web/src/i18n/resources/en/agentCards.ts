@@ -1,8 +1,6 @@
 ﻿const enAgentCards = {
 			kindLabel: 'Type: {{kind}}',
 			tokensApprox: '~{{count}} tok',
-			worldInfoBadgeTooltip: 'World Info: {{name}}',
-			worldInfoBadgeAria: 'Profile has linked World Info',
 			badges: {
 				active: 'Active',
 			},
@@ -18,6 +16,9 @@
 				notBound: 'No World Info linked for this profile.',
 				bindingLabel: 'Linked World Info book',
 				openEditor: 'Open World Info editor',
+				statusAria: 'World Info status',
+				statusBoundTooltip: 'World Info: {{name}}. Alt+click to open.',
+				statusUnboundTooltip: 'No linked World Info. Alt+click to open the sidebar.',
 			},
 			actions: {
 				favorite: 'Add to favorites',

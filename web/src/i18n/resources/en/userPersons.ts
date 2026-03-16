@@ -37,6 +37,16 @@ const enUserPersons = {
 		title: 'Final description preview',
 		info: 'Enabled additional blocks: {{count}}',
 	},
+	worldInfo: {
+		title: 'World Info',
+		none: 'Not linked',
+		notBound: 'No World Info linked for this persona.',
+		bindingLabel: 'Linked World Info book',
+		openEditor: 'Open World Info editor',
+		statusAria: 'World Info status',
+		statusBoundTooltip: 'World Info: {{name}}',
+		statusUnboundTooltip: 'No linked World Info',
+	},
 	badges: {
 		active: 'Active',
 	},

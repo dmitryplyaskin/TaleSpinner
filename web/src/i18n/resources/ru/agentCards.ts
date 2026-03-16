@@ -1,8 +1,6 @@
 ﻿const ruAgentCards = {
 			kindLabel: 'Тип: {{kind}}',
 			tokensApprox: '~{{count}} ток.',
-			worldInfoBadgeTooltip: 'World Info: {{name}}',
-			worldInfoBadgeAria: 'У профиля есть связанный World Info',
 			badges: {
 				active: 'Активный',
 			},
@@ -18,6 +16,9 @@
 				notBound: 'Для этого профиля World Info не привязан.',
 				bindingLabel: 'Привязанная книга World Info',
 				openEditor: 'Открыть редактор World Info',
+				statusAria: 'Статус World Info',
+				statusBoundTooltip: 'World Info: {{name}}. Alt+клик для открытия.',
+				statusUnboundTooltip: 'World Info не привязан. Alt+клик для открытия сайдбара.',
 			},
 			actions: {
 				favorite: 'В избранное',
