@@ -3,6 +3,7 @@
 			tabs: {
 				general: 'General',
 				theming: 'Theming',
+				backgrounds: 'Backgrounds',
 				debug: 'Debug',
 			},
 			sections: {
@@ -51,6 +52,36 @@
 					importedCount: 'Imported: {{count}}',
 					importFailed: 'Failed to import preset',
 					exportFailed: 'Failed to export preset',
+				},
+			},
+			backgrounds: {
+				description: 'Choose an app background or import your own.',
+				builtInNames: {
+					default: 'Default background',
+				},
+				actions: {
+					import: 'Import',
+					delete: 'Delete',
+					retry: 'Retry',
+				},
+				labels: {
+					builtIn: 'Built-in',
+					imported: 'Imported',
+					selected: 'Selected',
+					selecting: 'Applying...',
+					clickToApply: 'Click to apply',
+				},
+				states: {
+					loading: 'Loading backgrounds...',
+					loadFailed: 'Failed to load backgrounds',
+					empty: 'No backgrounds available yet',
+				},
+				toasts: {
+					importDone: 'Background imported',
+					importFailed: 'Failed to import background',
+					selectFailed: 'Failed to apply background',
+					deleteDone: 'Background deleted',
+					deleteFailed: 'Failed to delete background',
 				},
 			},
 			language: {

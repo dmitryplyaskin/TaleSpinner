@@ -183,6 +183,13 @@
       "when": 1773100000000,
       "tag": "0029_instruction_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1773200000000,
+      "tag": "0030_app_backgrounds",
+      "breakpoints": true
     }
   ]
 }

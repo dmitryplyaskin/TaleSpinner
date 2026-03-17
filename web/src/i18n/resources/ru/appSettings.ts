@@ -3,6 +3,7 @@
 			tabs: {
 				general: 'Основные',
 				theming: 'Темизация',
+				backgrounds: 'Фоны',
 				debug: 'Debug',
 			},
 			sections: {
@@ -51,6 +52,36 @@
 					importedCount: 'Импортировано: {{count}}',
 					importFailed: 'Не удалось импортировать пресет',
 					exportFailed: 'Не удалось экспортировать пресет',
+				},
+			},
+			backgrounds: {
+				description: 'Выберите фон приложения или импортируйте свой.',
+				builtInNames: {
+					default: 'Фон по умолчанию',
+				},
+				actions: {
+					import: 'Импортировать',
+					delete: 'Удалить',
+					retry: 'Повторить',
+				},
+				labels: {
+					builtIn: 'Дефолтный',
+					imported: 'Импортированный',
+					selected: 'Выбран',
+					selecting: 'Применяется...',
+					clickToApply: 'Нажмите, чтобы применить',
+				},
+				states: {
+					loading: 'Загрузка фонов...',
+					loadFailed: 'Не удалось загрузить список фонов',
+					empty: 'Фоны пока недоступны',
+				},
+				toasts: {
+					importDone: 'Фон импортирован',
+					importFailed: 'Не удалось импортировать фон',
+					selectFailed: 'Не удалось применить фон',
+					deleteDone: 'Фон удалён',
+					deleteFailed: 'Не удалось удалить фон',
 				},
 			},
 			language: {

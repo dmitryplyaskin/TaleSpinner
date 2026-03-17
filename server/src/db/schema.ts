@@ -5,6 +5,7 @@ export * from "./schema/instructions";
 export * from "./schema/operation-profiles";
 export * from "./schema/llm";
 export * from "./schema/rag";
+export * from "./schema/app-backgrounds";
 export * from "./schema/ui";
 export * from "./schema/ui-theme";
 export * from "./schema/user-persons";

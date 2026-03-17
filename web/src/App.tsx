@@ -2,6 +2,7 @@ import { Box, Button, Flex, Stack, Text } from '@mantine/core';
 import { useUnit } from 'effector-react';
 import { useTranslation } from 'react-i18next';
 
+import { $activeAppBackgroundUrl } from '@model/app-backgrounds';
 import { $appInitError, $appInitPending, $isAppReady, appStarted } from '@model/app-init';
 import { $currentEntityProfile, createEntityProfileFx } from '@model/chat-core';
 
@@ -11,7 +12,7 @@ import { LeftBar } from './features/sidebars/left-bar';
 
 function App() {
 	const { t } = useTranslation();
-	const currentProfile = useUnit($currentEntityProfile);
+	const [currentProfile, activeBackgroundUrl] = useUnit([$currentEntityProfile, $activeAppBackgroundUrl]);
 	const [isAppReady, isAppInitPending, appInitError, retryInit] = useUnit([
 		$isAppReady,
 		$appInitPending,
@@ -47,7 +48,10 @@ function App() {
 
 	return (
 		<>
-			<Flex className="ts-app-shell">
+			<Flex
+				className="ts-app-shell"
+				style={activeBackgroundUrl ? { backgroundImage: `url(${activeBackgroundUrl})` } : undefined}
+			>
 				<LeftBar />
 				<Flex className="ts-app-main" direction="column">
 					<Box flex={1} style={{ overflow: 'hidden' }}>

@@ -2,6 +2,7 @@ import path from "path";
 
 import express from "express";
 
+import { resolveMonorepoRoot } from "../config/path-resolver";
 import { createDataPath } from "../utils";
 
 const router = express.Router();
@@ -21,6 +22,20 @@ const mimeTypes: Record<string, string> = {
 router.use(
   "/media",
   express.static(createDataPath("media"), {
+    maxAge: "1d",
+    setHeaders: (res, filePath) => {
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeType = mimeTypes[ext];
+      if (mimeType) {
+        res.setHeader("Content-Type", mimeType);
+      }
+    },
+  })
+);
+
+router.use(
+  "/defaults/backgrounds",
+  express.static(path.join(resolveMonorepoRoot(), "default", "backgrounds"), {
     maxAge: "1d",
     setHeaders: (res, filePath) => {
       const ext = path.extname(filePath).toLowerCase();

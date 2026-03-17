@@ -1,3 +1,4 @@
+import appBackgroundsRoutes from "./app-backgrounds.core.api";
 import appSettingsRoutes from "./app-settings.api";
 import bundlesCoreRoutes from "./bundles.core.api";
 import chatEntriesRoutes from "./chat-entries.api";
@@ -37,6 +38,7 @@ export const routes = [
   modelsRoutes,
   settingsRoutes,
   appSettingsRoutes,
+  appBackgroundsRoutes,
   generateRoutes,
   sidebarsRoutes,
   ragRoutes,

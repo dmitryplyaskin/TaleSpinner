@@ -18,8 +18,6 @@ import {
 	resetUnseenMessages,
 } from '@model/chat-entry-parts';
 
-import BGImages from '../../assets/bg.png';
-
 import { AvatarPreviewPanel, type ChatAvatarPreview } from './avatar-preview-panel';
 import { MessageInput } from './input';
 import { MessageActionModals } from './message/message-action-modals';
@@ -156,7 +154,7 @@ export const ChatWindow: React.FC = () => {
 	}, [clearUnseenMessages]);
 
 	return (
-		<Box className="ts-chat-window" style={{ backgroundImage: `url(${BGImages})` }}>
+		<Box className="ts-chat-window">
 			<Box className="ts-chat-window__inner" data-preview-open={avatarPreview ? 'true' : 'false'}>
 				<Box className="ts-chat-scroll" ref={handleScrollElementRef} onScroll={handleScroll} onWheel={handleWheel}>
 					<Box className="ts-chat-content">

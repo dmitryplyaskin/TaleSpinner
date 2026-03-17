@@ -1,5 +1,6 @@
 import { createEffect, createEvent, createStore, sample } from 'effector';
 
+import { loadAppBackgroundCatalogFx } from './app-backgrounds';
 import { fetchAppSettingsFx } from './app-settings';
 import { loadEntityProfilesFx } from './chat-core';
 import { instructionsInitRequested } from './instructions';
@@ -22,6 +23,7 @@ export const appInitFx = createEffect(async (): Promise<void> => {
 		// UI state
 		fetchSidebarsFx(),
 		fetchAppSettingsFx(),
+		loadAppBackgroundCatalogFx(),
 		fetchLlmSettingsFx(),
 		loadUiThemePresetsFx(),
 		loadUiThemeSettingsFx(),
