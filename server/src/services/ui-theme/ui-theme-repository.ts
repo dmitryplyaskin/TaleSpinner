@@ -20,6 +20,7 @@ import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { initDb } from "../../db/client";
 import { uiThemePresets, uiThemeSettings } from "../../db/schema";
 
+import { resolveUiThemePresetPayload } from "./ui-theme-built-ins";
 import { validateUiThemePayload } from "./ui-theme-validator";
 
 const DEFAULT_OWNER_ID = "global";
@@ -48,7 +49,7 @@ function rowToPreset(row: UiThemePresetRow): UiThemePreset {
   const validatedPayload = validateUiThemePayload(
     safeJsonParse<UiThemePresetPayload>(row.payloadJson, BUILT_IN_UI_THEME_PRESETS[0].payload)
   );
-  const payload: UiThemePresetPayload = {
+  const mergedPayload: UiThemePresetPayload = {
     ...validatedPayload,
     lightTokens: {
       ...DEFAULT_UI_THEME_PAYLOAD.lightTokens,
@@ -59,6 +60,11 @@ function rowToPreset(row: UiThemePresetRow): UiThemePreset {
       ...validatedPayload.darkTokens,
     },
   };
+  const payload = resolveUiThemePresetPayload({
+    presetId: row.id,
+    builtIn: row.builtIn,
+    storedPayload: mergedPayload,
+  });
   return {
     presetId: row.id,
     ownerId: row.ownerId,
