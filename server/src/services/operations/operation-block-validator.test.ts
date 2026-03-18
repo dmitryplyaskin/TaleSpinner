@@ -5,6 +5,31 @@ import { describe, expect, test } from "vitest";
 import { validateOperationBlockUpsertInput } from "./operation-block-validator";
 
 describe("operation block validator", () => {
+  test("rejects legacy operation kind", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "6ff77029-5037-4d21-8ace-c9836f58a14b",
+            name: "legacy-op",
+            kind: "legacy",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 10,
+              params: {
+                params: {},
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/Validation error/);
+  });
+
   test("accepts valid block", () => {
     const out = validateOperationBlockUpsertInput({
       name: "block",

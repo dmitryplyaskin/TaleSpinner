@@ -273,7 +273,6 @@ export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
         "tool",
         "compute",
         "transform",
-        "legacy",
       ] satisfies Exclude<OperationKind, "template" | "llm" | "guard">[]),
       config: operationConfigOtherSchema,
     }),

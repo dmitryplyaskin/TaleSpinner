@@ -36,8 +36,6 @@ function getKindColor(kind: string): string {
 			return 'cyan';
 		case 'transform':
 			return 'indigo';
-		case 'legacy':
-			return 'gray';
 		default:
 			return 'blue';
 	}

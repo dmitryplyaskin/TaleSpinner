@@ -2,7 +2,6 @@ import React from 'react';
 
 import { ComputeKindSection } from './kind-params/compute-kind-section';
 import { GuardKindSection } from './kind-params/guard-kind-section';
-import { LegacyKindSection } from './kind-params/legacy-kind-section';
 import { LlmKindSection } from './kind-params/llm-kind-section';
 import { RagKindSection } from './kind-params/rag-kind-section';
 import { TemplateKindSection } from './kind-params/template-kind-section';
@@ -32,8 +31,6 @@ export const ParamsSection: React.FC<Props> = ({ index, kind }) => {
 			return <ComputeKindSection index={index} />;
 		case 'transform':
 			return <TransformKindSection index={index} />;
-		case 'legacy':
-			return <LegacyKindSection index={index} />;
 		default:
 			return null;
 	}

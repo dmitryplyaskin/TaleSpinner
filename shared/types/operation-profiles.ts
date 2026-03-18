@@ -21,8 +21,7 @@ export type OperationKind =
   | "rag"
   | "tool"
   | "compute"
-  | "transform"
-  | "legacy";
+  | "transform";
 
 export type PromptTimeMessageRole = "system" | "user" | "assistant";
 

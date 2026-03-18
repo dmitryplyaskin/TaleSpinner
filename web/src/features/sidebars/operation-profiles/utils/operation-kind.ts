@@ -8,7 +8,6 @@ export const OPERATION_KIND_OPTIONS = [
 	'tool',
 	'compute',
 	'transform',
-	'legacy',
 ] as const satisfies OperationKind[];
 
 export function isOperationKind(value: unknown): value is OperationKind {
@@ -19,7 +18,6 @@ export function isOperationKind(value: unknown): value is OperationKind {
 		value === 'rag' ||
 		value === 'tool' ||
 		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
+		value === 'transform'
 	);
 }

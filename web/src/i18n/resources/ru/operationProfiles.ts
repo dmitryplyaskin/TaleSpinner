@@ -220,7 +220,6 @@ const ruOperationProfiles = {
 				tool: 'Инструмент',
 				compute: 'Вычисление',
 				transform: 'Преобразование',
-				legacy: 'Legacy',
 			},
 			kindSection: {
 				jsonParamsLabel: '{{kindLabel}} params (JSON)',
@@ -234,9 +233,6 @@ const ruOperationProfiles = {
 				},
 				compute: {
 					description: 'Настройте детерминированные вычисления или преобразования над структурированными входами.',
-				},
-				legacy: {
-					description: 'Используйте секцию для compatibility-payload, необходимых legacy-исполнителям.',
 				},
 				llm: {
 					description: 'Настройте параметры прямого вызова модели для этой операции.',

@@ -219,7 +219,6 @@ const enOperationProfiles = {
 				tool: 'Tool',
 				compute: 'Compute',
 				transform: 'Transform',
-				legacy: 'Legacy',
 			},
 			kindSection: {
 				jsonParamsLabel: '{{kindLabel}} params (JSON)',
@@ -233,9 +232,6 @@ const enOperationProfiles = {
 				},
 				compute: {
 					description: 'Configure deterministic computations or transformations over structured inputs.',
-				},
-				legacy: {
-					description: 'Use this section for compatibility payload required by legacy executors.',
 				},
 				llm: {
 					description: 'Configure direct model call parameters for this operation.',
