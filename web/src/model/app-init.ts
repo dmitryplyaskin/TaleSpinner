@@ -1,5 +1,7 @@
 import { createEffect, createEvent, createStore, sample } from 'effector';
 
+import './chat-core/auto-select-current-persona';
+
 import { loadAppBackgroundCatalogFx } from './app-backgrounds';
 import { fetchAppSettingsFx } from './app-settings';
 import { loadEntityProfilesFx } from './chat-core';

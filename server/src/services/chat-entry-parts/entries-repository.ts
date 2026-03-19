@@ -1,6 +1,6 @@
 import { randomUUID as uuidv4 } from "node:crypto";
 
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { type DbExecutor, initDb } from "../../db/client";
@@ -334,6 +334,34 @@ export async function listEntriesWithActiveVariantsPage(params: {
     })),
     pageInfo: page.pageInfo,
   };
+}
+
+export async function getLatestSelectedPersonaIdForChatBranch(params: {
+  chatId: string;
+  branchId: string;
+}): Promise<string | null> {
+  const db = await initDb();
+  const rows = await db
+    .select({
+      personaId: sql<string | null>`json_extract(${chatEntries.metaJson}, '$.personaSnapshot.id')`,
+    })
+    .from(chatEntries)
+    .where(
+      and(
+        eq(chatEntries.chatId, params.chatId),
+        eq(chatEntries.branchId, params.branchId),
+        eq(chatEntries.role, "user"),
+        eq(chatEntries.softDeleted, false),
+        sql`json_type(${chatEntries.metaJson}, '$.personaSnapshot.id') = 'text'`
+      )
+    )
+    .orderBy(desc(chatEntries.createdAt), desc(chatEntries.entryId))
+    .limit(1);
+
+  const personaId = rows[0]?.personaId;
+  if (typeof personaId !== "string") return null;
+  const trimmedPersonaId = personaId.trim();
+  return trimmedPersonaId.length > 0 ? trimmedPersonaId : null;
 }
 
 export async function softDeleteEntry(params: { entryId: string; by: "user" | "agent" }): Promise<void> {

@@ -4,6 +4,7 @@ import { getChatById } from "../../../services/chat-core/chats-repository";
 import { rerenderGreetingTemplatesIfPreplay } from "../../../services/chat-core/greeting-template-rerender";
 import { getBranchCurrentTurn } from "../../../services/chat-entry-parts/branch-turn-repository";
 import {
+  getLatestSelectedPersonaIdForChatBranch,
   listEntriesWithActiveVariants,
   listEntriesWithActiveVariantsPage,
   type EntriesPageInfo,
@@ -33,6 +34,7 @@ export type GetChatEntriesInput = {
 export type GetChatEntriesResult = {
   branchId: string;
   currentTurn: number;
+  lastSelectedPersonaId: string | null;
   entries: Array<{
     entry: Entry;
     variant: Variant | null;
@@ -72,12 +74,18 @@ export async function getChatEntries(
     cursorEntryId: params.query.cursorEntryId,
   });
 
-  const currentTurn = await getBranchCurrentTurn({ branchId });
-  const promptWindowEntries = await listEntriesWithActiveVariants({
-    chatId: params.chatId,
-    branchId,
-    limit: PROMPT_USAGE_HISTORY_LIMIT,
-  });
+  const [currentTurn, promptWindowEntries, lastSelectedPersonaId] = await Promise.all([
+    getBranchCurrentTurn({ branchId }),
+    listEntriesWithActiveVariants({
+      chatId: params.chatId,
+      branchId,
+      limit: PROMPT_USAGE_HISTORY_LIMIT,
+    }),
+    getLatestSelectedPersonaIdForChatBranch({
+      chatId: params.chatId,
+      branchId,
+    }),
+  ]);
   const promptProjected = getPromptProjectionWithEntryIds({
     entries: promptWindowEntries,
     currentTurn,
@@ -88,6 +96,7 @@ export async function getChatEntries(
   return {
     branchId,
     currentTurn,
+    lastSelectedPersonaId,
     entries: page.entries.map((item) => ({
       ...item,
       promptUsage: buildEntryPromptUsage({

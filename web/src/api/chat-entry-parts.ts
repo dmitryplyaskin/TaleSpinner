@@ -84,6 +84,7 @@ export type EntriesPageInfo = {
 export type ListChatEntriesResponse = {
 	branchId: string;
 	currentTurn: number;
+	lastSelectedPersonaId: string | null;
 	entries: ChatEntryWithVariantDto[];
 	pageInfo: EntriesPageInfo;
 };
