@@ -8,7 +8,7 @@
     "install:docs": "yarn --cwd docs install",
     "install:all": "run-s install:server install:web",
     "dev:server": "yarn --cwd server dev",
-    "dev:web": "yarn --cwd web dev",
+    "dev:web": "yarn --cwd web dev --host ",
     "dev": "run-p dev:server dev:web",
     "build:server": "yarn --cwd server build",
     "build:web": "yarn --cwd web build",
