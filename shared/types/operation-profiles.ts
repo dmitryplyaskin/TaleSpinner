@@ -1,3 +1,8 @@
+import type {
+  KnowledgeRevealOperationParams,
+  KnowledgeSearchOperationParams,
+} from "./chat-knowledge";
+
 export type OperationHook = "before_main_llm" | "after_main_llm";
 export type OperationTrigger = "generate" | "regenerate";
 
@@ -18,6 +23,8 @@ export type OperationKind =
   | "template"
   | "llm"
   | "guard"
+  | "knowledge_search"
+  | "knowledge_reveal"
   | "rag"
   | "tool"
   | "compute"
@@ -303,17 +310,38 @@ export type GuardOperationInProfile = {
   config: OperationConfig<GuardOperationParams>;
 };
 
+export type KnowledgeSearchOperationInProfile = {
+  opId: string;
+  name: string;
+  description?: string;
+  kind: "knowledge_search";
+  config: OperationConfig<OperationOtherKindParams<KnowledgeSearchOperationParams>>;
+};
+
+export type KnowledgeRevealOperationInProfile = {
+  opId: string;
+  name: string;
+  description?: string;
+  kind: "knowledge_reveal";
+  config: OperationConfig<OperationOtherKindParams<KnowledgeRevealOperationParams>>;
+};
+
 export type GenericNonTemplateOperationInProfile = {
   opId: string;
   name: string;
   description?: string;
-  kind: Exclude<OperationKind, "template" | "llm" | "guard">;
+  kind: Exclude<
+    OperationKind,
+    "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal"
+  >;
   config: OperationConfig<OperationOtherKindParams>;
 };
 
 export type NonTemplateOperationInProfile =
   | LlmOperationInProfile
   | GuardOperationInProfile
+  | KnowledgeSearchOperationInProfile
+  | KnowledgeRevealOperationInProfile
   | GenericNonTemplateOperationInProfile;
 
 export type OperationInProfile = TemplateOperationInProfile | NonTemplateOperationInProfile;

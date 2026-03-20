@@ -15,6 +15,7 @@ import {
 import { applyPromptEffect } from "./effect-handlers/prompt-effects";
 import { executeGuardOperation } from "./guard-operation-executor";
 import { evaluateGuardRunConditions } from "./guard-run-conditions";
+import { executeKnowledgeOperation } from "./knowledge-operation-executor";
 import { executeLlmOperation } from "./llm-operation-executor";
 
 import type { TaskResult } from "../../../core/operation-orchestrator/types";
@@ -404,6 +405,11 @@ export async function executeOperationsPhase(params: {
   baseArtifacts: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
   templateContext: InstructionRenderContext;
+  knowledgeContext?: {
+    ownerId: string;
+    chatId: string;
+    branchId: string | null;
+  };
   abortSignal?: AbortSignal;
   onOperationStarted?: (data: { hook: OperationHook; opId: string; name: string }) => void;
   onOperationFinished?: (data: OperationFinishedEventData) => void;
@@ -475,15 +481,36 @@ export async function executeOperationsPhase(params: {
   }
 
   const executableOps = runnableOperations.filter(
-    (op): op is Extract<OperationInProfile, { kind: "template" | "llm" | "guard" }> =>
-      op.kind === "template" || op.kind === "llm" || op.kind === "guard"
+    (
+      op
+    ): op is Extract<
+      OperationInProfile,
+      { kind: "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal" }
+    > =>
+      op.kind === "template" ||
+      op.kind === "llm" ||
+      op.kind === "guard" ||
+      op.kind === "knowledge_search" ||
+      op.kind === "knowledge_reveal"
   );
   const executableOpsById = new Map(executableOps.map((op) => [op.opId, op]));
   const operationsById = new Map(params.operations.map((op) => [op.opId, op] as const));
   const executableTaskIdSet = new Set(executableOps.map((op) => op.opId));
   const unsupportedOps = runnableOperations.filter(
-    (op): op is Exclude<OperationInProfile, Extract<OperationInProfile, { kind: "template" | "llm" | "guard" }>> =>
-      op.kind !== "template" && op.kind !== "llm" && op.kind !== "guard"
+    (
+      op
+    ): op is Exclude<
+      OperationInProfile,
+      Extract<
+        OperationInProfile,
+        { kind: "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal" }
+      >
+    > =>
+      op.kind !== "template" &&
+      op.kind !== "llm" &&
+      op.kind !== "guard" &&
+      op.kind !== "knowledge_search" &&
+      op.kind !== "knowledge_reveal"
   );
 
   const effectsByOpId = new Map<string, RuntimeEffect[]>();
@@ -568,6 +595,24 @@ export async function executeOperationsPhase(params: {
               });
               resolvedRendered = guardResult.value;
               debugSummary = guardResult.debugSummary;
+            }
+
+            if (op.kind === "knowledge_search" || op.kind === "knowledge_reveal") {
+              if (!params.knowledgeContext) {
+                throw new Error("knowledgeContext is required for knowledge operations");
+              }
+              const knowledgeResult = await executeKnowledgeOperation({
+                op,
+                liquidContext,
+                artifacts: depPreview.artifacts,
+                knowledgeContext: params.knowledgeContext,
+              });
+              effectsByOpId.set(op.opId, knowledgeResult.effects);
+              taskResultByOpId.set(op.opId, {
+                effects: knowledgeResult.effects,
+                debugSummary: knowledgeResult.debugSummary,
+              });
+              return knowledgeResult;
             }
 
             const artifact = op.config.params.artifact;

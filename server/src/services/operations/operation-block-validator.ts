@@ -29,8 +29,17 @@ import {
   liquidGuardParamsSchema,
 } from "./guard-operation-params";
 import { compileGuardOutputSchema } from "./guard-output-contract";
+import {
+  parseKnowledgeRevealOperationParams,
+  parseKnowledgeSearchOperationParams,
+} from "./knowledge-operation-params";
 import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
 import { llmOperationParamsSchema } from "./llm-operation-params";
+
+import type {
+  KnowledgeRevealOperationParams,
+  KnowledgeSearchOperationParams,
+} from "@shared/types/chat-knowledge";
 
 const uuidSchema = z.string().uuid();
 
@@ -222,6 +231,38 @@ const operationConfigOtherSchema = operationConfigBaseSchema.extend({
   params: otherKindParamsSchema,
 });
 
+const knowledgeRequestSourceSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("inline"),
+    requestTemplate: z.string().min(1),
+    strictVariables: z.boolean().optional(),
+  }),
+  z.object({
+    mode: z.literal("artifact"),
+    artifactTag: artifactTagSchema,
+  }),
+]);
+
+const operationConfigKnowledgeSearchSchema = operationConfigBaseSchema.extend({
+  params: z.object({
+    params: z.object({
+      source: knowledgeRequestSourceSchema,
+    }),
+    artifact: artifactConfigSchema.optional(),
+    output: legacyOperationOutputSchema.optional(),
+  }),
+});
+
+const operationConfigKnowledgeRevealSchema = operationConfigBaseSchema.extend({
+  params: z.object({
+    params: z.object({
+      source: knowledgeRequestSourceSchema,
+    }),
+    artifact: artifactConfigSchema.optional(),
+    output: legacyOperationOutputSchema.optional(),
+  }),
+});
+
 const operationConfigLlmSchema = operationConfigBaseSchema.extend({
   params: z.object({
     params: llmOperationParamsSchema,
@@ -268,12 +309,29 @@ export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
       opId: uuidSchema,
       name: z.string().trim().min(1),
       description: z.string().trim().min(1).optional(),
+      kind: z.literal("knowledge_search"),
+      config: operationConfigKnowledgeSearchSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("knowledge_reveal"),
+      config: operationConfigKnowledgeRevealSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
       kind: z.enum([
         "rag",
         "tool",
         "compute",
         "transform",
-      ] satisfies Exclude<OperationKind, "template" | "llm" | "guard">[]),
+      ] satisfies Exclude<
+        OperationKind,
+        "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal"
+      >[]),
       config: operationConfigOtherSchema,
     }),
   ])
@@ -663,6 +721,38 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
               { opId: op.opId }
             );
           }
+        }
+      }
+    }
+
+    if (op.kind === "knowledge_search" || op.kind === "knowledge_reveal") {
+      const parser:
+        | ((raw: unknown) => KnowledgeSearchOperationParams)
+        | ((raw: unknown) => KnowledgeRevealOperationParams) =
+        op.kind === "knowledge_search"
+          ? parseKnowledgeSearchOperationParams
+          : parseKnowledgeRevealOperationParams;
+      const knowledgeParams = parser(op.config.params.params);
+
+      if (op.config.params.artifact.format !== "json") {
+        throw new HttpError(
+          400,
+          `${op.kind} artifact format must be json`,
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (knowledgeParams.source.mode === "inline") {
+        try {
+          validateLiquidTemplate(knowledgeParams.source.requestTemplate);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `${op.kind} template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
         }
       }
     }

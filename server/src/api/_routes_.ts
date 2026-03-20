@@ -2,6 +2,7 @@ import appBackgroundsRoutes from "./app-backgrounds.core.api";
 import appSettingsRoutes from "./app-settings.api";
 import bundlesCoreRoutes from "./bundles.core.api";
 import chatEntriesRoutes from "./chat-entries.api";
+import chatKnowledgeCoreRoutes from "./chat-knowledge.core.api";
 import chatCoreRoutes from "./chats.core.api";
 import entityProfilesCoreRoutes from "./entity-profiles.core.api";
 import entityProfilesImportRoutes from "./entity-profiles.import.api";
@@ -28,6 +29,7 @@ export const routes = [
   entityProfilesCoreRoutes,
   entityProfilesImportRoutes,
   chatCoreRoutes,
+  chatKnowledgeCoreRoutes,
   chatEntriesRoutes,
   generationsCoreRoutes,
   operationProfilesCoreRoutes,

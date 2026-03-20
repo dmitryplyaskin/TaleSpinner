@@ -491,7 +491,7 @@ export function fromOperationProfileForm(
 						},
 					},
 				},
-			};
+			} as OperationInProfile;
 		}),
 	};
 }

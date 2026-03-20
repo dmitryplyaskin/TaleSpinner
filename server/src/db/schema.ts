@@ -10,4 +10,5 @@ export * from "./schema/ui";
 export * from "./schema/ui-theme";
 export * from "./schema/user-persons";
 export * from "./schema/world-info";
+export * from "./schema/chat-knowledge";
 

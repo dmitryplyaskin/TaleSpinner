@@ -79,6 +79,11 @@ export async function* runOperationHookPhase(
       baseArtifacts: params.baseArtifacts,
       assistantText: params.assistantText,
       templateContext: params.templateContext,
+      knowledgeContext: {
+        ownerId: params.ownerId,
+        chatId: params.chatId,
+        branchId: params.branchId,
+      },
       abortSignal: params.abortSignal,
       onOperationStarted: (data) => params.emit("operation.started", data),
       onOperationFinished: (data) => params.emit("operation.finished", data),

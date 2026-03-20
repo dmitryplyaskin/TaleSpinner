@@ -190,6 +190,13 @@
       "when": 1773200000000,
       "tag": "0030_app_backgrounds",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1774060000000,
+      "tag": "0031_chat_knowledge_store",
+      "breakpoints": true
     }
   ]
 }
