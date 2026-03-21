@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next';
 
 import { FormCheckbox, FormInput, FormNumberInput, FormSelect } from '@ui/form-components';
 
+import { requiresJsonArtifactFormat } from '../../../form/knowledge-kind-form';
+import { isOperationKind } from '../../../utils/operation-kind';
+
 import type { ArtifactExposure } from '@shared/types/operation-profiles';
 
 const formatOptions = ['text', 'markdown', 'json'] as const;
@@ -71,7 +74,7 @@ export const OutputSection: React.FC<Props> = ({ index }) => {
 		  }
 		| undefined;
 	const kindValue = useWatch({ control, name: `operations.${index}.kind` }) as unknown;
-	const isGuardKind = kindValue === 'guard';
+	const isJsonLockedKind = isOperationKind(kindValue) ? requiresJsonArtifactFormat(kindValue) : false;
 
 	const exposuresArray = useFieldArray({
 		control,
@@ -79,9 +82,9 @@ export const OutputSection: React.FC<Props> = ({ index }) => {
 	});
 
 	useEffect(() => {
-		if (!isGuardKind || artifact?.format === 'json') return;
+		if (!isJsonLockedKind || artifact?.format === 'json') return;
 		setValue(`operations.${index}.config.params.artifact.format`, 'json', { shouldDirty: true });
-	}, [artifact?.format, index, isGuardKind, setValue]);
+	}, [artifact?.format, index, isJsonLockedKind, setValue]);
 
 	return (
 		<Stack gap="md">
@@ -113,12 +116,12 @@ export const OutputSection: React.FC<Props> = ({ index }) => {
 					label={t('operationProfiles.sectionsLabels.format')}
 					infoTip={t('operationProfiles.tooltips.format')}
 					selectProps={{
-						options: (isGuardKind ? ['json'] : formatOptions).map((value) => ({
+						options: (isJsonLockedKind ? ['json'] : formatOptions).map((value) => ({
 							value,
 							label: t(`operationProfiles.valueLabel.${value}`),
 						})),
 						comboboxProps: { withinPortal: false },
-						disabled: isGuardKind,
+						disabled: isJsonLockedKind,
 					}}
 				/>
 			</Group>

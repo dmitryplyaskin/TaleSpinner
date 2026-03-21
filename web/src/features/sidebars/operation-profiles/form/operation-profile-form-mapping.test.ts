@@ -308,4 +308,202 @@ describe('operation profile form mapping', () => {
 		});
 		expect((llm as { config: { params: { params: { samplers?: unknown } } } }).config.params.params.samplers).toBeUndefined();
 	});
+
+	it('normalizes knowledge operations into dedicated form params', () => {
+		const profile: OperationProfileDto = {
+			profileId: 'profile-knowledge',
+			ownerId: 'owner-1',
+			name: 'Profile',
+			description: undefined,
+			enabled: true,
+			executionMode: 'sequential',
+			operationProfileSessionId: 'session-knowledge',
+			blockRefs: [],
+			operations: [
+				{
+					opId: 'knowledge-search-1',
+					name: 'Knowledge Search',
+					kind: 'knowledge_search',
+					config: {
+						enabled: true,
+						required: false,
+						hooks: ['before_main_llm'],
+						triggers: ['generate'],
+						order: 10,
+						params: {
+							params: {
+								source: {
+									mode: 'inline',
+									requestTemplate: '{"textQuery":"forest","limit":5}',
+									strictVariables: true,
+								},
+							},
+							artifact: makeArtifact({
+								artifactId: 'artifact:knowledge-search-1',
+								tag: 'knowledge_search_result',
+								format: 'json',
+							}),
+						},
+					},
+				},
+				{
+					opId: 'knowledge-reveal-1',
+					name: 'Knowledge Reveal',
+					kind: 'knowledge_reveal',
+					config: {
+						enabled: true,
+						required: false,
+						hooks: ['before_main_llm'],
+						triggers: ['generate'],
+						order: 20,
+						params: {
+							params: {
+								source: {
+									mode: 'artifact',
+									artifactTag: 'planner_result',
+								},
+							},
+							artifact: makeArtifact({
+								artifactId: 'artifact:knowledge-reveal-1',
+								tag: 'knowledge_reveal_result',
+								format: 'json',
+							}),
+						},
+					},
+				},
+			],
+			meta: {},
+			version: 1,
+			createdAt: '2026-03-21T00:00:00.000Z',
+			updatedAt: '2026-03-21T00:00:00.000Z',
+		};
+
+		const form = toOperationProfileForm(profile);
+
+		expect(form.operations[0]).toMatchObject({
+			kind: 'knowledge_search',
+			config: {
+				params: {
+					sourceMode: 'inline',
+					requestTemplate: '{"textQuery":"forest","limit":5}',
+					strictVariables: true,
+					artifactTag: '',
+					artifact: expect.objectContaining({
+						format: 'json',
+					}),
+				},
+			},
+		});
+		expect(form.operations[1]).toMatchObject({
+			kind: 'knowledge_reveal',
+			config: {
+				params: {
+					sourceMode: 'artifact',
+					requestTemplate: '',
+					strictVariables: false,
+					artifactTag: 'planner_result',
+					artifact: expect.objectContaining({
+						format: 'json',
+					}),
+				},
+			},
+		});
+	});
+
+	it('serializes knowledge operations back to dto shape', () => {
+		const values: OperationProfileFormValues = {
+			name: 'Knowledge profile',
+			description: '',
+			enabled: true,
+			executionMode: 'concurrent',
+			operationProfileSessionId: 'session-knowledge',
+			operations: [
+				{
+					opId: 'knowledge-search-1',
+					name: 'Knowledge Search',
+					description: '',
+					kind: 'knowledge_search',
+					config: {
+						enabled: true,
+						required: false,
+						hooks: ['before_main_llm'],
+						triggers: ['generate', 'regenerate'],
+						activation: { everyNTurns: 0, everyNContextTokens: 0 },
+						order: 10,
+						dependsOn: [],
+						runConditions: [],
+						params: {
+							sourceMode: 'inline',
+							requestTemplate: '{"textQuery":"dark forest"}',
+							strictVariables: true,
+							artifactTag: '',
+							artifact: makeArtifact({
+								artifactId: 'artifact:knowledge-search-1',
+								tag: 'knowledge_search_result',
+								format: 'json',
+							}),
+						},
+					},
+				},
+				{
+					opId: 'knowledge-reveal-1',
+					name: 'Knowledge Reveal',
+					description: '',
+					kind: 'knowledge_reveal',
+					config: {
+						enabled: true,
+						required: false,
+						hooks: ['before_main_llm'],
+						triggers: ['generate'],
+						activation: { everyNTurns: 0, everyNContextTokens: 0 },
+						order: 20,
+						dependsOn: ['knowledge-search-1'],
+						runConditions: [],
+						params: {
+							sourceMode: 'artifact',
+							requestTemplate: '',
+							strictVariables: false,
+							artifactTag: 'planner_result',
+							artifact: makeArtifact({
+								artifactId: 'artifact:knowledge-reveal-1',
+								tag: 'knowledge_reveal_result',
+								format: 'json',
+							}),
+						},
+					},
+				},
+			],
+		};
+
+		const result = fromOperationProfileForm(values, { validateJson: true });
+
+		expect(result.operations[0]).toMatchObject({
+			kind: 'knowledge_search',
+			config: {
+				params: {
+					params: {
+						source: {
+							mode: 'inline',
+							requestTemplate: '{"textQuery":"dark forest"}',
+							strictVariables: true,
+						},
+					},
+				},
+			},
+		});
+		expect(result.operations[1]).toMatchObject({
+			kind: 'knowledge_reveal',
+			config: {
+				dependsOn: ['knowledge-search-1'],
+				params: {
+					params: {
+						source: {
+							mode: 'artifact',
+							artifactTag: 'planner_result',
+						},
+					},
+				},
+			},
+		});
+	});
 });

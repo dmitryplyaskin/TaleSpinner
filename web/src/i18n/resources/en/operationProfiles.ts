@@ -215,6 +215,8 @@ const enOperationProfiles = {
 				template: 'Template',
 				llm: 'LLM',
 				guard: 'Guard',
+				knowledge_search: 'Knowledge Search',
+				knowledge_reveal: 'Knowledge Reveal',
 				rag: 'RAG',
 				tool: 'Tool',
 				compute: 'Compute',
@@ -223,6 +225,17 @@ const enOperationProfiles = {
 			kindSection: {
 				jsonParamsLabel: '{{kindLabel}} params (JSON)',
 				jsonParamsInfo: 'Kind parameters are stored as JSON object in config.params.params.',
+				knowledge: {
+					sourceMode: 'Source mode',
+					sourceModeInfo: 'Choose inline JSON template or request JSON loaded from an artifact.',
+					sourceModeInline: 'Inline template',
+					sourceModeArtifact: 'Artifact',
+					requestTemplateInfo: 'Template must render a valid JSON request for the knowledge operation.',
+					artifactTag: 'Request artifact tag',
+					artifactTagInfo: 'Artifact tag that contains the JSON request payload.',
+					strictVariables: 'Strict variables',
+					strictVariablesInfo: 'When enabled, inline template fails on unknown Liquid variables.',
+				},
 				template: {
 					description: 'Template operations render text from available variables and pass result to output effects.',
 					strictVariables: 'Strict variables',
@@ -322,6 +335,14 @@ const enOperationProfiles = {
 					retryBackoffMs: 'Retry backoff (ms)',
 					retryOn: 'Retry on',
 					retryOnInfo: 'Error classes allowed to trigger a retry for aux LLM guard execution.',
+				},
+				knowledge_search: {
+					description: 'Configure the source of the search request for explicit retrieval from the chat knowledge store.',
+					requestTemplate: 'Search request template',
+				},
+				knowledge_reveal: {
+					description: 'Configure the source of the reveal request for controlled knowledge record reveals.',
+					requestTemplate: 'Reveal request template',
 				},
 				rag: {
 					description: 'Configure retrieval source and ranking parameters for context assembly.',

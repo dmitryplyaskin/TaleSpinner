@@ -10,6 +10,12 @@ import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 
 import { makeDefaultGuardKindParams, type FormGuardKindParams } from '../../form/guard-kind-form';
 import {
+	isKnowledgeOperationKind,
+	makeDefaultKnowledgeKindParams,
+	requiresJsonArtifactFormat,
+	type FormKnowledgeKindParams,
+} from '../../form/knowledge-kind-form';
+import {
 	makeDefaultArtifactOutput,
 	makeDefaultLlmKindParams,
 	makeDefaultOtherKindParams,
@@ -46,7 +52,9 @@ function resolveArtifactForKind(opId: string, kind: OperationKind, currentValue:
 	return {
 		...fallback,
 		...(currentValue as OperationArtifactConfig),
-		format: kind === 'guard' ? 'json' : ((currentValue as OperationArtifactConfig).format ?? fallback.format),
+		format: requiresJsonArtifactFormat(kind)
+			? 'json'
+			: ((currentValue as OperationArtifactConfig).format ?? fallback.format),
 	};
 }
 
@@ -148,9 +156,22 @@ export const OperationEditor: React.FC<Props> = memo(({ index, title, status, ca
 							return;
 						}
 
+						if (isKnowledgeOperationKind(nextKind)) {
+							const nextParams: FormKnowledgeKindParams = makeDefaultKnowledgeKindParams(
+								safeOpId || 'temp-op',
+								nextKind,
+								safeArtifact,
+							);
+							setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });
+							return;
+						}
+
 						const nextParams: FormOtherKindParams = makeDefaultOtherKindParams(
 							safeOpId || 'temp-op',
-							nextKind as Exclude<OperationKind, 'template' | 'llm' | 'guard'>,
+							nextKind as Exclude<
+								OperationKind,
+								'template' | 'llm' | 'guard' | 'knowledge_search' | 'knowledge_reveal'
+							>,
 							safeArtifact,
 						);
 						setValue(`operations.${index}.config.params`, nextParams, { shouldDirty: true });

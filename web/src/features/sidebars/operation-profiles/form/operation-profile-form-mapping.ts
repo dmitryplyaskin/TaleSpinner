@@ -17,6 +17,11 @@ import {
 	type FormGuardKindParams,
 } from './guard-kind-form';
 import {
+	normalizeKnowledgeKindParams,
+	serializeKnowledgeKindParams,
+	type FormKnowledgeKindParams,
+} from './knowledge-kind-form';
+import {
 	normalizeRetryOn,
 	pickNumericSamplers,
 	type OperationLlmRuntimeFields,
@@ -73,7 +78,12 @@ export type FormOperation = {
 		order: number;
 		dependsOn: string[];
 		runConditions: FormRunCondition[];
-		params: FormTemplateParams | FormLlmKindParams | FormGuardKindParams | FormOtherKindParams;
+		params:
+			| FormTemplateParams
+			| FormLlmKindParams
+			| FormGuardKindParams
+			| FormKnowledgeKindParams
+			| FormOtherKindParams;
 	};
 };
 
@@ -127,7 +137,7 @@ export function makeDefaultLlmKindParams(
 
 export function makeDefaultOtherKindParams(
 	opId: string,
-	kind: Exclude<OperationKind, 'template' | 'llm' | 'guard'>,
+	kind: Exclude<OperationKind, 'template' | 'llm' | 'guard' | 'knowledge_search' | 'knowledge_reveal'>,
 	artifact: OperationArtifactConfig = makeDefaultArtifactOutput(opId, kind),
 ): FormOtherKindParams {
 	return {
@@ -296,6 +306,8 @@ export function toOperationProfileForm(profile: OperationProfileDto): OperationP
 							? normalizeGuardKindParams(op)
 						: op.kind === 'llm'
 							? normalizeLlmKindParams(op)
+							: op.kind === 'knowledge_search' || op.kind === 'knowledge_reveal'
+								? normalizeKnowledgeKindParams(op)
 							: normalizeOtherKindParams(op),
 			},
 		})),
@@ -377,6 +389,27 @@ export function fromOperationProfileForm(
 						params: serializeGuardKindParams(params, op.opId),
 					},
 				};
+			}
+
+			if (op.kind === 'knowledge_search' || op.kind === 'knowledge_reveal') {
+				const params = op.config.params as FormKnowledgeKindParams;
+				return {
+					opId: op.opId,
+					name: op.name,
+					description: op.description.trim() ? op.description.trim() : undefined,
+					kind: op.kind,
+					config: {
+						enabled: Boolean(op.config.enabled),
+						required: Boolean(op.config.required),
+						hooks: op.config.hooks,
+						triggers: op.config.triggers,
+						activation,
+						order: Number(op.config.order),
+						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+						runConditions,
+						params: serializeKnowledgeKindParams(params, op.opId),
+					},
+				} as OperationInProfile;
 			}
 
 			if (op.kind === 'llm') {
@@ -473,7 +506,10 @@ export function fromOperationProfileForm(
 				opId: op.opId,
 				name: op.name,
 				description: op.description.trim() ? op.description.trim() : undefined,
-				kind: op.kind as Exclude<OperationKind, 'template' | 'llm' | 'guard'>,
+				kind: op.kind as Exclude<
+					OperationKind,
+					'template' | 'llm' | 'guard' | 'knowledge_search' | 'knowledge_reveal'
+				>,
 				config: {
 					enabled: Boolean(op.config.enabled),
 					required: Boolean(op.config.required),
@@ -517,9 +553,9 @@ export function makeDefaultOperation(): FormOperation {
 				runConditions: [],
 				params: {
 					template: '',
-				strictVariables: false,
-				artifact: makeDefaultArtifactOutput(opId, 'template'),
-			},
+					strictVariables: false,
+					artifact: makeDefaultArtifactOutput(opId, 'template'),
+				},
 		},
 	};
 }

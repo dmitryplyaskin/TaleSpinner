@@ -2,6 +2,8 @@ import React from 'react';
 
 import { ComputeKindSection } from './kind-params/compute-kind-section';
 import { GuardKindSection } from './kind-params/guard-kind-section';
+import { KnowledgeRevealKindSection } from './kind-params/knowledge-reveal-kind-section';
+import { KnowledgeSearchKindSection } from './kind-params/knowledge-search-kind-section';
 import { LlmKindSection } from './kind-params/llm-kind-section';
 import { RagKindSection } from './kind-params/rag-kind-section';
 import { TemplateKindSection } from './kind-params/template-kind-section';
@@ -23,6 +25,10 @@ export const ParamsSection: React.FC<Props> = ({ index, kind }) => {
 			return <LlmKindSection index={index} />;
 		case 'guard':
 			return <GuardKindSection index={index} />;
+		case 'knowledge_search':
+			return <KnowledgeSearchKindSection index={index} />;
+		case 'knowledge_reveal':
+			return <KnowledgeRevealKindSection index={index} />;
 		case 'rag':
 			return <RagKindSection index={index} />;
 		case 'tool':

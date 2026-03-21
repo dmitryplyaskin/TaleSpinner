@@ -216,6 +216,8 @@ const ruOperationProfiles = {
 				template: 'Шаблон',
 				llm: 'LLM',
 				guard: 'Guard',
+				knowledge_search: 'Knowledge Search',
+				knowledge_reveal: 'Knowledge Reveal',
 				rag: 'RAG',
 				tool: 'Инструмент',
 				compute: 'Вычисление',
@@ -224,6 +226,17 @@ const ruOperationProfiles = {
 			kindSection: {
 				jsonParamsLabel: '{{kindLabel}} params (JSON)',
 				jsonParamsInfo: 'Параметры типа сохраняются как JSON-объект в config.params.params.',
+				knowledge: {
+					sourceMode: 'Режим источника',
+					sourceModeInfo: 'Выберите inline JSON template или ссылку на JSON request из артефакта.',
+					sourceModeInline: 'Inline template',
+					sourceModeArtifact: 'Артефакт',
+					requestTemplateInfo: 'Шаблон должен отрендерить корректный JSON request для knowledge operation.',
+					artifactTag: 'Тег артефакта запроса',
+					artifactTagInfo: 'Тег артефакта, из которого будет прочитан JSON request.',
+					strictVariables: 'Строгие переменные',
+					strictVariablesInfo: 'Если включено, inline template падает при неизвестных Liquid-переменных.',
+				},
 				template: {
 					description: 'Template-операции рендерят текст из доступных переменных и передают результат в output effects.',
 					strictVariables: 'Строгие переменные',
@@ -323,6 +336,14 @@ const ruOperationProfiles = {
 					retryBackoffMs: 'Пауза между повторами (мс)',
 					retryOn: 'Повторять при',
 					retryOnInfo: 'Классы ошибок, при которых aux LLM guard может быть перезапущен.',
+				},
+				knowledge_search: {
+					description: 'Настройте источник search request для явного поиска знаний в chat knowledge store.',
+					requestTemplate: 'Шаблон search request',
+				},
+				knowledge_reveal: {
+					description: 'Настройте источник reveal request для контролируемого открытия knowledge records.',
+					requestTemplate: 'Шаблон reveal request',
 				},
 				rag: {
 					description: 'Настройте источник retrieval и параметры ранжирования для сборки контекста.',

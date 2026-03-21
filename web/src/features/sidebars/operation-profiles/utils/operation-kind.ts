@@ -4,6 +4,8 @@ export const OPERATION_KIND_OPTIONS = [
 	'template',
 	'llm',
 	'guard',
+	'knowledge_search',
+	'knowledge_reveal',
 	'rag',
 	'tool',
 	'compute',
@@ -15,6 +17,8 @@ export function isOperationKind(value: unknown): value is OperationKind {
 		value === 'template' ||
 		value === 'llm' ||
 		value === 'guard' ||
+		value === 'knowledge_search' ||
+		value === 'knowledge_reveal' ||
 		value === 'rag' ||
 		value === 'tool' ||
 		value === 'compute' ||
