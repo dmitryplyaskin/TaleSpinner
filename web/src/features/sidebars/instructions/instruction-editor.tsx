@@ -1,23 +1,23 @@
-import { Accordion, Alert, Button, Collapse, Group, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { Accordion, Button, Collapse, Group, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { isValidSillyTavernPromptIdentifier } from '@shared/utils/sillytavern-preset';
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuArrowDown, LuArrowUp, LuChevronDown, LuChevronRight, LuPlus, LuTrash2 } from 'react-icons/lu';
+import { LuPlus } from 'react-icons/lu';
 
 import { $currentBranchId, $currentChat, $currentEntityProfile } from '@model/chat-core';
 import { $selectedInstruction, instructionEditorDraftChanged } from '@model/instructions';
 import {
 	createEmptyStBaseConfig,
 	getStPromptDefinition,
-	getStPromptSourceLabel,
-	isSystemMarkerPrompt,
 	resolvePreferredPromptOrder,
 	ST_SYSTEM_PROMPT_DEFAULTS,
 } from '@model/instructions/st-preset';
 import { LiquidDocsButton } from '@ui/liquid-template-docs';
 
 import { prerenderInstruction } from '../../../api/instructions';
+
+import { StPromptBlockList } from './st-prompt-block-list';
 
 import type { StBaseConfig, StBasePrompt } from '@shared/types/instructions';
 
@@ -54,17 +54,6 @@ function createEmptyCustomPromptDraft(): CustomPromptDraft {
 		marker: false,
 		content: '',
 	};
-}
-
-function isCustomPrompt(identifier: string): boolean {
-	return !STANDARD_PROMPT_IDENTIFIERS.includes(identifier);
-}
-
-function formatPromptMeta(prompt: StBasePrompt, t: (key: string) => string): string {
-	const parts: string[] = [prompt.role ?? 'system'];
-	if (prompt.system_prompt) parts.push('system_prompt');
-	if (prompt.marker) parts.push(t('instructions.fields.markerLabel'));
-	return parts.join(' · ');
 }
 
 export const InstructionEditor = () => {
@@ -408,8 +397,13 @@ export const InstructionEditor = () => {
 
 			{instruction.kind === 'st_base' && stBase && preferredOrder && (
 				<Stack gap="sm">
-					<Group justify="space-between" align="center">
-						<Text fw={600}>{t('instructions.fields.promptBlocks')}</Text>
+					<Group justify="space-between" align="flex-start">
+						<Stack gap={2}>
+							<Text fw={600}>{t('instructions.fields.promptBlocks')}</Text>
+							<Text size="xs" c="dimmed">
+								{t('instructions.fields.reorderBlocksHint')}
+							</Text>
+						</Stack>
 						<Button
 							size="sm"
 							variant={addBlockOpened ? 'default' : 'light'}
@@ -539,184 +533,16 @@ export const InstructionEditor = () => {
 						</Stack>
 					</Collapse>
 
-					{preferredOrder.order.map((entry, index) => {
-						const prompt = normalizePromptForEdit(promptMap.get(entry.identifier), entry.identifier);
-						const sourceLabel = getStPromptSourceLabel(entry.identifier);
-						const standardPrompt = !isCustomPrompt(entry.identifier);
-						const runtimeManagedMarker = isSystemMarkerPrompt(prompt) && Boolean(sourceLabel);
-						const collapsibleMarker = runtimeManagedMarker || prompt.marker === true;
-						const isCollapsed = isPromptCollapsed(entry.identifier, collapsibleMarker);
-
-						return (
-							<Stack key={`${entry.identifier}_${index}`} gap={6} p="xs" style={{ border: '1px solid var(--mantine-color-gray-3)', borderRadius: 8 }}>
-								<Group justify="space-between" align="center">
-									<Group gap="xs" align="center">
-										<Button
-											size="compact-sm"
-											variant="subtle"
-											px={4}
-											onClick={() => togglePromptCollapsed(entry.identifier, collapsibleMarker)}
-											aria-label={isCollapsed ? 'Expand block' : 'Collapse block'}
-										>
-											{isCollapsed ? <LuChevronRight size={16} /> : <LuChevronDown size={16} />}
-										</Button>
-										<Switch
-											checked={entry.enabled}
-											onChange={(event) => {
-												const enabled = event.currentTarget.checked;
-												updatePreferredOrder((order) =>
-													order.map((item, itemIndex) =>
-														itemIndex === index ? { ...item, enabled } : item
-													)
-												);
-											}}
-											size="sm"
-										/>
-										<Stack gap={0}>
-											<Text size="sm" fw={500}>
-												{prompt.name || entry.identifier}
-											</Text>
-											<Text size="xs" c="dimmed">
-												{entry.identifier}
-											</Text>
-										</Stack>
-									</Group>
-									<Group gap={4}>
-										<Button
-											size="compact-sm"
-											variant="subtle"
-											leftSection={<LuArrowUp size={14} />}
-											disabled={index === 0}
-											onClick={() => {
-												updatePreferredOrder((order) => {
-													if (index === 0) return order;
-													const next = [...order];
-													[next[index - 1], next[index]] = [next[index], next[index - 1]];
-													return next;
-												});
-											}}
-										>
-											{t('common.up')}
-										</Button>
-										<Button
-											size="compact-sm"
-											variant="subtle"
-											leftSection={<LuArrowDown size={14} />}
-											disabled={index === preferredOrder.order.length - 1}
-											onClick={() => {
-												updatePreferredOrder((order) => {
-													if (index >= order.length - 1) return order;
-													const next = [...order];
-													[next[index], next[index + 1]] = [next[index + 1], next[index]];
-													return next;
-												});
-											}}
-										>
-											{t('common.down')}
-										</Button>
-										<Button
-											size="compact-sm"
-											variant="subtle"
-											color="red"
-											leftSection={<LuTrash2 size={14} />}
-											onClick={() => removePrompt(entry.identifier, index)}
-										>
-											{t('common.delete')}
-										</Button>
-									</Group>
-								</Group>
-
-								<Collapse in={!isCollapsed}>
-									<Stack gap={8}>
-										<Text size="xs" c="dimmed">
-											{formatPromptMeta(prompt, t)}
-										</Text>
-
-										{isCustomPrompt(entry.identifier) && (
-											<Group grow align="flex-start">
-												<TextInput
-													label={t('instructions.fields.promptName')}
-													value={prompt.name ?? ''}
-													onChange={(event) =>
-														updateCustomPromptField(entry.identifier, {
-															name: event.currentTarget.value.trim() || undefined,
-														})
-													}
-												/>
-												<Select
-													label={t('instructions.fields.promptRole')}
-													value={prompt.role ?? 'system'}
-													onChange={(value) =>
-														updateCustomPromptField(entry.identifier, {
-															role: (value as StBasePrompt['role'] | null) ?? 'system',
-														})
-													}
-													data={[
-														{ value: 'system', label: 'system' },
-														{ value: 'user', label: 'user' },
-														{ value: 'assistant', label: 'assistant' },
-													]}
-													allowDeselect={false}
-												/>
-											</Group>
-										)}
-
-										{isCustomPrompt(entry.identifier) && (
-											<Group gap="lg">
-												<Switch
-													label="system_prompt"
-													checked={prompt.system_prompt === true}
-													onChange={(event) =>
-														updateCustomPromptField(entry.identifier, {
-															system_prompt: event.currentTarget.checked,
-														})
-													}
-												/>
-												<Switch
-													label={t('instructions.fields.markerLabel')}
-													checked={prompt.marker === true}
-													onChange={(event) =>
-														updateCustomPromptField(entry.identifier, {
-															marker: event.currentTarget.checked,
-														})
-													}
-												/>
-											</Group>
-										)}
-
-										{runtimeManagedMarker ? (
-											<Alert color="blue" variant="light" title={t('instructions.fields.systemBlockTitle')}>
-												<Stack gap={4}>
-													<Text size="sm">{t('instructions.fields.systemBlockDescription')}</Text>
-													{sourceLabel ? (
-														<Text size="sm">
-															{t('instructions.fields.systemBlockSource')}: {sourceLabel}
-														</Text>
-													) : null}
-												</Stack>
-											</Alert>
-										) : (
-											<Textarea
-												value={prompt.content ?? ''}
-												onChange={(event) => setPromptContent(entry.identifier, event.currentTarget.value)}
-												placeholder={t('instructions.placeholders.promptBlockContent')}
-												description={prompt.marker ? t('instructions.fields.markerDescription') : undefined}
-												minRows={4}
-												autosize
-												styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
-											/>
-										)}
-
-										{!standardPrompt && (
-											<Text size="xs" c="dimmed">
-												{t('instructions.fields.customBlockHint')}
-											</Text>
-										)}
-									</Stack>
-								</Collapse>
-							</Stack>
-						);
-					})}
+					<StPromptBlockList
+						entries={preferredOrder.order}
+						promptMap={promptMap}
+						isPromptCollapsed={isPromptCollapsed}
+						onTogglePromptCollapsed={togglePromptCollapsed}
+						onUpdatePreferredOrder={updatePreferredOrder}
+						onRemovePrompt={removePrompt}
+						onSetPromptContent={setPromptContent}
+						onUpdateCustomPromptField={updateCustomPromptField}
+					/>
 
 					<Accordion variant="separated">
 						<Accordion.Item value="details">
