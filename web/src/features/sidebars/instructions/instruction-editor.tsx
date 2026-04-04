@@ -1,5 +1,4 @@
-import { Accordion, Button, Collapse, Group, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
-import { isValidSillyTavernPromptIdentifier } from '@shared/utils/sillytavern-preset';
+import { Accordion, Button, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useUnit } from 'effector-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,52 +8,21 @@ import { $currentBranchId, $currentChat, $currentEntityProfile } from '@model/ch
 import { $selectedInstruction, instructionEditorDraftChanged } from '@model/instructions';
 import {
 	createEmptyStBaseConfig,
-	getStPromptDefinition,
 	resolvePreferredPromptOrder,
-	ST_SYSTEM_PROMPT_DEFAULTS,
 } from '@model/instructions/st-preset';
 import { LiquidDocsButton } from '@ui/liquid-template-docs';
 
 import { prerenderInstruction } from '../../../api/instructions';
 
+import { StPromptBlockCreateModal } from './st-prompt-block-create-modal';
 import { StPromptBlockList } from './st-prompt-block-list';
+import {
+	createCustomPrompt,
+	normalizePromptForEdit,
+	type PromptBlockFields,
+} from './st-prompt-blocks';
 
 import type { StBaseConfig, StBasePrompt } from '@shared/types/instructions';
-
-type CustomPromptDraft = {
-	identifier: string;
-	name: string;
-	role: 'system' | 'user' | 'assistant';
-	system_prompt: boolean;
-	marker: boolean;
-	content: string;
-};
-
-const STANDARD_PROMPT_IDENTIFIERS = ST_SYSTEM_PROMPT_DEFAULTS.map((item) => item.identifier);
-
-function normalizePromptForEdit(prompt: StBasePrompt | undefined, identifier: string): StBasePrompt {
-	if (prompt) return { ...prompt };
-	const definition = getStPromptDefinition(identifier);
-	if (definition) return { ...definition };
-	return {
-		identifier,
-		name: identifier,
-		role: 'system',
-		system_prompt: true,
-		content: '',
-	};
-}
-
-function createEmptyCustomPromptDraft(): CustomPromptDraft {
-	return {
-		identifier: '',
-		name: '',
-		role: 'system',
-		system_prompt: true,
-		marker: false,
-		content: '',
-	};
-}
 
 export const InstructionEditor = () => {
 	const { t } = useTranslation();
@@ -63,12 +31,7 @@ export const InstructionEditor = () => {
 
 	const [basicTemplateText, setBasicTemplateText] = useState('');
 	const [stBase, setStBase] = useState<StBaseConfig | null>(null);
-	const [addBlockOpened, setAddBlockOpened] = useState(false);
-	const [newStandardPromptIdentifier, setNewStandardPromptIdentifier] = useState<string | null>(null);
-	const [customPromptDraft, setCustomPromptDraft] = useState<CustomPromptDraft>(createEmptyCustomPromptDraft);
-	const [customPromptError, setCustomPromptError] = useState<string | null>(null);
-	const [collapsedPromptById, setCollapsedPromptById] = useState<Record<string, boolean>>({});
-
+	const [createBlockOpened, setCreateBlockOpened] = useState(false);
 	const [preview, setPreview] = useState('');
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
@@ -78,14 +41,15 @@ export const InstructionEditor = () => {
 	useEffect(() => {
 		const nextInstruction = instruction;
 		const nextInstructionId = nextInstruction?.id ?? null;
+
 		if (nextInstructionId === null) {
 			lastResetInstructionIdRef.current = null;
 			setBasicTemplateText('');
 			setStBase(null);
 			return;
 		}
-		if (!nextInstruction) return;
-		if (lastResetInstructionIdRef.current === nextInstructionId) return;
+
+		if (!nextInstruction || lastResetInstructionIdRef.current === nextInstructionId) return;
 		lastResetInstructionIdRef.current = nextInstructionId;
 
 		if (nextInstruction.kind === 'basic') {
@@ -95,11 +59,8 @@ export const InstructionEditor = () => {
 			setBasicTemplateText('');
 			setStBase(structuredClone(nextInstruction.stBase));
 		}
-		setAddBlockOpened(false);
-		setNewStandardPromptIdentifier(null);
-		setCustomPromptDraft(createEmptyCustomPromptDraft());
-		setCustomPromptError(null);
-		setCollapsedPromptById({});
+
+		setCreateBlockOpened(false);
 		setPreview('');
 		setPreviewError(null);
 	}, [instruction]);
@@ -143,11 +104,6 @@ export const InstructionEditor = () => {
 		return map;
 	}, [stBase]);
 
-	const addablePromptIdentifiers = useMemo(() => {
-		const used = new Set(preferredOrder?.order.map((item) => item.identifier) ?? []);
-		return STANDARD_PROMPT_IDENTIFIERS.filter((identifier) => !used.has(identifier));
-	}, [preferredOrder?.order]);
-
 	const rawPresetJson = useMemo(() => {
 		if (!stBase) return '';
 		try {
@@ -159,30 +115,19 @@ export const InstructionEditor = () => {
 
 	if (!instruction) return null;
 
-	const isPromptCollapsed = (identifier: string, isMarkerPrompt: boolean): boolean => {
-		const value = collapsedPromptById[identifier];
-		if (typeof value === 'boolean') return value;
-		return isMarkerPrompt;
-	};
-
-	const togglePromptCollapsed = (identifier: string, isMarkerPrompt: boolean) => {
-		setCollapsedPromptById((current) => ({
-			...current,
-			[identifier]: !isPromptCollapsed(identifier, isMarkerPrompt),
-		}));
-	};
-
 	const updatePreferredOrder = (
 		updater: (
-			order: Array<{ identifier: string; enabled: boolean }>
-		) => Array<{ identifier: string; enabled: boolean }>
+			order: Array<{ identifier: string; enabled: boolean }>,
+		) => Array<{ identifier: string; enabled: boolean }>,
 	) => {
 		setStBase((current) => {
 			if (!current) return current;
+
 			const selectedOrder = resolvePreferredPromptOrder(current);
 			const nextOrder = updater(selectedOrder.order.map((item) => ({ ...item })));
 			const existingIndex = current.promptOrder.findIndex((item) => item.character_id === selectedOrder.character_id);
 			const nextPromptOrder = [...current.promptOrder];
+
 			if (existingIndex >= 0) {
 				nextPromptOrder[existingIndex] = {
 					...nextPromptOrder[existingIndex],
@@ -194,6 +139,7 @@ export const InstructionEditor = () => {
 					order: nextOrder,
 				});
 			}
+
 			return {
 				...current,
 				promptOrder: nextPromptOrder,
@@ -204,12 +150,14 @@ export const InstructionEditor = () => {
 	const upsertPrompt = (prompt: StBasePrompt) => {
 		setStBase((current) => {
 			if (!current) return current;
+
 			const index = current.prompts.findIndex((item) => item.identifier === prompt.identifier);
 			if (index >= 0) {
 				const prompts = [...current.prompts];
 				prompts[index] = { ...prompts[index], ...prompt };
 				return { ...current, prompts };
 			}
+
 			return {
 				...current,
 				prompts: [...current.prompts, prompt],
@@ -222,18 +170,12 @@ export const InstructionEditor = () => {
 			if (order.some((item) => item.identifier === identifier)) {
 				return order.map((item) => (item.identifier === identifier ? { ...item, enabled: true } : item));
 			}
+
 			return [...order, { identifier, enabled: true }];
 		});
 	};
 
-	const setPromptContent = (identifier: string, content: string) => {
-		upsertPrompt({
-			...normalizePromptForEdit(promptMap.get(identifier), identifier),
-			content,
-		});
-	};
-
-	const updateCustomPromptField = (identifier: string, patch: Partial<StBasePrompt>) => {
+	const updatePrompt = (identifier: string, patch: Partial<StBasePrompt>) => {
 		const existing = normalizePromptForEdit(promptMap.get(identifier), identifier);
 		upsertPrompt({
 			...existing,
@@ -244,10 +186,12 @@ export const InstructionEditor = () => {
 	const removePrompt = (identifier: string, index: number) => {
 		setStBase((current) => {
 			if (!current) return current;
+
 			const selectedOrder = resolvePreferredPromptOrder(current);
 			const nextOrder = selectedOrder.order.filter((_, itemIndex) => itemIndex !== index);
 			const existingIndex = current.promptOrder.findIndex((item) => item.character_id === selectedOrder.character_id);
 			const nextPromptOrder = [...current.promptOrder];
+
 			if (existingIndex >= 0) {
 				nextPromptOrder[existingIndex] = {
 					...nextPromptOrder[existingIndex],
@@ -261,7 +205,7 @@ export const InstructionEditor = () => {
 			}
 
 			const stillUsed = nextPromptOrder.some((item) =>
-				item.order.some((orderItem) => orderItem.identifier === identifier)
+				item.order.some((orderItem) => orderItem.identifier === identifier),
 			);
 
 			return {
@@ -274,51 +218,11 @@ export const InstructionEditor = () => {
 		});
 	};
 
-	const handleAddStandardPrompt = () => {
-		if (!newStandardPromptIdentifier) return;
-		const definition = getStPromptDefinition(newStandardPromptIdentifier);
-		upsertPrompt(
-			definition ?? {
-				identifier: newStandardPromptIdentifier,
-				name: newStandardPromptIdentifier,
-				role: 'system',
-				system_prompt: true,
-				content: '',
-			}
-		);
-		addPromptToPreferredOrder(newStandardPromptIdentifier);
-		setCollapsedPromptById((current) => ({ ...current, [newStandardPromptIdentifier]: false }));
-		setNewStandardPromptIdentifier(null);
-	};
-
-	const handleAddCustomPrompt = () => {
-		const identifier = customPromptDraft.identifier.trim();
-		if (!identifier) {
-			setCustomPromptError(t('instructions.validation.promptIdentifierRequired'));
-			return;
-		}
-		if (!isValidSillyTavernPromptIdentifier(identifier)) {
-			setCustomPromptError(t('instructions.validation.promptIdentifierInvalid'));
-			return;
-		}
-		if (promptMap.has(identifier) || preferredOrder?.order.some((item) => item.identifier === identifier)) {
-			setCustomPromptError(t('instructions.validation.promptIdentifierDuplicate'));
-			return;
-		}
-
-		upsertPrompt({
-			identifier,
-			name: customPromptDraft.name.trim() || undefined,
-			role: customPromptDraft.role,
-			system_prompt: customPromptDraft.system_prompt,
-			marker: customPromptDraft.marker,
-			content: customPromptDraft.content,
-		});
-		addPromptToPreferredOrder(identifier);
-		setCollapsedPromptById((current) => ({ ...current, [identifier]: false }));
-		setCustomPromptDraft(createEmptyCustomPromptDraft());
-		setCustomPromptError(null);
-		setAddBlockOpened(false);
+	const handleCreatePrompt = (fields: PromptBlockFields) => {
+		const prompt = createCustomPrompt(fields);
+		upsertPrompt(prompt);
+		addPromptToPreferredOrder(prompt.identifier);
+		setCreateBlockOpened(false);
 	};
 
 	const onPrerender = async () => {
@@ -352,7 +256,7 @@ export const InstructionEditor = () => {
 				</Text>
 			</Stack>
 
-			{instruction.kind === 'basic' && (
+			{instruction.kind === 'basic' ? (
 				<>
 					<Textarea
 						label={
@@ -369,13 +273,13 @@ export const InstructionEditor = () => {
 						styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
 					/>
 
-					{previewError && (
+					{previewError ? (
 						<Text c="red" size="sm">
 							{previewError}
 						</Text>
-					)}
+					) : null}
 
-					{preview.length > 0 && (
+					{preview.length > 0 ? (
 						<Textarea
 							label={t('instructions.fields.prerender')}
 							description={t('instructions.fields.prerenderDescription')}
@@ -385,7 +289,7 @@ export const InstructionEditor = () => {
 							autosize
 							styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
 						/>
-					)}
+					) : null}
 
 					<Group justify="flex-end">
 						<Button variant="light" loading={previewLoading} onClick={onPrerender}>
@@ -393,155 +297,34 @@ export const InstructionEditor = () => {
 						</Button>
 					</Group>
 				</>
-			)}
+			) : null}
 
-			{instruction.kind === 'st_base' && stBase && preferredOrder && (
+			{instruction.kind === 'st_base' && stBase && preferredOrder ? (
 				<Stack gap="sm">
-					<Group justify="space-between" align="flex-start">
-						<Stack gap={2}>
-							<Text fw={600}>{t('instructions.fields.promptBlocks')}</Text>
-							<Text size="xs" c="dimmed">
-								{t('instructions.fields.reorderBlocksHint')}
-							</Text>
-						</Stack>
+					<Group justify="space-between" align="center">
+						<Text fw={600}>{t('instructions.fields.promptBlocks')}</Text>
 						<Button
 							size="sm"
-							variant={addBlockOpened ? 'default' : 'light'}
+							variant={createBlockOpened ? 'default' : 'light'}
 							leftSection={<LuPlus size={14} />}
-							onClick={() => {
-								setAddBlockOpened((current) => !current);
-								setCustomPromptError(null);
-							}}
+							onClick={() => setCreateBlockOpened(true)}
 						>
 							{t('instructions.actions.addPromptBlock')}
 						</Button>
 					</Group>
 
-					<Collapse in={addBlockOpened}>
-						<Stack gap="md" p="sm" style={{ border: '1px solid var(--mantine-color-gray-3)', borderRadius: 8 }}>
-							<Stack gap="xs">
-								<Text fw={500}>{t('instructions.fields.addStandardBlock')}</Text>
-								<Group align="flex-end">
-									<Select
-										placeholder={t('instructions.placeholders.addPromptBlock')}
-										data={addablePromptIdentifiers.map((identifier) => ({
-											value: identifier,
-											label: getStPromptDefinition(identifier)?.name ?? identifier,
-										}))}
-										value={newStandardPromptIdentifier}
-										onChange={setNewStandardPromptIdentifier}
-										clearable
-										style={{ flex: 1 }}
-									/>
-									<Button variant="light" disabled={!newStandardPromptIdentifier} onClick={handleAddStandardPrompt}>
-										{t('common.add')}
-									</Button>
-								</Group>
-							</Stack>
-
-							<Stack gap="xs">
-								<Text fw={500}>{t('instructions.fields.addCustomBlock')}</Text>
-								<Group grow align="flex-start">
-									<TextInput
-										label={t('instructions.fields.promptIdentifier')}
-										value={customPromptDraft.identifier}
-										onChange={(event) => {
-											setCustomPromptDraft((current) => ({
-												...current,
-												identifier: event.currentTarget.value,
-											}));
-											setCustomPromptError(null);
-										}}
-										placeholder="my.custom-block"
-									/>
-									<TextInput
-										label={t('instructions.fields.promptName')}
-										value={customPromptDraft.name}
-										onChange={(event) =>
-											setCustomPromptDraft((current) => ({
-												...current,
-												name: event.currentTarget.value,
-											}))
-										}
-										placeholder={t('instructions.placeholders.promptName')}
-									/>
-									<Select
-										label={t('instructions.fields.promptRole')}
-										value={customPromptDraft.role}
-										onChange={(value) =>
-											setCustomPromptDraft((current) => ({
-												...current,
-												role: (value as CustomPromptDraft['role'] | null) ?? 'system',
-											}))
-										}
-										data={[
-											{ value: 'system', label: 'system' },
-											{ value: 'user', label: 'user' },
-											{ value: 'assistant', label: 'assistant' },
-										]}
-										allowDeselect={false}
-									/>
-								</Group>
-								<Group gap="lg">
-									<Switch
-										label="system_prompt"
-										checked={customPromptDraft.system_prompt}
-										onChange={(event) =>
-											setCustomPromptDraft((current) => ({
-												...current,
-												system_prompt: event.currentTarget.checked,
-											}))
-										}
-									/>
-									<Switch
-										label={t('instructions.fields.markerLabel')}
-										checked={customPromptDraft.marker}
-										onChange={(event) =>
-											setCustomPromptDraft((current) => ({
-												...current,
-												marker: event.currentTarget.checked,
-											}))
-										}
-									/>
-								</Group>
-								<Textarea
-									label={t('instructions.fields.promptContent')}
-									value={customPromptDraft.content}
-									onChange={(event) =>
-										setCustomPromptDraft((current) => ({
-											...current,
-											content: event.currentTarget.value,
-										}))
-									}
-									description={customPromptDraft.marker ? t('instructions.fields.markerDescription') : undefined}
-									minRows={4}
-									autosize
-									styles={{ input: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' } }}
-								/>
-								{customPromptError && (
-									<Text size="sm" c="red">
-										{customPromptError}
-									</Text>
-								)}
-								<Group justify="flex-end">
-									<Button variant="default" onClick={() => setCustomPromptDraft(createEmptyCustomPromptDraft())}>
-										{t('instructions.actions.resetCustomBlock')}
-									</Button>
-									<Button onClick={handleAddCustomPrompt}>{t('instructions.actions.addCustomBlock')}</Button>
-								</Group>
-							</Stack>
-						</Stack>
-					</Collapse>
-
 					<StPromptBlockList
 						entries={preferredOrder.order}
 						promptMap={promptMap}
-						isPromptCollapsed={isPromptCollapsed}
-						onTogglePromptCollapsed={togglePromptCollapsed}
 						onUpdatePreferredOrder={updatePreferredOrder}
 						onRemovePrompt={removePrompt}
-						onSetPromptContent={setPromptContent}
-						onUpdateCustomPromptField={updateCustomPromptField}
+						onUpdatePrompt={updatePrompt}
+					/>
+
+					<StPromptBlockCreateModal
+						opened={createBlockOpened}
+						onClose={() => setCreateBlockOpened(false)}
+						onCreate={handleCreatePrompt}
 					/>
 
 					<Accordion variant="separated">
@@ -567,7 +350,7 @@ export const InstructionEditor = () => {
 						</Accordion.Item>
 					</Accordion>
 				</Stack>
-			)}
+			) : null}
 		</Stack>
 	);
-};
+}
