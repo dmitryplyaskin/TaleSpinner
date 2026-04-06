@@ -130,7 +130,7 @@ export async function buildPromptDraft(params: {
   ownerId?: string;
   chatId: string;
   branchId: string;
-  systemPrompt: string;
+  systemPrompt?: string;
   historyLimit?: number;
   excludeMessageIds?: string[];
   excludeEntryIds?: string[];
@@ -139,6 +139,7 @@ export async function buildPromptDraft(params: {
   depthInsertions?: Array<{
     depth: number;
     role: "system" | "user" | "assistant";
+    order?: number;
     content: string;
   }>;
   worldInfoMeta?: PromptSnapshotV1["meta"]["worldInfo"];
@@ -165,7 +166,21 @@ export async function buildPromptDraft(params: {
   // Pipelines/artifacts were removed. Keep prompt drafting minimal and deterministic.
   const systemPrompt = params.systemPrompt ?? "";
   const historyWithDepthInsertions = history.map((m) => ({ role: m.role, content: m.content }));
-  for (const insertion of params.depthInsertions ?? []) {
+  const sortedDepthInsertions = (params.depthInsertions ?? [])
+    .map((insertion, index) => ({ ...insertion, order: insertion.order ?? 100, index }))
+    .sort((left, right) => {
+      if (left.depth !== right.depth) return left.depth - right.depth;
+      if (left.order !== right.order) return left.order - right.order;
+
+      const rolePriority = { assistant: 0, user: 1, system: 2 } as const;
+      if (rolePriority[left.role] !== rolePriority[right.role]) {
+        return rolePriority[left.role] - rolePriority[right.role];
+      }
+
+      return left.index - right.index;
+    });
+
+  for (const insertion of sortedDepthInsertions) {
     const normalizedDepth =
       Number.isFinite(insertion.depth) && insertion.depth > 0
         ? Math.floor(insertion.depth)
@@ -179,7 +194,9 @@ export async function buildPromptDraft(params: {
 
   const draft: PromptDraft = {
     messages: [
-      { role: "system", content: systemPrompt },
+      ...(systemPrompt.trim()
+        ? [{ role: "system" as const, content: systemPrompt }]
+        : []),
       ...(params.preHistorySystemMessages ?? []).map((content) => ({
         role: "system" as const,
         content,

@@ -83,6 +83,9 @@ export function StPromptBlockEditorModal({
 								name: draft.name,
 								role: draft.role,
 								content: draft.content,
+								injectionPosition: draft.injectionPosition,
+								injectionDepth: draft.injectionDepth,
+								injectionOrder: draft.injectionOrder,
 							}}
 							contentReadOnly={draft.contentReadOnly}
 							onChange={(patch) =>

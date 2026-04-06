@@ -22,7 +22,15 @@ describe("instruction schemas", () => {
       kind: "st_base",
       stBase: {
         rawPreset: {},
-        prompts: [{ identifier: "main", content: "Hello" }],
+        prompts: [
+          {
+            identifier: "main",
+            content: "Hello",
+            injection_position: 1,
+            injection_depth: 2,
+            injection_order: 50,
+          },
+        ],
         promptOrder: [
           {
             character_id: 100001,
@@ -39,6 +47,39 @@ describe("instruction schemas", () => {
     });
 
     expect(parsed.success).toBe(true);
+  });
+
+  test("rejects invalid prompt injection metadata", () => {
+    const parsed = createInstructionBodySchema.safeParse({
+      name: "ST",
+      kind: "st_base",
+      stBase: {
+        rawPreset: {},
+        prompts: [
+          {
+            identifier: "main",
+            content: "Hello",
+            injection_position: 2,
+            injection_depth: -1,
+            injection_order: -5,
+          },
+        ],
+        promptOrder: [
+          {
+            character_id: 100001,
+            order: [{ identifier: "main", enabled: true }],
+          },
+        ],
+        responseConfig: {},
+        importInfo: {
+          source: "sillytavern",
+          fileName: "Default.json",
+          importedAt: "2026-03-10T00:00:00.000Z",
+        },
+      },
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   test("rejects mixed create payload", () => {

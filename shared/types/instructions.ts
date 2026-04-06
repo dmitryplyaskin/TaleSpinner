@@ -5,6 +5,15 @@ export type InstructionMeta = {
 };
 
 export type StBasePromptRole = "system" | "user" | "assistant";
+export type StBasePromptInjectionPosition = 0 | 1;
+
+export const ST_PROMPT_INJECTION_POSITION = {
+  RELATIVE: 0,
+  IN_CHAT: 1,
+} as const satisfies Record<string, StBasePromptInjectionPosition>;
+
+export const ST_PROMPT_DEFAULT_DEPTH = 4;
+export const ST_PROMPT_DEFAULT_ORDER = 100;
 
 export type StBasePrompt = {
   identifier: string;
@@ -13,6 +22,9 @@ export type StBasePrompt = {
   content?: string;
   system_prompt?: boolean;
   marker?: boolean;
+  injection_position?: StBasePromptInjectionPosition;
+  injection_depth?: number;
+  injection_order?: number;
 };
 
 export type StBasePromptOrderEntry = {

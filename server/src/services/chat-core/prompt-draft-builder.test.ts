@@ -81,8 +81,8 @@ describe("prompt-draft-builder depth insertions", () => {
       branchId: "branch",
       systemPrompt: "SYS",
       depthInsertions: [
-        { depth: 1, role: "system", content: "S1" },
-        { depth: 2, role: "assistant", content: "A2" },
+        { depth: 1, role: "system", order: 100, content: "S1" },
+        { depth: 2, role: "assistant", order: 100, content: "A2" },
       ],
     });
 
@@ -93,6 +93,38 @@ describe("prompt-draft-builder depth insertions", () => {
       { role: "assistant", content: "A2" },
       { role: "system", content: "S1" },
       { role: "user", content: "U2" },
+    ]);
+  });
+
+  test("orders same-depth insertions by order then role", async () => {
+    mocks.listProjectedPromptMessages.mockResolvedValue({
+      currentTurn: 2,
+      entryCount: 2,
+      messages: [
+        { role: "user", content: "U1" },
+        { role: "assistant", content: "A1" },
+      ],
+    });
+
+    const out = await buildPromptDraft({
+      chatId: "chat",
+      branchId: "branch",
+      systemPrompt: "",
+      depthInsertions: [
+        { depth: 1, role: "system", order: 100, content: "S100" },
+        { depth: 1, role: "assistant", order: 100, content: "A100" },
+        { depth: 1, role: "user", order: 100, content: "U100" },
+        { depth: 1, role: "assistant", order: 10, content: "A010" },
+      ],
+    });
+
+    expect(out.draft.messages).toEqual([
+      { role: "user", content: "U1" },
+      { role: "assistant", content: "A010" },
+      { role: "assistant", content: "A100" },
+      { role: "user", content: "U100" },
+      { role: "system", content: "S100" },
+      { role: "assistant", content: "A1" },
     ]);
   });
 });

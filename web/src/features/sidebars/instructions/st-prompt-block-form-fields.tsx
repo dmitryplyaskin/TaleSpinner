@@ -1,7 +1,14 @@
-import { Group, Select, TextInput, Textarea } from '@mantine/core';
+import { Group, NumberInput, Select, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 import type { PromptBlockFields } from './st-prompt-blocks';
+
+function toNonNegativeInteger(value: string | number | undefined, fallback: number): number {
+	if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+		return Math.floor(value);
+	}
+	return fallback;
+}
 
 type StPromptBlockFormFieldsProps = {
 	value: PromptBlockFields;
@@ -41,6 +48,43 @@ export function StPromptBlockFormFields({
 					allowDeselect={false}
 				/>
 			</Group>
+
+			<Group grow align="flex-start">
+				<Select
+					label={t('instructions.fields.promptPosition')}
+					description={t('instructions.fields.promptPositionDescription')}
+					value={String(value.injectionPosition)}
+					onChange={(nextPosition) =>
+						onChange({
+							injectionPosition: (Number(nextPosition) === 1 ? 1 : 0) as PromptBlockFields['injectionPosition'],
+						})
+					}
+					data={[
+						{ value: '0', label: t('instructions.fields.promptPositionRelative') },
+						{ value: '1', label: t('instructions.fields.promptPositionInChat') },
+					]}
+					allowDeselect={false}
+				/>
+				{value.injectionPosition === 1 ? (
+					<NumberInput
+						label={t('instructions.fields.promptDepth')}
+						description={t('instructions.fields.promptDepthDescription')}
+						min={0}
+						value={value.injectionDepth}
+						onChange={(nextValue) => onChange({ injectionDepth: toNonNegativeInteger(nextValue, value.injectionDepth) })}
+					/>
+				) : null}
+			</Group>
+
+			{value.injectionPosition === 1 ? (
+				<NumberInput
+					label={t('instructions.fields.promptOrder')}
+					description={t('instructions.fields.promptOrderDescription')}
+					min={0}
+					value={value.injectionOrder}
+					onChange={(nextValue) => onChange({ injectionOrder: toNonNegativeInteger(nextValue, value.injectionOrder) })}
+				/>
+			) : null}
 
 			<Textarea
 				label={t('instructions.fields.promptContent')}

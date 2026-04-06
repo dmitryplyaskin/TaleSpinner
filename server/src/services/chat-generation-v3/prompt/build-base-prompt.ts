@@ -82,6 +82,14 @@ export async function buildBasePrompt(params: {
   let systemPrompt = DEFAULT_SYSTEM_PROMPT;
   let preHistorySystemMessages: string[] = [];
   let postHistorySystemMessages: string[] = [];
+  let depthInsertions:
+    | Array<{
+        depth: number;
+        role: "system" | "user" | "assistant";
+        order: number;
+        content: string;
+      }>
+    | undefined;
   let instructionDerivedSettings: Record<string, unknown> = {};
   const template = await pickInstructionForChat({
     ownerId: params.ownerId,
@@ -96,6 +104,10 @@ export async function buildBasePrompt(params: {
       systemPrompt = resolved.systemPrompt;
       preHistorySystemMessages = resolved.preHistorySystemMessages;
       postHistorySystemMessages = resolved.postHistorySystemMessages;
+      depthInsertions =
+        resolved.depthInsertions.length > 0
+          ? resolved.depthInsertions
+          : undefined;
       instructionDerivedSettings = resolved.derivedSettings;
     } else {
       const rendered = await renderLiquidTemplate({
@@ -116,6 +128,7 @@ export async function buildBasePrompt(params: {
       preHistorySystemMessages.length > 0 ? preHistorySystemMessages : undefined,
     postHistorySystemMessages:
       postHistorySystemMessages.length > 0 ? postHistorySystemMessages : undefined,
+    depthInsertions,
     historyLimit: params.historyLimit,
     excludeMessageIds: params.excludeMessageIds,
     excludeEntryIds: params.excludeEntryIds,

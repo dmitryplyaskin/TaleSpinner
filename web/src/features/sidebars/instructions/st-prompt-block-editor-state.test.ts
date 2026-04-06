@@ -55,6 +55,9 @@ describe('st prompt block editor state', () => {
 				system_prompt: false,
 				marker: true,
 				content: 'Body',
+				injection_position: 1,
+				injection_depth: 3,
+				injection_order: 120,
 			},
 			contentReadOnly: false,
 		});
@@ -70,6 +73,9 @@ describe('st prompt block editor state', () => {
 				name: undefined,
 				role: 'assistant',
 				content: 'Updated body',
+				injection_position: 1,
+				injection_depth: 3,
+				injection_order: 120,
 			},
 		});
 	});
@@ -82,11 +88,34 @@ describe('st prompt block editor state', () => {
 				role: 'system',
 				system_prompt: true,
 				content: 'Body',
+				injection_position: 0,
+				injection_depth: 4,
+				injection_order: 100,
 			},
 			contentReadOnly: true,
 		});
 
 		expect(areStPromptBlockEditorStatesEqual(draft, { ...draft })).toBe(true);
 		expect(areStPromptBlockEditorStatesEqual(draft, { ...draft, contentReadOnly: false })).toBe(false);
+	});
+
+	it('tracks injection fields in equality', () => {
+		const draft = createStPromptBlockEditorState({
+			prompt: {
+				identifier: 'main',
+				name: 'Main prompt',
+				role: 'system',
+				system_prompt: true,
+				content: 'Body',
+				injection_position: 0,
+				injection_depth: 4,
+				injection_order: 100,
+			},
+			contentReadOnly: false,
+		});
+
+		expect(areStPromptBlockEditorStatesEqual(draft, { ...draft, injectionPosition: 1 })).toBe(false);
+		expect(areStPromptBlockEditorStatesEqual(draft, { ...draft, injectionDepth: 2 })).toBe(false);
+		expect(areStPromptBlockEditorStatesEqual(draft, { ...draft, injectionOrder: 90 })).toBe(false);
 	});
 });

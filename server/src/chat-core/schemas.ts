@@ -118,6 +118,9 @@ const stBasePromptSchema = z.object({
   content: z.string().optional(),
   system_prompt: z.boolean().optional(),
   marker: z.boolean().optional(),
+  injection_position: z.union([z.literal(0), z.literal(1)]).optional(),
+  injection_depth: z.number().int().min(0).optional(),
+  injection_order: z.number().int().min(0).optional(),
 }).strict();
 
 const stBasePromptOrderEntrySchema = z.object({

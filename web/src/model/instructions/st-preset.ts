@@ -3,6 +3,15 @@ import {
 	getSillyTavernPresetValidationError,
 	SILLY_TAVERN_PREFERRED_CHARACTER_ID,
 } from '@shared/utils/sillytavern-preset';
+import {
+	cloneStPromptWithDefaults,
+	normalizeStPromptOrder,
+	normalizeStPrompts,
+} from '@shared/utils/st-prompts';
+
+import { ST_PROMPT_SOURCE_LABELS, ST_SYSTEM_PROMPT_DEFAULTS } from './st-preset-prompts';
+
+export { ST_PROMPT_SOURCE_LABELS, ST_SYSTEM_PROMPT_DEFAULTS } from './st-preset-prompts';
 
 import type {
 	StBaseConfig,
@@ -11,98 +20,6 @@ import type {
 	StBaseResponseConfig,
 } from '@shared/types/instructions';
 import type { LlmProviderConfig, LlmProviderId } from '@shared/types/llm';
-
-export const ST_SYSTEM_PROMPT_DEFAULTS: StBasePrompt[] = [
-	{
-		identifier: 'main',
-		name: 'Main Prompt',
-		system_prompt: true,
-		role: 'system',
-		content: "Write {{char}}'s next reply in a fictional chat between {{charIfNotGroup}} and {{user}}.",
-	},
-	{
-		identifier: 'nsfw',
-		name: 'Auxiliary Prompt',
-		system_prompt: true,
-		role: 'system',
-		content: '',
-	},
-	{
-		identifier: 'dialogueExamples',
-		name: 'Chat Examples',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'jailbreak',
-		name: 'Post-History Instructions',
-		system_prompt: true,
-		role: 'system',
-		content: '',
-	},
-	{
-		identifier: 'chatHistory',
-		name: 'Chat History',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'worldInfoAfter',
-		name: 'World Info (after)',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'worldInfoBefore',
-		name: 'World Info (before)',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'enhanceDefinitions',
-		name: 'Enhance Definitions',
-		system_prompt: true,
-		role: 'system',
-		content:
-			"If you have more knowledge of {{char}}, add to the character's lore and personality to enhance them but keep the Character Sheet's definitions absolute.",
-		marker: false,
-	},
-	{
-		identifier: 'charDescription',
-		name: 'Char Description',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'charPersonality',
-		name: 'Char Personality',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'scenario',
-		name: 'Scenario',
-		system_prompt: true,
-		marker: true,
-	},
-	{
-		identifier: 'personaDescription',
-		name: 'Persona Description',
-		system_prompt: true,
-		marker: true,
-	},
-];
-
-export const ST_PROMPT_SOURCE_LABELS: Partial<Record<string, string>> = {
-	charDescription: 'Character Description',
-	charPersonality: 'Character Personality',
-	scenario: 'Character Scenario',
-	personaDescription: 'Persona Description',
-	worldInfoBefore: 'World Info (before character)',
-	worldInfoAfter: 'World Info (after character)',
-	dialogueExamples: 'Dialogue Examples',
-	chatHistory: 'Chat History',
-};
 
 export const ST_SENSITIVE_FIELDS = [
 	'reverse_proxy',
@@ -177,10 +94,6 @@ export type StPresetBindingPlan = {
 	warnings: string[];
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function asString(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
 	const trimmed = value.trim();
@@ -194,65 +107,6 @@ function toFiniteNumber(value: unknown): number | undefined {
 
 function toOptionalBoolean(value: unknown): boolean | undefined {
 	return typeof value === 'boolean' ? value : undefined;
-}
-
-function normalizeStPromptRole(value: unknown): StBasePrompt['role'] | undefined {
-	if (value === 'system' || value === 'user' || value === 'assistant') {
-		return value;
-	}
-	return undefined;
-}
-
-function normalizePrompt(value: unknown): StBasePrompt | null {
-	if (!isRecord(value)) return null;
-	const identifier = asString(value.identifier);
-	if (!identifier) return null;
-
-	const prompt: StBasePrompt = { identifier };
-	const name = asString(value.name);
-	if (name) prompt.name = name;
-	const role = normalizeStPromptRole(value.role);
-	if (role) prompt.role = role;
-	if (typeof value.content === 'string') prompt.content = value.content;
-	if (typeof value.system_prompt === 'boolean') {
-		prompt.system_prompt = value.system_prompt;
-	}
-	if (typeof value.marker === 'boolean') {
-		prompt.marker = value.marker;
-	}
-	return prompt;
-}
-
-function normalizePromptOrderEntry(
-	value: unknown
-): { identifier: string; enabled: boolean } | null {
-	if (!isRecord(value)) return null;
-	const identifier = asString(value.identifier);
-	if (!identifier) return null;
-	return {
-		identifier,
-		enabled: typeof value.enabled === 'boolean' ? value.enabled : true,
-	};
-}
-
-function normalizePromptOrderItem(value: unknown): StBasePromptOrder | null {
-	if (!isRecord(value)) return null;
-	const rawCharacterId = value.character_id;
-	const characterId =
-		typeof rawCharacterId === 'number' && Number.isFinite(rawCharacterId)
-			? Math.floor(rawCharacterId)
-			: null;
-	if (characterId === null) return null;
-
-	const rawOrder = Array.isArray(value.order) ? value.order : [];
-	const order = rawOrder
-		.map(normalizePromptOrderEntry)
-		.filter((entry): entry is { identifier: string; enabled: boolean } => Boolean(entry));
-
-	return {
-		character_id: characterId,
-		order,
-	};
 }
 
 function normalizeResponseConfig(
@@ -340,18 +194,6 @@ export function stripSensitiveFieldsFromPreset(
 	return cloned;
 }
 
-export function normalizeStPrompts(input: unknown): StBasePrompt[] {
-	if (!Array.isArray(input)) return [];
-	return input.map(normalizePrompt).filter((item): item is StBasePrompt => Boolean(item));
-}
-
-export function normalizeStPromptOrder(input: unknown): StBasePromptOrder[] {
-	if (!Array.isArray(input)) return [];
-	return input
-		.map(normalizePromptOrderItem)
-		.filter((item): item is StBasePromptOrder => Boolean(item));
-}
-
 export function createStBaseConfigFromPreset(params: {
 	preset: Record<string, unknown>;
 	fileName: string;
@@ -415,7 +257,7 @@ export function getStPromptSourceLabel(identifier: string): string | null {
 
 export function buildStPresetFromStBase(stBase: StBaseConfig): Record<string, unknown> {
 	const preset = structuredClone(stBase.rawPreset ?? {});
-	preset.prompts = stBase.prompts.map((item) => ({ ...item }));
+	preset.prompts = stBase.prompts.map((item) => cloneStPromptWithDefaults(item));
 	preset.prompt_order = stBase.promptOrder.map((item) => ({
 		character_id: item.character_id,
 		order: item.order.map((orderItem) => ({ ...orderItem })),

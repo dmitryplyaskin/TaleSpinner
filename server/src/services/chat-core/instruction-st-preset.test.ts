@@ -46,6 +46,13 @@ describe("instruction-st-base", () => {
 
     expect(normalized.prompts.length).toBe(3);
     expect(normalized.promptOrder.length).toBe(1);
+    expect(normalized.prompts[0]).toEqual(
+      expect.objectContaining({
+        injection_position: 0,
+        injection_depth: 4,
+        injection_order: 100,
+      })
+    );
     expect(normalized.responseConfig).toMatchObject({
       temperature: 1,
       top_p: 1,
@@ -225,6 +232,122 @@ describe("instruction-st-base", () => {
       "worldInfoBefore",
       "chatHistory",
       "jailbreak",
+    ]);
+  });
+
+  test("collects in-chat prompts as ordered depth insertions", async () => {
+    const stBase = createStBaseConfigFromPreset({
+      preset: {
+        chat_completion_source: "openai",
+        prompts: [
+          {
+            identifier: "main",
+            role: "system",
+            content: "Main {{char.name}}",
+          },
+          {
+            identifier: "authorNote",
+            role: "user",
+            content: "Note {{user.name}}",
+            injection_position: 1,
+            injection_depth: 2,
+            injection_order: 80,
+          },
+        ],
+        prompt_order: [
+          {
+            character_id: 100001,
+            order: [
+              { identifier: "main", enabled: true },
+              { identifier: "chatHistory", enabled: true },
+              { identifier: "authorNote", enabled: true },
+            ],
+          },
+        ],
+      },
+      fileName: "Default.json",
+      sensitiveImportMode: "keep",
+    });
+
+    const resolved = await resolveStBaseInstructionRuntime({
+      stBase,
+      context: {
+        char: { name: "Lilly" },
+        user: { name: "Dima" },
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date("2026-02-13T00:00:00.000Z").toISOString(),
+      },
+    });
+
+    expect(resolved.systemPrompt).toBe("Main Lilly");
+    expect(resolved.depthInsertions).toEqual([
+      { depth: 2, role: "user", order: 80, content: "Note Dima" },
+    ]);
+  });
+
+  test("maps relative prompts around absolute main prompt into the same in-chat bucket", async () => {
+    const stBase = createStBaseConfigFromPreset({
+      preset: {
+        chat_completion_source: "openai",
+        prompts: [
+          {
+            identifier: "main",
+            role: "system",
+            content: "Main {{char.name}}",
+            injection_position: 1,
+            injection_depth: 1,
+            injection_order: 100,
+          },
+          {
+            identifier: "nsfw",
+            role: "system",
+            content: "Before main",
+          },
+          {
+            identifier: "jailbreak",
+            role: "assistant",
+            content: "After main",
+          },
+        ],
+        prompt_order: [
+          {
+            character_id: 100001,
+            order: [
+              { identifier: "nsfw", enabled: true },
+              { identifier: "main", enabled: true },
+              { identifier: "chatHistory", enabled: true },
+              { identifier: "jailbreak", enabled: true },
+            ],
+          },
+        ],
+      },
+      fileName: "Default.json",
+      sensitiveImportMode: "keep",
+    });
+
+    const resolved = await resolveStBaseInstructionRuntime({
+      stBase,
+      context: {
+        char: { name: "Lilly" },
+        user: { name: "Dima" },
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date("2026-02-13T00:00:00.000Z").toISOString(),
+      },
+    });
+
+    expect(resolved.systemPrompt).toBe("");
+    expect(resolved.preHistorySystemMessages).toEqual([]);
+    expect(resolved.postHistorySystemMessages).toEqual([]);
+    expect(resolved.depthInsertions).toEqual([
+      { depth: 1, role: "system", order: 100, content: "Before main" },
+      { depth: 1, role: "system", order: 100, content: "Main Lilly" },
+      { depth: 1, role: "assistant", order: 100, content: "After main" },
     ]);
   });
 });

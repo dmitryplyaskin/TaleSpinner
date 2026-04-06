@@ -212,7 +212,7 @@ describe("buildBasePrompt world-info integration", () => {
     });
   });
 
-  test("fails when selected st_base instruction has no resolvable system prompt", async () => {
+  test("allows st_base instruction with only in-chat prompts", async () => {
     mocks.pickInstructionForChat.mockResolvedValue({
       id: "tpl-1",
       ownerId: "global",
@@ -221,7 +221,15 @@ describe("buildBasePrompt world-info integration", () => {
       engine: "liquidjs",
       stBase: {
         rawPreset: {},
-        prompts: [{ identifier: "main", content: "" }],
+        prompts: [
+          {
+            identifier: "main",
+            content: "Main {{char.name}}",
+            injection_position: 1,
+            injection_depth: 1,
+            injection_order: 100,
+          },
+        ],
         promptOrder: [
           {
             character_id: 100001,
@@ -240,7 +248,7 @@ describe("buildBasePrompt world-info integration", () => {
       updatedAt: new Date(),
     });
     mocks.buildInstructionRenderContext.mockResolvedValue({
-      char: {},
+      char: { name: "Lilly" },
       user: {},
       chat: {},
       messages: [],
@@ -248,17 +256,26 @@ describe("buildBasePrompt world-info integration", () => {
       art: {},
       now: new Date().toISOString(),
     });
-    mocks.renderLiquidTemplate.mockResolvedValue("");
+    mocks.renderLiquidTemplate.mockImplementation(
+      async ({ templateText, context }: { templateText: string; context: Record<string, unknown> }) =>
+        templateText.replace("{{char.name}}", String((context.char as { name?: string })?.name ?? ""))
+    );
 
-    await expect(
-      buildBasePrompt({
-        ownerId: "global",
-        chatId: "chat",
-        branchId: "branch",
-        entityProfileId: "entity",
-        historyLimit: 50,
-        trigger: "generate",
+    const out = await buildBasePrompt({
+      ownerId: "global",
+      chatId: "chat",
+      branchId: "branch",
+      entityProfileId: "entity",
+      historyLimit: 50,
+      trigger: "generate",
+    });
+
+    expect(mocks.buildPromptDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: "",
+        depthInsertions: [{ depth: 1, role: "system", order: 100, content: "Main Lilly" }],
       })
-    ).rejects.toThrow("st_base instruction did not resolve a system prompt");
+    );
+    expect(out.prompt.systemPrompt).toBe("");
   });
 });

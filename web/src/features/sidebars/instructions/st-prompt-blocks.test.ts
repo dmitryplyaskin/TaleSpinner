@@ -14,6 +14,9 @@ describe('st prompt blocks helpers', () => {
 			name: 'Author Note',
 			role: 'system',
 			content: 'Body',
+			injectionPosition: 0,
+			injectionDepth: 4,
+			injectionOrder: 100,
 		});
 
 		expect(prompt.identifier).toMatch(
@@ -27,6 +30,9 @@ describe('st prompt blocks helpers', () => {
 				name: 'Author Note',
 				role: 'assistant',
 				content: 'Body',
+				injectionPosition: 1,
+				injectionDepth: 6,
+				injectionOrder: 80,
 			},
 			() => 'generated-uuid',
 		);
@@ -38,6 +44,9 @@ describe('st prompt blocks helpers', () => {
 			system_prompt: true,
 			marker: false,
 			content: 'Body',
+			injection_position: 1,
+			injection_depth: 6,
+			injection_order: 80,
 		});
 	});
 
@@ -73,6 +82,9 @@ describe('st prompt blocks helpers', () => {
 			name: 'Main Prompt',
 			role: 'system',
 			system_prompt: true,
+			injection_position: 0,
+			injection_depth: 4,
+			injection_order: 100,
 		});
 
 		expect(normalizePromptForEdit(undefined, 'custom-id')).toEqual({
@@ -81,6 +93,9 @@ describe('st prompt blocks helpers', () => {
 			role: 'system',
 			system_prompt: true,
 			content: '',
+			injection_position: 0,
+			injection_depth: 4,
+			injection_order: 100,
 		});
 	});
 
@@ -89,6 +104,9 @@ describe('st prompt blocks helpers', () => {
 			name: '',
 			role: 'system',
 			content: '',
+			injectionPosition: 0,
+			injectionDepth: 4,
+			injectionOrder: 100,
 		});
 	});
 });
