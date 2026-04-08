@@ -31,6 +31,7 @@
 				worldInfoBindingForChat: 'Binding for chat "{{name}}"',
 				worldInfoBindingLabel: 'Linked World Info book',
 				worldInfoBindingNone: 'Not linked',
+				worldInfoBindingNothingFound: 'Nothing found',
 				worldInfoBindingNotBound: 'No World Info linked for this chat.',
 				worldInfoOpenSidebar: 'Open World Info sidebar',
 				latestWorldInfoActivations: 'Latest World Info activations',

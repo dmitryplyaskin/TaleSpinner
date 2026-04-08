@@ -13,6 +13,11 @@ import {
 } from '@model/world-info';
 import { Dialog } from '@ui/dialog';
 
+import {
+	buildChatWorldInfoBindingOptions,
+	createChatWorldInfoBindingSelectProps,
+} from './chat-world-info-binding-dialog.model';
+
 type Props = {
 	opened: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -30,12 +35,20 @@ export const ChatWorldInfoBindingDialog = ({ opened, onOpenChange, chatId, chatT
 	]);
 
 	const options = useMemo(
-		() => [{ value: '__none__', label: t('chat.management.worldInfoBindingNone') }, ...books.map((book) => ({ value: book.id, label: book.name }))],
+		() =>
+			buildChatWorldInfoBindingOptions({
+				noneLabel: t('chat.management.worldInfoBindingNone'),
+				books,
+			}),
 		[books, t],
 	);
 	const currentBook = useMemo(
 		() => books.find((book) => book.id === currentBookId) ?? null,
 		[books, currentBookId],
+	);
+	const selectProps = useMemo(
+		() => createChatWorldInfoBindingSelectProps(t('chat.management.worldInfoBindingNothingFound')),
+		[t],
 	);
 
 	return (
@@ -43,7 +56,7 @@ export const ChatWorldInfoBindingDialog = ({ opened, onOpenChange, chatId, chatT
 			open={opened}
 			onOpenChange={onOpenChange}
 			title={t('chat.management.worldInfoBindingTitle')}
-			size="sm"
+			size="lg"
 			footer={<></>}
 		>
 			<Stack gap="sm">
@@ -57,7 +70,7 @@ export const ChatWorldInfoBindingDialog = ({ opened, onOpenChange, chatId, chatT
 					value={currentBookId ?? '__none__'}
 					data={options}
 					disabled={!chatId || bindingPending}
-					comboboxProps={{ withinPortal: false }}
+					{...selectProps}
 					onChange={(value) => {
 						if (!chatId) return;
 						bindBookToCurrentChat({

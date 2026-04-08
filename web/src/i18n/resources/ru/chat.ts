@@ -31,6 +31,7 @@
 				worldInfoBindingForChat: 'Привязка для чата "{{name}}"',
 				worldInfoBindingLabel: 'Привязанная книга World Info',
 				worldInfoBindingNone: 'Не привязано',
+				worldInfoBindingNothingFound: 'Ничего не найдено',
 				worldInfoBindingNotBound: 'Для этого чата World Info не привязан.',
 				worldInfoOpenSidebar: 'Открыть sidebar World Info',
 				latestWorldInfoActivations: 'Последние активации World Info',
