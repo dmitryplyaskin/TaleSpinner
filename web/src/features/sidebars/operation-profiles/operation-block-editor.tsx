@@ -12,6 +12,7 @@ import { FormInput, FormSwitch } from '@ui/form-components';
 import { fromOperationProfileForm, makeDefaultOperation, toOperationProfileForm, type OperationProfileFormValues } from './form/operation-profile-form-mapping';
 import { OperationEditor } from './ui/operation-editor/operation-editor';
 import { OperationList } from './ui/operation-list';
+import { getOperationListLayout } from './ui/operation-list-layout';
 import { isOperationKind } from './utils/operation-kind';
 
 import type { OperationListRowMeta } from './ui/types';
@@ -125,6 +126,7 @@ export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout
 	const doUpdate = useUnit(updateOperationBlockFx);
 	const isMobile = useMediaQuery('(max-width: 767px)');
 	const useSplitLayout = preferSplitLayout && !isMobile;
+	const operationListLayout = useMemo(() => getOperationListLayout(useSplitLayout), [useSplitLayout]);
 
 	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
@@ -338,13 +340,15 @@ export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout
 					</Card>
 				) : useSplitLayout ? (
 					<div className="op-workspace">
-						<div className="op-listPane">
+						<div className={operationListLayout.paneClassName}>
 							<OperationList
 								rows={rows}
 								selectedOpId={selectedOpId}
 								onQuickAdd={addOperation}
 								onMoveSelection={moveSelection}
 								onSelect={(opId) => setEditingOpId(opId)}
+								className={operationListLayout.listClassName}
+								scrollAreaClassName={operationListLayout.scrollAreaClassName}
 							/>
 						</div>
 
@@ -370,6 +374,8 @@ export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout
 								onQuickAdd={addOperation}
 								onMoveSelection={moveSelection}
 								onSelect={(opId) => setEditingOpId(opId)}
+								className={operationListLayout.listClassName}
+								scrollAreaClassName={operationListLayout.scrollAreaClassName}
 							/>
 						</Card>
 						<Card withBorder className="op-editorCard">{inspectorContent}</Card>

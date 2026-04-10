@@ -20,6 +20,8 @@ type Props = {
 	onQuickAdd: () => void;
 	onMoveSelection: (direction: 'prev' | 'next') => void;
 	onFocusEditor?: () => void;
+	className?: string;
+	scrollAreaClassName?: string;
 };
 
 const DEFAULT_FILTERS: OperationFilterState = {
@@ -67,6 +69,8 @@ export const OperationList: React.FC<Props> = ({
 	onQuickAdd,
 	onMoveSelection,
 	onFocusEditor,
+	className,
+	scrollAreaClassName = 'op-listScrollArea',
 }) => {
 	const { t } = useTranslation();
 	const { control } = useFormContext();
@@ -159,7 +163,7 @@ export const OperationList: React.FC<Props> = ({
 			gap="xs"
 			role="listbox"
 			tabIndex={0}
-			className="op-focusRing"
+			className={className ?? 'op-focusRing op-listLayout'}
 			onKeyDown={(event) => {
 				if (isTextEditingTarget(event.target)) return;
 				if (event.key === 'ArrowUp') {
@@ -252,12 +256,12 @@ export const OperationList: React.FC<Props> = ({
 				/>
 			</Group>
 
-			{filteredRows.length === 0 ? (
-				<Text size="sm" c="dimmed">
-					{t('operationProfiles.filters.noMatches')}
-				</Text>
-			) : shouldVirtualize ? (
-				<div ref={scrollRef} className="op-listScrollArea">
+			<div ref={scrollRef} className={scrollAreaClassName}>
+				{filteredRows.length === 0 ? (
+					<Text size="sm" c="dimmed">
+						{t('operationProfiles.filters.noMatches')}
+					</Text>
+				) : shouldVirtualize ? (
 					<div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
 						{virtualizer.getVirtualItems().map((virtualRow) => {
 							const row = filteredRows[virtualRow.index];
@@ -284,18 +288,20 @@ export const OperationList: React.FC<Props> = ({
 							);
 						})}
 					</div>
-				</div>
-			) : (
-				filteredRows.map((row) => (
-					<OperationRowContainer
-						key={row.rowKey}
-						index={row.index}
-						opId={row.opId}
-						selected={selectedOpId === row.opId}
-						onSelect={onSelect}
-					/>
-				))
-			)}
+				) : (
+					<div className="op-listRows">
+						{filteredRows.map((row) => (
+							<OperationRowContainer
+								key={row.rowKey}
+								index={row.index}
+								opId={row.opId}
+								selected={selectedOpId === row.opId}
+								onSelect={onSelect}
+							/>
+						))}
+					</div>
+				)}
+			</div>
 		</Stack>
 	);
 };
