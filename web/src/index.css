@@ -544,18 +544,6 @@ a {
   gap: 6px;
 }
 
-.ts-sidebar-drawer-body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  padding: 16px;
-}
-
-.ts-sidebar-drawer-content {
-  border-radius: 0;
-}
-
 .ts-sidebar-modal-content {
   background: transparent;
   box-shadow: none;
@@ -566,21 +554,49 @@ a {
   padding: 0;
 }
 
-.ts-sidebar-modal-frame {
+.ts-sidebar-frame {
   height: 100%;
-  overflow: auto;
-  padding: 20px;
   background: var(--ts-overlay);
 }
 
-.ts-sidebar-modal-container {
-  height: calc(100vh - 40px);
-  margin: 0 auto;
+.ts-sidebar-frame--fullscreen {
+  overflow: auto;
+  padding: 20px;
+}
+
+.ts-sidebar-frame--drawer {
+  display: flex;
+  padding: 0;
+}
+
+.ts-sidebar-frame--start {
+  justify-content: flex-start;
+}
+
+.ts-sidebar-frame--end {
+  justify-content: flex-end;
+}
+
+.ts-sidebar-container {
   border: 1px solid var(--ts-border-soft);
-  border-radius: 18px;
   background: var(--ts-surface);
   box-shadow: var(--ts-shadow-strong);
+}
+
+.ts-sidebar-container--fullscreen {
+  height: calc(100vh - 40px);
+  margin: 0 auto;
+  border-radius: 18px;
   padding: 18px;
+}
+
+.ts-sidebar-container--drawer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  border-radius: 0;
+  padding: 16px;
 }
 
 .ts-md {

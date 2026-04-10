@@ -1,10 +1,11 @@
-import { Box, Drawer as MantineDrawer, Modal } from '@mantine/core';
+import { Box, Modal } from '@mantine/core';
 import { useStoreMap } from 'effector-react';
 import { useTranslation } from 'react-i18next';
 
 import { $sidebars, changeSidebarSettings, type SidebarName, toggleSidebarOpen } from '@model/sidebars';
 import { Z_INDEX } from '@ui/z-index';
 
+import { getDrawerPresentation } from './drawer-presentation';
 import { SidebarShell } from './sidebar-shell';
 
 import type { ReactNode } from 'react';
@@ -40,6 +41,12 @@ export const Drawer = ({ name, title, children, fullscreenContentMaxWidth = 1440
 	const resolvedSize = fixedSize ?? size ?? defaultSize;
 	const fullScreen = isFullscreen || resolvedSize === 'full';
 	const drawerWidth = resolvedSize === 'full' ? '100%' : drawerWidthBySize[resolvedSize];
+	const presentation = getDrawerPresentation({
+		drawerWidth,
+		fullScreen,
+		fullscreenContentMaxWidth,
+		placement,
+	});
 
 	const handleClose = () => {
 		toggleSidebarOpen({ name, isOpen: false });
@@ -57,8 +64,6 @@ export const Drawer = ({ name, title, children, fullscreenContentMaxWidth = 1440
 	};
 
 	if (!isOpen) return null;
-
-	const position: 'left' | 'right' = placement === 'end' ? 'right' : 'left';
 	const shell = (
 		<SidebarShell
 			title={title}
@@ -79,44 +84,26 @@ export const Drawer = ({ name, title, children, fullscreenContentMaxWidth = 1440
 		</SidebarShell>
 	);
 
-	if (fullScreen) {
-		return (
-			<Modal
-				opened={isOpen}
-				onClose={handleClose}
-				fullScreen
-				withinPortal={!contained}
-				withCloseButton={false}
-				padding={0}
-				zIndex={Z_INDEX.overlay.drawer}
-				classNames={{
-					content: 'ts-sidebar-modal-content',
-					body: 'ts-sidebar-modal-body',
-				}}
-			>
-				<Box className="ts-sidebar-modal-frame ts-scrollbar-thin">
-					<Box className="ts-sidebar-modal-container" style={{ maxWidth: fullscreenContentMaxWidth }}>
-						{shell}
-					</Box>
-				</Box>
-			</Modal>
-		);
-	}
-
 	return (
-		<MantineDrawer
+		<Modal
 			opened={isOpen}
 			onClose={handleClose}
-			position={position}
-			size={drawerWidth}
-			radius={0}
-			withOverlay={!contained}
+			fullScreen
 			withinPortal={!contained}
 			withCloseButton={false}
+			padding={0}
+			withOverlay={!contained}
 			zIndex={Z_INDEX.overlay.drawer}
-			classNames={{ content: 'ts-sidebar-drawer-content', body: 'ts-sidebar-drawer-body' }}
+			classNames={{
+				content: 'ts-sidebar-modal-content',
+				body: 'ts-sidebar-modal-body',
+			}}
 		>
-			{shell}
-		</MantineDrawer>
+			<Box className={`${presentation.frameClassName} ts-scrollbar-thin`}>
+				<Box className={presentation.containerClassName} style={presentation.containerStyle}>
+					{shell}
+				</Box>
+			</Box>
+		</Modal>
 	);
 };
