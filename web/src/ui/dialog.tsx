@@ -1,6 +1,7 @@
 import { Button, Group, Modal, Stack } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
+import { getFullscreenSidebarPresentation } from './drawer-presentation';
 import { Z_INDEX } from './z-index';
 
 import type { ReactNode } from 'react';
@@ -40,6 +41,7 @@ export const Dialog = ({
 	const fullScreen = size === 'cover';
 	const modalSize = fullScreen ? '100%' : size;
 	const drawerLikeFullscreen = fullScreen && typeof fullScreenContentMaxWidth === 'number';
+	const fullscreenPresentation = drawerLikeFullscreen ? getFullscreenSidebarPresentation(fullScreenContentMaxWidth) : null;
 	const content = (
 		<div
 			style={
@@ -97,8 +99,8 @@ export const Dialog = ({
 			}
 		>
 			{drawerLikeFullscreen ? (
-				<div className="ts-sidebar-modal-frame ts-scrollbar-thin">
-					<div className="ts-sidebar-modal-container" style={{ maxWidth: fullScreenContentMaxWidth }}>
+				<div className={`${fullscreenPresentation?.frameClassName ?? ''} ts-scrollbar-thin`}>
+					<div className={fullscreenPresentation?.containerClassName} style={fullscreenPresentation?.containerStyle}>
 						{content}
 					</div>
 				</div>

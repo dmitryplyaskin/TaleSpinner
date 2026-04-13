@@ -668,7 +668,7 @@ a {
 .ts-scrollbar-thin,
 .ts-chat-scroll,
 .ts-sidebar-shell__content,
-.ts-sidebar-modal-frame {
+.ts-sidebar-frame--fullscreen {
   scrollbar-width: thin;
   scrollbar-color: var(--ts-scrollbar-thumb) transparent;
 }
@@ -676,7 +676,7 @@ a {
 .ts-scrollbar-thin::-webkit-scrollbar,
 .ts-chat-scroll::-webkit-scrollbar,
 .ts-sidebar-shell__content::-webkit-scrollbar,
-.ts-sidebar-modal-frame::-webkit-scrollbar {
+.ts-sidebar-frame--fullscreen::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
@@ -684,7 +684,7 @@ a {
 .ts-scrollbar-thin::-webkit-scrollbar-thumb,
 .ts-chat-scroll::-webkit-scrollbar-thumb,
 .ts-sidebar-shell__content::-webkit-scrollbar-thumb,
-.ts-sidebar-modal-frame::-webkit-scrollbar-thumb {
+.ts-sidebar-frame--fullscreen::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -700,11 +700,11 @@ a {
     width: min(42vw, 320px);
   }
 
-  .ts-sidebar-modal-frame {
+  .ts-sidebar-frame--fullscreen {
     padding: 12px;
   }
 
-  .ts-sidebar-modal-container {
+  .ts-sidebar-container--fullscreen {
     height: calc(100vh - 24px);
     padding: 12px;
   }

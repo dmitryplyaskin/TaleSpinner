@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getDrawerPresentation } from './drawer-presentation';
+import { getDrawerPresentation, getFullscreenSidebarPresentation } from './drawer-presentation';
 
 describe('drawer-presentation', () => {
 	it('returns drawer-aligned presentation when fullscreen is disabled', () => {
@@ -30,6 +30,14 @@ describe('drawer-presentation', () => {
 			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
 			containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
 			containerStyle: { maxWidth: 1440 },
+		});
+	});
+
+	it('returns shared fullscreen modal presentation', () => {
+		expect(getFullscreenSidebarPresentation(1320)).toEqual({
+			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
+			containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
+			containerStyle: { maxWidth: 1320 },
 		});
 	});
 });

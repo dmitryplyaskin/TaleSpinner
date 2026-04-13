@@ -11,6 +11,14 @@ type DrawerPresentation = {
 	containerStyle: Record<string, number | string>;
 };
 
+export function getFullscreenSidebarPresentation(fullscreenContentMaxWidth: number): DrawerPresentation {
+	return {
+		frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
+		containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
+		containerStyle: { maxWidth: fullscreenContentMaxWidth },
+	};
+}
+
 export function getDrawerPresentation({
 	drawerWidth,
 	fullScreen,
@@ -18,11 +26,7 @@ export function getDrawerPresentation({
 	placement,
 }: DrawerPresentationInput): DrawerPresentation {
 	if (fullScreen) {
-		return {
-			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
-			containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
-			containerStyle: { maxWidth: fullscreenContentMaxWidth },
-		};
+		return getFullscreenSidebarPresentation(fullscreenContentMaxWidth);
 	}
 
 	return {
