@@ -42,6 +42,7 @@ const ruUserPersons = {
 		none: 'Не привязано',
 		notBound: 'Для этой персоны World Info не привязан.',
 		bindingLabel: 'Привязанная книга World Info',
+		nothingFound: 'Ничего не найдено',
 		openEditor: 'Открыть редактор World Info',
 		statusAria: 'Статус World Info',
 		statusBoundTooltip: 'World Info: {{name}}',

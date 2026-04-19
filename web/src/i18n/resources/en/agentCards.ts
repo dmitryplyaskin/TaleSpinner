@@ -15,6 +15,7 @@
 				none: 'Not linked',
 				notBound: 'No World Info linked for this profile.',
 				bindingLabel: 'Linked World Info book',
+				nothingFound: 'Nothing found',
 				openEditor: 'Open World Info editor',
 				statusAria: 'World Info status',
 				statusBoundTooltip: 'World Info: {{name}}. Alt+click to open.',

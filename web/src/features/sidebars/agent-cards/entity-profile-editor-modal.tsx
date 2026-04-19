@@ -23,6 +23,7 @@ import { LiquidDocsButton } from '@ui/liquid-template-docs';
 
 import { BACKEND_ORIGIN } from '../../../api/chat-core';
 import { AvatarUpload } from '../../common/avatar-upload';
+import { WorldInfoBindingSection } from '../world-info/world-info-binding-section';
 
 import { parseSpec } from './spec-utils';
 
@@ -249,19 +250,6 @@ export const EntityProfileEditorModal = ({
 		control: methods.control,
 		name: 'alternateGreetings',
 	});
-
-	const worldInfoOptions = useMemo(
-		() => [
-			{ value: '__none__', label: t('agentCards.worldInfo.none') },
-			...worldInfoBooks.map((book) => ({ value: book.id, label: book.name })),
-		],
-		[t, worldInfoBooks],
-	);
-
-	const selectedWorldInfoBook = useMemo(
-		() => worldInfoBooks.find((book) => book.id === worldInfoBookId) ?? null,
-		[worldInfoBookId, worldInfoBooks],
-	);
 
 	useEffect(() => {
 		const justOpened = opened && !wasOpenedRef.current;
@@ -591,38 +579,21 @@ export const EntityProfileEditorModal = ({
 							</Tabs.Panel>
 
 							<Tabs.Panel value="worldInfo" pt="md" style={{ overflowY: 'auto' }}>
-								<Stack gap="md">
-									<Select
-										label={t('agentCards.worldInfo.bindingLabel')}
-										value={worldInfoBookId ?? '__none__'}
-										data={worldInfoOptions}
-										disabled={!profile || isBusy || worldInfoBindingPending}
-										comboboxProps={{ withinPortal: false }}
-										onChange={(value) => {
-											if (!profile) return;
-											onWorldInfoBindingChange(profile, value === '__none__' ? null : value ?? null);
-										}}
-									/>
-
-									{selectedWorldInfoBook ? (
-										<Stack gap={4}>
-											<Text size="sm" fw={600}>
-												{selectedWorldInfoBook.name}
-											</Text>
-											<Text size="xs" c="dimmed">
-												slug: {selectedWorldInfoBook.slug}
-											</Text>
-										</Stack>
-									) : (
-										<Text size="sm" c="dimmed">
-											{t('agentCards.worldInfo.notBound')}
-										</Text>
-									)}
-
-									<Button type="button" variant="light" onClick={onOpenWorldInfoSidebar}>
-										{t('agentCards.worldInfo.openEditor')}
-									</Button>
-								</Stack>
+								<WorldInfoBindingSection
+									books={worldInfoBooks}
+									selectedBookId={worldInfoBookId}
+									noneLabel={t('agentCards.worldInfo.none')}
+									bindingLabel={t('agentCards.worldInfo.bindingLabel')}
+									notBoundText={t('agentCards.worldInfo.notBound')}
+									openEditorLabel={t('agentCards.worldInfo.openEditor')}
+									nothingFoundMessage={t('agentCards.worldInfo.nothingFound')}
+									disabled={!profile || isBusy || worldInfoBindingPending}
+									onBindingChange={(bookId) => {
+										if (!profile) return;
+										onWorldInfoBindingChange(profile, bookId);
+									}}
+									onOpenEditor={onOpenWorldInfoSidebar}
+								/>
 							</Tabs.Panel>
 
 							<Tabs.Panel value="advanced" pt="md" style={{ overflowY: 'auto' }}>

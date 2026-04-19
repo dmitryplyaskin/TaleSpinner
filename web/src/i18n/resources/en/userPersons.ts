@@ -42,6 +42,7 @@ const enUserPersons = {
 		none: 'Not linked',
 		notBound: 'No World Info linked for this persona.',
 		bindingLabel: 'Linked World Info book',
+		nothingFound: 'Nothing found',
 		openEditor: 'Open World Info editor',
 		statusAria: 'World Info status',
 		statusBoundTooltip: 'World Info: {{name}}',
