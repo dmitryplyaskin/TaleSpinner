@@ -1,4 +1,4 @@
-import { Accordion, Button, Group, NumberInput, Paper, Select, Stack, Switch, Text } from '@mantine/core';
+import { Accordion, Button, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -38,11 +38,7 @@ import { toaster } from '@ui/toaster';
 import { exportWorldInfoBookToStNative, type WorldInfoSettingsDto } from '../../../api/world-info';
 
 import { WorldInfoEditorModal } from './world-info-editor-modal';
-
-function parseNumberInput(value: string | number, fallback: number): number {
-	if (typeof value === 'number' && Number.isFinite(value)) return value;
-	return fallback;
-}
+import { WorldInfoSettingsPanel } from './world-info-settings-panel';
 
 export const WorldInfoSidebar = () => {
 	const { t } = useTranslation();
@@ -284,72 +280,13 @@ export const WorldInfoSidebar = () => {
 						<Accordion.Item value="world-info-settings">
 							<Accordion.Control>{t('worldInfo.settings.title')}</Accordion.Control>
 							<Accordion.Panel>
-								{!settingsDraft ? (
-									<Text size="sm" c="dimmed">{t('worldInfo.settings.notLoaded')}</Text>
-								) : (
-									<Stack gap="sm">
-										<NumberInput label={t('worldInfo.settings.scanDepth')} min={0} value={settingsDraft.scanDepth ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), scanDepth: parseNumberInput(value, 0) }))} />
-										<NumberInput
-											label={t('worldInfo.settings.minActivations')}
-											min={0}
-											value={settingsDraft.minActivations ?? 0}
-											onChange={(value) =>
-												setSettingsDraft((prev) => {
-													const minActivations = parseNumberInput(value, 0);
-													return {
-														...(prev ?? {}),
-														minActivations,
-														maxRecursionSteps:
-															minActivations > 0 ? 0 : (prev?.maxRecursionSteps ?? 0),
-													};
-												})
-											}
-										/>
-										<NumberInput label={t('worldInfo.settings.minDepthMax')} min={0} value={settingsDraft.minDepthMax ?? settingsDraft.minActivationsDepthMax ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), minDepthMax: parseNumberInput(value, 0) }))} />
-										<NumberInput
-											label={t('worldInfo.settings.maxRecursionSteps')}
-											min={0}
-											value={settingsDraft.maxRecursionSteps ?? 0}
-											onChange={(value) =>
-												setSettingsDraft((prev) => {
-													const maxRecursionSteps = parseNumberInput(value, 0);
-													return {
-														...(prev ?? {}),
-														maxRecursionSteps,
-														minActivations:
-															maxRecursionSteps > 0 ? 0 : (prev?.minActivations ?? 0),
-													};
-												})
-											}
-										/>
-										<Select
-											label={t('worldInfo.settings.insertionStrategy')}
-											data={[
-												{ value: '0', label: t('worldInfo.settings.insertionStrategyEvenly') },
-												{ value: '1', label: t('worldInfo.settings.insertionStrategyCharacterFirst') },
-												{ value: '2', label: t('worldInfo.settings.insertionStrategyGlobalFirst') },
-											]}
-											value={String(settingsDraft.insertionStrategy ?? settingsDraft.characterStrategy ?? 1)}
-											onChange={(value) =>
-												setSettingsDraft((prev) => ({
-													...(prev ?? {}),
-													insertionStrategy: (Number(value) || 0) as 0 | 1 | 2,
-												}))
-											}
-											comboboxProps={{ withinPortal: false }}
-										/>
-										<NumberInput label={t('worldInfo.settings.budgetPercent')} min={1} max={100} value={settingsDraft.budgetPercent ?? 25} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), budgetPercent: parseNumberInput(value, 25) }))} />
-										<NumberInput label={t('worldInfo.settings.budgetCapTokens')} min={0} value={settingsDraft.budgetCapTokens ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), budgetCapTokens: parseNumberInput(value, 0) }))} />
-										<NumberInput label={t('worldInfo.settings.contextWindowTokens')} min={1} value={settingsDraft.contextWindowTokens ?? 8192} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), contextWindowTokens: parseNumberInput(value, 8192) }))} />
-										<Switch label={t('worldInfo.settings.recursive')} checked={Boolean(settingsDraft.recursive)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), recursive: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.overflowAlert')} checked={Boolean(settingsDraft.overflowAlert)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), overflowAlert: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.includeNames')} checked={Boolean(settingsDraft.includeNames)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), includeNames: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.caseSensitive')} checked={Boolean(settingsDraft.caseSensitive)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), caseSensitive: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.matchWholeWords')} checked={Boolean(settingsDraft.matchWholeWords)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), matchWholeWords: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.useGroupScoring')} checked={Boolean(settingsDraft.useGroupScoring)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), useGroupScoring: event.currentTarget.checked }))} />
-										<Button onClick={handleSaveSettings} loading={isSaveSettingsPending} disabled={isBusy}>{t('worldInfo.actions.saveSettings')}</Button>
-									</Stack>
-								)}
+								<WorldInfoSettingsPanel
+									settingsDraft={settingsDraft}
+									isBusy={isBusy}
+									isSaveSettingsPending={isSaveSettingsPending}
+									onDraftChange={setSettingsDraft}
+									onSave={handleSaveSettings}
+								/>
 							</Accordion.Panel>
 						</Accordion.Item>
 					</Accordion>

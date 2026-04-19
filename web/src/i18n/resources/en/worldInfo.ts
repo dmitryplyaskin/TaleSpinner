@@ -25,6 +25,24 @@
 			settings: {
 				title: 'World Info settings',
 				notLoaded: 'Settings are not loaded.',
+				groups: {
+					matching: {
+						title: 'Matching',
+						description: 'Which messages and World Info keys are used for matching.',
+					},
+					activation: {
+						title: 'Entry activation',
+						description: 'When entries are considered active and how recursion works.',
+					},
+					budget: {
+						title: 'Context budget',
+						description: 'How much prompt space World Info can use.',
+					},
+					insertion: {
+						title: 'Prompt insertion',
+						description: 'How activated entries are distributed while building context.',
+					},
+				},
 				scanDepth: 'Scan depth',
 				minActivations: 'Min activations',
 				minDepthMax: 'Min depth max',
