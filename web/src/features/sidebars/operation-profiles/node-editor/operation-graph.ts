@@ -126,6 +126,42 @@ function applyConnectionToOperation(operation: FormOperation, connection: Pick<C
 	};
 }
 
+function withoutEdgeTargetReference(operation: FormOperation, edge: NonNullable<ReturnType<typeof parseEdgeId>>): FormOperation {
+	if (operation.opId !== edge.target) return operation;
+
+	if (edge.kind === 'dependency') {
+		return {
+			...operation,
+			config: {
+				...operation.config,
+				dependsOn: operation.config.dependsOn.filter((value) => value !== edge.source),
+			},
+		};
+	}
+
+	const nextConditions = normalizeRunConditions(operation.config.runConditions).filter(
+		(condition) =>
+			!(
+				condition.type === 'guard_output' &&
+				condition.sourceOpId === edge.source &&
+				condition.outputKey === edge.outputKey &&
+				condition.operator === edge.operator
+			),
+	);
+	const hasConditionsFromSameSource = nextConditions.some((condition) => condition.sourceOpId === edge.source);
+
+	return {
+		...operation,
+		config: {
+			...operation.config,
+			runConditions: nextConditions,
+			dependsOn: hasConditionsFromSameSource
+				? operation.config.dependsOn
+				: operation.config.dependsOn.filter((value) => value !== edge.source),
+		},
+	};
+}
+
 export function applyConnectionToOperations(
 	operations: FormOperation[],
 	connection: Pick<Connection, 'source' | 'sourceHandle' | 'target'>,
@@ -145,6 +181,38 @@ export function connectSourceToOperation(
 		sourceHandle: connection.sourceHandle,
 		target: operation.opId,
 	});
+}
+
+export function insertOperationBetweenEdge(operations: FormOperation[], edgeId: string, operation: FormOperation): FormOperation[] {
+	const edge = parseEdgeId(edgeId);
+	if (!edge) return operations;
+	if (operation.opId === edge.source || operation.opId === edge.target) return operations;
+
+	const targetIndex = operations.findIndex((item) => item.opId === edge.target);
+	if (targetIndex < 0 || !operations.some((item) => item.opId === edge.source)) return operations;
+
+	const sourceHandle = edge.kind === 'guard_output' ? buildGuardSourceHandleId(edge.outputKey) : DEFAULT_SOURCE_HANDLE_ID;
+	const connectedOperation = connectSourceToOperation(operation, {
+		source: edge.source,
+		sourceHandle,
+	});
+	const rewiredOperations = operations.map((item) => {
+		const withoutOriginalEdge = withoutEdgeTargetReference(item, edge);
+		if (withoutOriginalEdge.opId !== edge.target) return withoutOriginalEdge;
+		return {
+			...withoutOriginalEdge,
+			config: {
+				...withoutOriginalEdge.config,
+				dependsOn: withUnique([...(withoutOriginalEdge.config.dependsOn ?? []), connectedOperation.opId]),
+			},
+		};
+	});
+
+	return [
+		...rewiredOperations.slice(0, targetIndex),
+		connectedOperation,
+		...rewiredOperations.slice(targetIndex),
+	];
 }
 
 export function buildOperationGraphEdges(operations: OperationGraphSource[]): Edge<OperationGraphEdgeData>[] {
@@ -191,41 +259,7 @@ export function removeEdgeFromOperations(operations: FormOperation[], edgeId: st
 	const edge = parseEdgeId(edgeId);
 	if (!edge) return operations;
 
-	return operations.map((operation) => {
-		if (operation.opId !== edge.target) return operation;
-
-		if (edge.kind === 'dependency') {
-			return {
-				...operation,
-				config: {
-					...operation.config,
-					dependsOn: operation.config.dependsOn.filter((value) => value !== edge.source),
-				},
-			};
-		}
-
-		const nextConditions = normalizeRunConditions(operation.config.runConditions).filter(
-			(condition) =>
-				!(
-					condition.type === 'guard_output' &&
-					condition.sourceOpId === edge.source &&
-					condition.outputKey === edge.outputKey &&
-					condition.operator === edge.operator
-				),
-		);
-		const hasConditionsFromSameSource = nextConditions.some((condition) => condition.sourceOpId === edge.source);
-
-		return {
-			...operation,
-			config: {
-				...operation.config,
-				runConditions: nextConditions,
-				dependsOn: hasConditionsFromSameSource
-					? operation.config.dependsOn
-					: operation.config.dependsOn.filter((value) => value !== edge.source),
-			},
-		};
-	});
+	return operations.map((operation) => withoutEdgeTargetReference(operation, edge));
 }
 
 export function removeOperationReferences(operations: FormOperation[], removedOpId: string): FormOperation[] {

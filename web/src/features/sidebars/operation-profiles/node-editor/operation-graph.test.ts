@@ -6,6 +6,7 @@ import {
 	applyConnectionToOperations,
 	buildOperationGraphEdges,
 	buildGuardSourceHandleId,
+	insertOperationBetweenEdge,
 	removeEdgeFromOperations,
 } from './operation-graph';
 
@@ -136,5 +137,50 @@ describe('operation graph helpers', () => {
 
 		expect(next[1]?.config.runConditions).toEqual([]);
 		expect(next[1]?.config.dependsOn).toEqual([]);
+	});
+
+	it('inserts a new operation between dependency edge endpoints', () => {
+		const source = { ...makeTemplateOperation(), opId: 'source-1', name: 'Source' };
+		const target = {
+			...makeTemplateOperation(),
+			opId: 'target-1',
+			name: 'Target',
+			config: {
+				...makeTemplateOperation().config,
+				dependsOn: ['source-1'],
+			},
+		};
+		const middle = { ...makeTemplateOperation(), opId: 'middle-1', name: 'Middle' };
+
+		const next = insertOperationBetweenEdge([source, target], 'dep:source-1=>target-1', middle);
+
+		expect(next.map((op) => op.opId)).toEqual(['source-1', 'middle-1', 'target-1']);
+		expect(next[1]?.config.dependsOn).toEqual(['source-1']);
+		expect(next[2]?.config.dependsOn).toEqual(['middle-1']);
+	});
+
+	it('inserts a new operation between guard edge endpoints', () => {
+		const guard = makeGuardOperation();
+		const consumer = applyConnectionToOperations([guard, makeTemplateOperation()], {
+			source: 'guard-1',
+			sourceHandle: buildGuardSourceHandleId('isBattle'),
+			target: 'template-1',
+		})[1]!;
+		const middle = { ...makeTemplateOperation(), opId: 'middle-1', name: 'Middle' };
+
+		const next = insertOperationBetweenEdge([guard, consumer], 'guard:guard-1:isBattle:is_true=>template-1', middle);
+
+		expect(next.map((op) => op.opId)).toEqual(['guard-1', 'middle-1', 'template-1']);
+		expect(next[1]?.config.dependsOn).toEqual(['guard-1']);
+		expect(next[1]?.config.runConditions).toEqual([
+			{
+				type: 'guard_output',
+				sourceOpId: 'guard-1',
+				outputKey: 'isBattle',
+				operator: 'is_true',
+			},
+		]);
+		expect(next[2]?.config.dependsOn).toEqual(['middle-1']);
+		expect(next[2]?.config.runConditions).toEqual([]);
 	});
 });

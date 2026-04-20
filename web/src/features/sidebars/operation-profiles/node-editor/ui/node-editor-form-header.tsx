@@ -11,6 +11,7 @@ type Props = {
 	onAutoLayout: () => void;
 	onSave: () => void;
 	onClose: () => void;
+	onOpenHelp: () => void;
 	isInspectorVisible?: boolean;
 	onToggleInspector?: () => void;
 	showInspectorToggle?: boolean;
@@ -22,6 +23,7 @@ export const NodeEditorFormHeader: React.FC<Props> = ({
 	onAutoLayout,
 	onSave,
 	onClose,
+	onOpenHelp,
 	isInspectorVisible,
 	onToggleInspector,
 	showInspectorToggle,
@@ -36,6 +38,7 @@ export const NodeEditorFormHeader: React.FC<Props> = ({
 			onAutoLayout={onAutoLayout}
 			onSave={onSave}
 			onClose={onClose}
+			onOpenHelp={onOpenHelp}
 			isInspectorVisible={isInspectorVisible}
 			onToggleInspector={onToggleInspector}
 			showInspectorToggle={showInspectorToggle}

@@ -38,6 +38,14 @@
 	box-shadow: var(--op-node-shadow);
 }
 
+.opNodeContextMenu {
+	position: fixed;
+	z-index: 20;
+	min-width: 190px;
+	padding: 4px;
+	background: var(--op-node-surface);
+}
+
 .opNodeInspector {
 	display: flex;
 	flex-direction: column;

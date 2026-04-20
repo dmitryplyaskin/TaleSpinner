@@ -1,10 +1,11 @@
 import '@xyflow/react/dist/style.css';
 import './node-editor-modal.css';
 
-import { Alert, Divider, Group, Modal, SegmentedControl, Stack } from '@mantine/core';
+import { Alert, Button, Divider, Group, Kbd, List, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
 	type EdgeChange,
+	type Edge,
 	type Node,
 	type NodeChange,
 	type Connection,
@@ -35,6 +36,7 @@ import {
 	applyConnectionToOperations,
 	buildOperationGraphEdges,
 	connectSourceToOperation,
+	insertOperationBetweenEdge,
 	removeEdgeFromOperations,
 	removeOperationReferences,
 } from './operation-graph';
@@ -66,6 +68,11 @@ type Props = {
 
 type OpEdge = { source: string; target: string };
 type PendingConnection = { sourceId: string; sourceHandle: string | null };
+type FlowPosition = { x: number; y: number };
+type NodeEditorContextMenu =
+	| { type: 'pane'; x: number; y: number; position: FlowPosition }
+	| { type: 'node'; x: number; y: number; nodeId: string }
+	| { type: 'edge'; x: number; y: number; edgeId: string };
 
 const GROUP_BG_ALPHA = 0.08;
 
@@ -108,6 +115,8 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	const [isLayoutDirty, setIsLayoutDirty] = useState(false);
 	const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
 	const [groupEditor, setGroupEditor] = useState<GroupEditorDraft | null>(null);
+	const [contextMenu, setContextMenu] = useState<NodeEditorContextMenu | null>(null);
+	const [isHelpOpen, setIsHelpOpen] = useState(false);
 	const [viewState, setViewState] = useState<NodeEditorViewState>('graph');
 	const [isInspectorVisible, setIsInspectorVisible] = useState(true);
 
@@ -127,6 +136,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		setGroups(metaGroups);
 		setSelectedGroupId(null);
 		setGroupEditor(null);
+		setContextMenu(null);
 		setIsLayoutDirty(false);
 		setViewState('graph');
 		setIsInspectorVisible(true);
@@ -189,6 +199,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		setGroups(readNodeEditorMeta(block.meta)?.groups ?? {});
 		setSelectedGroupId(null);
 		setGroupEditor(null);
+		setContextMenu(null);
 		setIsLayoutDirty(false);
 		setViewState('graph');
 		setIsInspectorVisible(true);
@@ -299,23 +310,27 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		}
 	});
 
-	const addOperation = useCallback(() => {
+	const closeContextMenu = useCallback(() => {
+		setContextMenu(null);
+	}, []);
+
+	const addOperationAt = useCallback((position?: FlowPosition) => {
 		const next = makeDefaultOperation();
 		append(next);
 
-		let position = { x: 0, y: fields.length * 160 };
-		if (flow && flowWrapperRef.current) {
+		let nextPosition = position ?? { x: 0, y: fields.length * 160 };
+		if (!position && flow && flowWrapperRef.current) {
 			const r = flowWrapperRef.current.getBoundingClientRect();
 			const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 			const p = (flow as any).screenToFlowPosition ? (flow as any).screenToFlowPosition(center) : null;
-			if (p && typeof p.x === 'number' && typeof p.y === 'number') position = { x: p.x, y: p.y };
+			if (p && typeof p.x === 'number' && typeof p.y === 'number') nextPosition = { x: p.x, y: p.y };
 		}
 		setNodes((prev) => [
 			...prev,
 			{
 				id: next.opId,
 				type: 'operation',
-				position,
+				position: nextPosition,
 				zIndex: Z_INDEX.flow.node,
 				data: buildOperationFlowNodeData(next),
 			},
@@ -325,6 +340,16 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		if (isCompactLayout) setViewState('inspector');
 		else setIsInspectorVisible(true);
 	}, [append, fields.length, flow, isCompactLayout, setNodes]);
+
+	const addOperation = useCallback(() => {
+		addOperationAt();
+	}, [addOperationAt]);
+
+	const createOperationFromContext = useCallback(() => {
+		if (contextMenu?.type !== 'pane') return;
+		addOperationAt(contextMenu.position);
+		closeContextMenu();
+	}, [addOperationAt, closeContextMenu, contextMenu]);
 
 	const deleteSelectedNodes = useCallback(() => {
 		const ids = selectedNodeIds.length ? selectedNodeIds : selectedOpId ? [selectedOpId] : [];
@@ -345,7 +370,19 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 
 		setSelectedNodeIds((prev) => prev.filter((id) => !ids.includes(id)));
 		setSelectedOpId((prev) => (prev && ids.includes(prev) ? null : prev));
-	}, [methods, replace, selectedNodeIds, selectedOpId, setNodes]);
+		closeContextMenu();
+	}, [closeContextMenu, methods, replace, selectedNodeIds, selectedOpId, setNodes]);
+
+	const deleteNodeById = useCallback((nodeId: string) => {
+		const current = methods.getValues();
+		const nextOps = removeOperationReferences(current.operations, nodeId).filter((op) => op.opId !== nodeId);
+		replace(nextOps);
+		setNodes((prev) => prev.filter((n) => String(n.id) !== nodeId));
+		setIsLayoutDirty(true);
+		setSelectedNodeIds((prev) => prev.filter((id) => id !== nodeId));
+		setSelectedOpId((prev) => (prev === nodeId ? null : prev));
+		closeContextMenu();
+	}, [closeContextMenu, methods, replace, setNodes]);
 
 	// Keyboard delete (Delete / Backspace) — but do not interfere with typing in inputs.
 	useEffect(() => {
@@ -395,6 +432,85 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		for (const node of nodes) out.set(String(node.id), node);
 		return out;
 	}, [nodes]);
+
+	const openPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+		event.preventDefault();
+		const client = { x: event.clientX, y: event.clientY };
+		const position =
+			flow && (flow as any).screenToFlowPosition
+				? (flow as any).screenToFlowPosition(client)
+				: { x: 0, y: 0 };
+		setContextMenu({
+			type: 'pane',
+			x: client.x,
+			y: client.y,
+			position: {
+				x: typeof position?.x === 'number' ? position.x : 0,
+				y: typeof position?.y === 'number' ? position.y : 0,
+			},
+		});
+	}, [flow]);
+
+	const openNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+		event.preventDefault();
+		event.stopPropagation();
+		const nodeId = String(node.id);
+		setSelectedOpId(nodeId);
+		setContextMenu({ type: 'node', x: event.clientX, y: event.clientY, nodeId });
+	}, []);
+
+	const openEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+		event.preventDefault();
+		event.stopPropagation();
+		setContextMenu({ type: 'edge', x: event.clientX, y: event.clientY, edgeId: String(edge.id) });
+	}, []);
+
+	const deleteNodeFromContext = useCallback(() => {
+		if (contextMenu?.type !== 'node') return;
+		if (!window.confirm(t('operationProfiles.confirm.deleteOperation'))) return;
+		deleteNodeById(contextMenu.nodeId);
+	}, [contextMenu, deleteNodeById, t]);
+
+	const deleteEdgeFromContext = useCallback(() => {
+		if (contextMenu?.type !== 'edge') return;
+		replace(removeEdgeFromOperations(methods.getValues().operations, contextMenu.edgeId));
+		setIsLayoutDirty(true);
+		closeContextMenu();
+	}, [closeContextMenu, contextMenu, methods, replace]);
+
+	const insertOperationFromEdgeContext = useCallback(() => {
+		if (contextMenu?.type !== 'edge') return;
+		const edge = edges.find((item) => item.id === contextMenu.edgeId);
+		if (!edge) {
+			closeContextMenu();
+			return;
+		}
+
+		const sourceNode = nodesById.get(String(edge.source));
+		const targetNode = nodesById.get(String(edge.target));
+		const position = {
+			x: ((sourceNode?.position.x ?? 0) + (targetNode?.position.x ?? 0)) / 2,
+			y: ((sourceNode?.position.y ?? 0) + (targetNode?.position.y ?? 0)) / 2,
+		};
+		const next = makeDefaultOperation();
+		const nextOperations = insertOperationBetweenEdge(methods.getValues().operations, contextMenu.edgeId, next);
+		replace(nextOperations);
+		setNodes((prev) => [
+			...prev,
+			{
+				id: next.opId,
+				type: 'operation',
+				position,
+				zIndex: Z_INDEX.flow.node,
+				data: buildOperationFlowNodeData(next),
+			},
+		]);
+		setSelectedOpId(next.opId);
+		setIsLayoutDirty(true);
+		closeContextMenu();
+		if (isCompactLayout) setViewState('inspector');
+		else setIsInspectorVisible(true);
+	}, [closeContextMenu, contextMenu, edges, isCompactLayout, methods, nodesById, replace, setNodes]);
 
 	const computeGroupBounds = useCallback(
 		(nodeIds: string[]) => {
@@ -582,10 +698,11 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	);
 
 	const onPaneClick = useCallback(() => {
+		closeContextMenu();
 		setSelectedOpId(null);
 		setSelectedNodeIds((prev) => (prev.length === 0 ? prev : []));
 		if (isCompactLayout) setViewState('graph');
-	}, [isCompactLayout]);
+	}, [closeContextMenu, isCompactLayout]);
 
 	const onNodeDragStop = useCallback((_: unknown, node: Node) => {
 		setNodes((prev) => prev.map((n) => (String(n.id) === String(node.id) ? { ...n, position: node.position } : n)));
@@ -640,6 +757,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 						onAutoLayout={autoLayout}
 						onSave={onSave}
 						onClose={onClose}
+						onOpenHelp={() => setIsHelpOpen(true)}
 						isInspectorVisible={isInspectorVisible}
 						onToggleInspector={() => setIsInspectorVisible((prev) => !prev)}
 						showInspectorToggle={!isCompactLayout}
@@ -679,6 +797,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 								onNodeDragStop={onNodeDragStop}
 								onSelectionChange={onSelectionChange}
 								onNodeClick={onNodeClick}
+								onNodeContextMenu={openNodeContextMenu}
+								onEdgeContextMenu={openEdgeContextMenu}
+								onPaneContextMenu={openPaneContextMenu}
 								onPaneClick={onPaneClick}
 								groups={groups}
 								selectedGroupId={selectedGroupId}
@@ -715,6 +836,37 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 							</>
 						)}
 					</Group>
+
+					{contextMenu && (
+						<Paper
+							withBorder
+							shadow="md"
+							className="opNodeContextMenu"
+							style={{ left: contextMenu.x, top: contextMenu.y }}
+							onContextMenu={(event) => event.preventDefault()}
+						>
+							{contextMenu.type === 'pane' && (
+								<Button variant="subtle" size="xs" fullWidth justify="flex-start" onClick={createOperationFromContext}>
+									{t('operationProfiles.nodeEditor.context.createBlock')}
+								</Button>
+							)}
+							{contextMenu.type === 'node' && (
+								<Button color="red" variant="subtle" size="xs" fullWidth justify="flex-start" onClick={deleteNodeFromContext}>
+									{t('operationProfiles.nodeEditor.context.deleteBlock')}
+								</Button>
+							)}
+							{contextMenu.type === 'edge' && (
+								<Stack gap={2}>
+									<Button color="red" variant="subtle" size="xs" fullWidth justify="flex-start" onClick={deleteEdgeFromContext}>
+										{t('operationProfiles.nodeEditor.context.deleteEdge')}
+									</Button>
+									<Button variant="subtle" size="xs" fullWidth justify="flex-start" onClick={insertOperationFromEdgeContext}>
+										{t('operationProfiles.nodeEditor.context.insertBlock')}
+									</Button>
+								</Stack>
+							)}
+						</Paper>
+					)}
 				</Stack>
 
 				<GroupEditorModal
@@ -748,6 +900,41 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 						setGroupEditor(null);
 					}}
 				/>
+
+				<Modal
+					opened={isHelpOpen}
+					onClose={() => setIsHelpOpen(false)}
+					title={t('operationProfiles.nodeEditor.help.title')}
+					zIndex={Z_INDEX.overlay.modal + 1}
+					centered
+				>
+					<Stack gap="md">
+						<Stack gap="xs">
+							<Text fw={700}>{t('operationProfiles.nodeEditor.help.hotkeysTitle')}</Text>
+							<List spacing="xs" size="sm">
+								<List.Item>
+									<Kbd>Shift</Kbd> {t('operationProfiles.nodeEditor.help.selectionDrag')}
+								</List.Item>
+								<List.Item>
+									<Kbd>Ctrl</Kbd> / <Kbd>Cmd</Kbd> / <Kbd>Shift</Kbd>{' '}
+									{t('operationProfiles.nodeEditor.help.multiSelect')}
+								</List.Item>
+								<List.Item>
+									<Kbd>Delete</Kbd> / <Kbd>Backspace</Kbd> {t('operationProfiles.nodeEditor.help.deleteSelected')}
+								</List.Item>
+							</List>
+						</Stack>
+
+						<Stack gap="xs">
+							<Text fw={700}>{t('operationProfiles.nodeEditor.help.contextTitle')}</Text>
+							<List spacing="xs" size="sm">
+								<List.Item>{t('operationProfiles.nodeEditor.help.contextPane')}</List.Item>
+								<List.Item>{t('operationProfiles.nodeEditor.help.contextNode')}</List.Item>
+								<List.Item>{t('operationProfiles.nodeEditor.help.contextEdge')}</List.Item>
+							</List>
+						</Stack>
+					</Stack>
+				</Modal>
 			</FormProvider>
 		</Modal>
 	);

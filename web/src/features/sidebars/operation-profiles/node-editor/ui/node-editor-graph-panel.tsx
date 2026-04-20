@@ -11,6 +11,7 @@ import {
 	Panel,
 	ReactFlow,
 	ReactFlowProvider,
+	SelectionMode,
 	type ReactFlowInstance,
 } from '@xyflow/react';
 import React, { memo } from 'react';
@@ -37,6 +38,9 @@ type Props = {
 	onNodeDragStop: (event: unknown, node: Node) => void;
 	onSelectionChange: (selection: { nodes: Array<{ id: string | number }> }) => void;
 	onNodeClick: (event: unknown, node: Node) => void;
+	onNodeContextMenu: (event: React.MouseEvent, node: Node) => void;
+	onEdgeContextMenu: (event: React.MouseEvent, edge: Edge) => void;
+	onPaneContextMenu: (event: React.MouseEvent | MouseEvent) => void;
 	onPaneClick: () => void;
 	groups: Record<string, EditorGroup>;
 	selectedGroupId: string | null;
@@ -71,6 +75,9 @@ export const NodeEditorGraphPanel: React.FC<Props> = memo(
 		onNodeDragStop,
 		onSelectionChange,
 		onNodeClick,
+		onNodeContextMenu,
+		onEdgeContextMenu,
+		onPaneContextMenu,
 		onPaneClick,
 		groups,
 		selectedGroupId,
@@ -106,11 +113,15 @@ export const NodeEditorGraphPanel: React.FC<Props> = memo(
 						onNodesChange={onNodesChange}
 						onNodeDragStop={onNodeDragStop}
 						selectionOnDrag
+						selectionMode={SelectionMode.Partial}
 						selectionKeyCode={['Shift']}
 						multiSelectionKeyCode={['Control', 'Meta', 'Shift']}
 						deleteKeyCode={null}
 						onSelectionChange={onSelectionChange as never}
 						onNodeClick={onNodeClick}
+						onNodeContextMenu={onNodeContextMenu}
+						onEdgeContextMenu={onEdgeContextMenu}
+						onPaneContextMenu={onPaneContextMenu}
 						onPaneClick={onPaneClick}
 					>
 						<Background />
