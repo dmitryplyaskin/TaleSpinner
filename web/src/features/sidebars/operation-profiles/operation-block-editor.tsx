@@ -124,26 +124,33 @@ export const OperationBlockEditor: React.FC<Props> = ({
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
 	const { control, reset } = methods;
 	const watchedValues = useWatch({ control });
+	const watchedOperations = useWatch({ control, name: 'operations' });
 
-	const { fields, append, remove } = useFieldArray({
+	const operationsFieldArray = useFieldArray({
 		name: 'operations',
 		control,
 		keyName: '_key',
 	});
+	const { fields, append, remove } = operationsFieldArray;
 
 	const rows = useMemo<OperationListRowMeta[]>(() => {
-		return fields
-			.map((field, index): OperationListRowMeta | null => {
-				if (typeof field.opId !== 'string' || field.opId.length === 0) return null;
-				const rowKey = typeof field._key === 'string' && field._key.length > 0 ? field._key : `${field.opId}-${index}`;
+		const operations = Array.isArray(watchedOperations) ? watchedOperations : fields;
+		return operations
+			.map((operation, index): OperationListRowMeta | null => {
+				if (typeof operation?.opId !== 'string' || operation.opId.length === 0) return null;
+				const field = fields[index];
+				const rowKey =
+					typeof field?._key === 'string' && field._key.length > 0
+						? field._key
+						: `${operation.opId}-${index}`;
 				return {
-					opId: field.opId,
+					opId: operation.opId,
 					index,
 					rowKey,
 				};
 			})
 			.filter((row): row is OperationListRowMeta => row !== null);
-	}, [fields]);
+	}, [fields, watchedOperations]);
 
 	const [isProfileOpen, setIsProfileOpen] = useState(true);
 	const [jsonError, setJsonError] = useState<string | null>(null);
@@ -388,6 +395,7 @@ export const OperationBlockEditor: React.FC<Props> = ({
 				onClose={onNodeEditorClose ?? (() => undefined)}
 				block={block}
 				form={methods}
+				operationsFieldArray={operationsFieldArray}
 				initialValues={initial}
 				onSaveDraft={saveBlockDraft}
 			/>

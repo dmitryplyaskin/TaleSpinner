@@ -12,7 +12,14 @@ import {
 	useNodesState,
 } from '@xyflow/react';
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { FormProvider, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
+import {
+	type FieldArrayWithId,
+	FormProvider,
+	useWatch,
+	type UseFieldArrayAppend,
+	type UseFieldArrayReplace,
+	type UseFormReturn,
+} from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -48,6 +55,11 @@ type Props = {
 	onClose: () => void;
 	block: OperationBlockDto;
 	form: UseFormReturn<OperationProfileFormValues>;
+	operationsFieldArray: {
+		fields: Array<FieldArrayWithId<OperationProfileFormValues, 'operations', '_key'>>;
+		append: UseFieldArrayAppend<OperationProfileFormValues, 'operations'>;
+		replace: UseFieldArrayReplace<OperationProfileFormValues, 'operations'>;
+	};
 	initialValues: OperationProfileFormValues;
 	onSaveDraft: (values: OperationProfileFormValues, meta?: unknown) => Promise<void>;
 };
@@ -78,6 +90,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	onClose,
 	block,
 	form: methods,
+	operationsFieldArray,
 	initialValues,
 	onSaveDraft,
 }) => {
@@ -85,8 +98,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	const isCompactLayout = useMediaQuery('(max-width: 1024px)');
 
 	const { control, reset: resetForm } = methods;
-
-	const { fields, append, replace } = useFieldArray({ name: 'operations', control, keyName: '_key' });
+	const { fields, append, replace } = operationsFieldArray;
 
 	const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
 	const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
