@@ -31,7 +31,6 @@ import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 import { exportBundle, importBundle } from '../../../api/bundles';
 import { resolveBundleAutoApplyTargets } from '../common/bundle-helpers';
 
-import { OperationBlockNodeEditorModal } from './node-editor/block-node-editor-modal';
 import { OperationBlockEditor, type OperationBlockToolbarState } from './operation-block-editor';
 import { OperationProfileBlocksEditor, type OperationProfileBlocksToolbarState } from './operation-profile-blocks-editor';
 import './operation-profiles.css';
@@ -367,17 +366,15 @@ export const OperationProfilesSidebar: React.FC = () => {
 								{t('operationProfiles.blocks.emptySelectBlock')}
 							</Text>
 						) : (
-							<OperationBlockEditor block={selectedBlock} preferSplitLayout={preferSplitLayout} onToolbarStateChange={setBlockToolbarState} />
+							<OperationBlockEditor
+								block={selectedBlock}
+								preferSplitLayout={preferSplitLayout}
+								nodeEditorOpened={isNodeEditorOpen}
+								onNodeEditorClose={() => setIsNodeEditorOpen(false)}
+								onToolbarStateChange={setBlockToolbarState}
+							/>
 						)}
 					</>
-				)}
-
-				{selectedBlock && (
-					<OperationBlockNodeEditorModal
-						opened={isNodeEditorOpen}
-						onClose={() => setIsNodeEditorOpen(false)}
-						block={selectedBlock}
-					/>
 				)}
 			</Stack>
 		</Drawer>

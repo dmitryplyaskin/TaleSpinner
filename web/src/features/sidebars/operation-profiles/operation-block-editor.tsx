@@ -9,19 +9,23 @@ import { LuChevronDown, LuChevronUp, LuPlus } from 'react-icons/lu';
 import { updateOperationBlockFx } from '@model/operation-blocks';
 import { FormInput, FormSwitch } from '@ui/form-components';
 
-import { fromOperationProfileForm, makeDefaultOperation, toOperationProfileForm, type OperationProfileFormValues } from './form/operation-profile-form-mapping';
+import { toOperationBlockFormValues } from './form/operation-block-form-values';
+import { fromOperationProfileForm, makeDefaultOperation, type OperationProfileFormValues } from './form/operation-profile-form-mapping';
+import { OperationBlockNodeEditorModal } from './node-editor/block-node-editor-modal';
 import { OperationEditor } from './ui/operation-editor/operation-editor';
 import { OperationList } from './ui/operation-list';
 import { getOperationListLayout } from './ui/operation-list-layout';
 import { isOperationKind } from './utils/operation-kind';
 
 import type { OperationListRowMeta } from './ui/types';
-import type { OperationBlockDto, OperationProfileDto } from '../../../api/chat-core';
+import type { OperationBlockDto } from '../../../api/chat-core';
 import type { OperationKind } from '@shared/types/operation-profiles';
 
 type Props = {
 	block: OperationBlockDto;
 	preferSplitLayout: boolean;
+	nodeEditorOpened?: boolean;
+	onNodeEditorClose?: () => void;
 	onToolbarStateChange?: (state: OperationBlockToolbarState | null) => void;
 };
 
@@ -67,24 +71,6 @@ const SelectedOperationEditor: React.FC<SelectedOperationEditorProps> = React.me
 
 SelectedOperationEditor.displayName = 'SelectedOperationEditor';
 
-function toFormValuesFromBlock(block: OperationBlockDto): OperationProfileFormValues {
-	return toOperationProfileForm({
-		profileId: block.blockId,
-		ownerId: block.ownerId,
-		name: block.name,
-		description: block.description,
-		enabled: block.enabled,
-		executionMode: 'sequential',
-		operationProfileSessionId: '00000000-0000-0000-0000-000000000000',
-		blockRefs: [],
-		operations: block.operations,
-		meta: block.meta,
-		version: block.version,
-		createdAt: block.createdAt,
-		updatedAt: block.updatedAt,
-	} satisfies OperationProfileDto);
-}
-
 function resolveEditingOperationId(preferredOpId: string | null, operations: OperationProfileFormValues['operations']): string | null {
 	if (preferredOpId && operations.some((operation) => operation.opId === preferredOpId)) return preferredOpId;
 	return operations[0]?.opId ?? null;
@@ -121,14 +107,20 @@ function areDeepEqual(left: unknown, right: unknown): boolean {
 	return false;
 }
 
-export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout, onToolbarStateChange }) => {
+export const OperationBlockEditor: React.FC<Props> = ({
+	block,
+	preferSplitLayout,
+	nodeEditorOpened = false,
+	onNodeEditorClose,
+	onToolbarStateChange,
+}) => {
 	const { t } = useTranslation();
 	const doUpdate = useUnit(updateOperationBlockFx);
 	const isMobile = useMediaQuery('(max-width: 767px)');
 	const useSplitLayout = preferSplitLayout && !isMobile;
 	const operationListLayout = useMemo(() => getOperationListLayout(useSplitLayout), [useSplitLayout]);
 
-	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
+	const initial = useMemo(() => toOperationBlockFormValues(block), [block]);
 	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
 	const { control, reset } = methods;
 	const watchedValues = useWatch({ control });
@@ -182,36 +174,44 @@ export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout
 	const selectedRow = selectedIndex === null ? null : rows.find((row) => row.index === selectedIndex) ?? null;
 	const selectedOpId = selectedRow?.opId ?? null;
 
-	const submitValues = useCallback(
-		async (values: OperationProfileFormValues) => {
+	const saveBlockDraft = useCallback(
+		async (values: OperationProfileFormValues, meta?: unknown) => {
 			setJsonError(null);
 			let payload: ReturnType<typeof fromOperationProfileForm>;
 			try {
 				payload = fromOperationProfileForm(values, { validateJson: true });
 			} catch (error) {
 				setJsonError(error instanceof Error ? error.message : String(error));
-				return;
+				throw error;
 			}
 
+			const updatedBlock = await doUpdate({
+				blockId: block.blockId,
+				patch: {
+					name: payload.name,
+					description: payload.description,
+					enabled: payload.enabled,
+					operations: payload.operations,
+					...(typeof meta === 'undefined' ? {} : { meta }),
+				},
+			});
+			const nextValues = toOperationBlockFormValues(updatedBlock);
+			reset(nextValues);
+			setBaselineValues(nextValues);
+			setEditingOpId((prev) => resolveEditingOperationId(prev, nextValues.operations));
+		},
+		[doUpdate, block.blockId, reset],
+	);
+
+	const submitValues = useCallback(
+		async (values: OperationProfileFormValues) => {
 			try {
-				const updatedBlock = await doUpdate({
-					blockId: block.blockId,
-					patch: {
-						name: payload.name,
-						description: payload.description,
-						enabled: payload.enabled,
-						operations: payload.operations,
-					},
-				});
-				const nextValues = toFormValuesFromBlock(updatedBlock);
-				reset(nextValues);
-				setBaselineValues(nextValues);
-				setEditingOpId((prev) => resolveEditingOperationId(prev, nextValues.operations));
+				await saveBlockDraft(values);
 			} catch {
 				// API errors are surfaced by model-level toasts.
 			}
 		},
-		[doUpdate, block.blockId, reset],
+		[saveBlockDraft],
 	);
 
 	const onSave = useMemo(() => methods.handleSubmit(submitValues), [methods, submitValues]);
@@ -382,6 +382,15 @@ export const OperationBlockEditor: React.FC<Props> = ({ block, preferSplitLayout
 					</>
 				)}
 			</Stack>
+
+			<OperationBlockNodeEditorModal
+				opened={nodeEditorOpened}
+				onClose={onNodeEditorClose ?? (() => undefined)}
+				block={block}
+				form={methods}
+				initialValues={initial}
+				onSaveDraft={saveBlockDraft}
+			/>
 		</FormProvider>
 	);
 };

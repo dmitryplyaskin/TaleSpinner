@@ -96,12 +96,21 @@ export type OperationProfileFormValues = {
 	operations: FormOperation[];
 };
 
+function makeDefaultArtifactTag(opId: string): string {
+	const suffix = opId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(0, 10) || uuidv4().replace(/-/g, '').slice(0, 10);
+	return `art_${suffix}`;
+}
+
 export function makeDefaultArtifactOutput(opId = uuidv4(), kind: OperationKind = 'template'): OperationArtifactConfig {
-	return makeDefaultOperationArtifactConfig({
+	const artifact = makeDefaultOperationArtifactConfig({
 		opId,
 		kind,
 		title: 'Artifact',
 	});
+	return {
+		...artifact,
+		tag: makeDefaultArtifactTag(opId),
+	};
 }
 
 export function makeDefaultLlmKindParams(

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeDefaultGuardKindParams } from './guard-kind-form';
-import { fromOperationProfileForm, toOperationProfileForm, type OperationProfileFormValues } from './operation-profile-form-mapping';
+import {
+	fromOperationProfileForm,
+	makeDefaultOperation,
+	toOperationProfileForm,
+	type OperationProfileFormValues,
+} from './operation-profile-form-mapping';
 
 import type { OperationProfileDto } from '../../../../api/chat-core';
 import type { OperationArtifactConfig } from '@shared/types/operation-profiles';
@@ -24,6 +29,15 @@ function makeArtifact(overrides?: Partial<OperationArtifactConfig>) {
 }
 
 describe('operation profile form mapping', () => {
+	it('creates new operations with unique art-prefixed artifact tags', () => {
+		const first = makeDefaultOperation();
+		const second = makeDefaultOperation();
+
+		expect(first.config.params.artifact.tag).toMatch(/^art_[a-z0-9]+$/);
+		expect(second.config.params.artifact.tag).toMatch(/^art_[a-z0-9]+$/);
+		expect(first.config.params.artifact.tag).not.toBe(second.config.params.artifact.tag);
+	});
+
 	it('creates guard defaults with a valid output contract', () => {
 		const params = makeDefaultGuardKindParams('guard-1');
 

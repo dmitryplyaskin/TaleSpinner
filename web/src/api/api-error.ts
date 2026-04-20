@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 type ApiErrorEnvelope = {
 	error?: {
 		message?: string;
@@ -17,7 +19,7 @@ type ApiIssueGroup = {
 };
 
 const GENERIC_VALIDATION_MESSAGE = 'validation error';
-const MAX_ISSUES_IN_MESSAGE = 3;
+const REQUIRED_STRING_MESSAGE = 'Too small: expected string to have >=1 characters';
 
 export function getApiErrorMessage(body: ApiErrorEnvelope | undefined, status: number): string {
 	const fallbackMessage = body?.error?.message ?? `HTTP error ${status}`;
@@ -62,14 +64,11 @@ function formatValidationDetails(details: unknown): string | null {
 		return null;
 	}
 
-	const visibleIssues = formattedIssues.slice(0, MAX_ISSUES_IN_MESSAGE);
-	const remainingCount = formattedIssues.length - visibleIssues.length;
-
-	return remainingCount > 0 ? `${visibleIssues.join('; ')}; +${remainingCount} more` : visibleIssues.join('; ');
+	return formattedIssues.join('; ');
 }
 
 function formatIssue(issue: ApiIssue, source?: string): string | null {
-	const message = typeof issue.message === 'string' ? issue.message.trim() : '';
+	const message = formatIssueMessage(issue);
 	if (!message) {
 		return null;
 	}
@@ -79,6 +78,9 @@ function formatIssue(issue: ApiIssue, source?: string): string | null {
 }
 
 function formatIssuePath(path: unknown[] | undefined, source?: string): string | null {
+	const operationPath = formatOperationIssuePath(path);
+	if (operationPath) return operationPath;
+
 	let result = typeof source === 'string' && source.length > 0 ? source : '';
 
 	for (const segment of path ?? []) {
@@ -94,6 +96,100 @@ function formatIssuePath(path: unknown[] | undefined, source?: string): string |
 
 	return result || null;
 }
+
+function formatOperationIssuePath(path: unknown[] | undefined): string | null {
+	if (!Array.isArray(path)) return null;
+	const operationsIndex = path.findIndex((segment) => segment === 'operations');
+	const operationNumber = path[operationsIndex + 1];
+	if (operationsIndex < 0 || typeof operationNumber !== 'number' || !Number.isInteger(operationNumber)) {
+		return null;
+	}
+
+	const fieldPath = path.slice(operationsIndex + 2);
+	const fieldLabel = formatOperationFieldPath(fieldPath);
+	const operationLabel = t('operation', 'Operation #{{number}}', { number: operationNumber + 1 });
+	return fieldLabel ? `${operationLabel} ${fieldLabel}` : operationLabel;
+}
+
+function formatOperationFieldPath(path: unknown[]): string {
+	const normalized = normalizeOperationFieldPath(path);
+	const key = normalized.join('.');
+	const label = OPERATION_FIELD_LABELS[key];
+	if (label) return t(`fields.${label.key}`, label.fallback);
+	return normalized.map(formatFieldSegment).join(' ');
+}
+
+function normalizeOperationFieldPath(path: unknown[]): string[] {
+	const result: string[] = [];
+	for (let index = 0; index < path.length; index += 1) {
+		const segment = path[index];
+		if (typeof segment === 'number' && Number.isInteger(segment)) {
+			result.push(`#${segment + 1}`);
+			continue;
+		}
+		if (typeof segment !== 'string' || segment.length === 0) continue;
+		if (segment === 'config') continue;
+		if (segment === 'params') continue;
+		result.push(segment);
+	}
+	return result;
+}
+
+function formatFieldSegment(segment: string): string {
+	if (segment.startsWith('#')) return segment;
+	return segment
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+		.replace(/_/g, ' ')
+		.toLowerCase();
+}
+
+function formatIssueMessage(issue: ApiIssue): string {
+	const raw = typeof issue.message === 'string' ? issue.message.trim() : '';
+	if (!raw) return '';
+	if (raw === REQUIRED_STRING_MESSAGE) return t('required', 'required');
+
+	const leaf = Array.isArray(issue.path) ? issue.path[issue.path.length - 1] : undefined;
+	if (typeof leaf === 'string' && raw.toLowerCase().startsWith(`${formatFieldSegment(leaf)} must `)) {
+		return raw.slice(formatFieldSegment(leaf).length + 1);
+	}
+	return raw;
+}
+
+function t(key: string, fallback: string, options?: Record<string, unknown>): string {
+	return i18n.t(`operationProfiles.validation.${key}`, {
+		defaultValue: fallback,
+		...(options ?? {}),
+	});
+}
+
+const OPERATION_FIELD_LABELS: Record<string, { key: string; fallback: string }> = {
+	activation: { key: 'activation', fallback: 'activation' },
+	dependsOn: { key: 'dependsOn', fallback: 'dependencies' },
+	hooks: { key: 'hooks', fallback: 'hooks' },
+	name: { key: 'name', fallback: 'name' },
+	order: { key: 'order', fallback: 'order' },
+	required: { key: 'required', fallback: 'required flag' },
+	runConditions: { key: 'runConditions', fallback: 'run conditions' },
+	triggers: { key: 'triggers', fallback: 'triggers' },
+	credentialRef: { key: 'credentialRef', fallback: 'LLM token' },
+	model: { key: 'model', fallback: 'model' },
+	prompt: { key: 'prompt', fallback: 'prompt' },
+	system: { key: 'system', fallback: 'system prompt' },
+	jsonSchema: { key: 'jsonSchema', fallback: 'JSON schema' },
+	jsonCustomPattern: { key: 'jsonCustomPattern', fallback: 'JSON regex pattern' },
+	jsonCustomFlags: { key: 'jsonCustomFlags', fallback: 'JSON regex flags' },
+	'artifact.artifactId': { key: 'artifactId', fallback: 'artifact id' },
+	'artifact.description': { key: 'artifactDescription', fallback: 'artifact description' },
+	'artifact.exposures': { key: 'artifactExposures', fallback: 'artifact exposures' },
+	'artifact.format': { key: 'artifactFormat', fallback: 'artifact format' },
+	'artifact.history.enabled': { key: 'artifactHistoryEnabled', fallback: 'artifact history enabled' },
+	'artifact.history.maxItems': { key: 'artifactHistoryMaxItems', fallback: 'artifact history limit' },
+	'artifact.persistence': { key: 'artifactPersistence', fallback: 'artifact persistence' },
+	'artifact.semantics': { key: 'artifactSemantics', fallback: 'artifact semantics' },
+	'artifact.tag': { key: 'artifactTag', fallback: 'artifact tag' },
+	'artifact.title': { key: 'artifactTitle', fallback: 'artifact title' },
+	'artifact.writeMode': { key: 'artifactWriteMode', fallback: 'artifact write mode' },
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;

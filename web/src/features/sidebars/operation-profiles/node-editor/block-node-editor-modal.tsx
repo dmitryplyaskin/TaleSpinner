@@ -11,21 +11,14 @@ import {
 	type ReactFlowInstance,
 	useNodesState,
 } from '@xyflow/react';
-import { useUnit } from 'effector-react';
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { FormProvider, useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { FormProvider, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { v4 as uuidv4 } from 'uuid';
 
-import { updateOperationBlockFx } from '@model/operation-blocks';
 import { Z_INDEX } from '@ui/z-index';
 
-import {
-	fromOperationProfileForm,
-	makeDefaultOperation,
-	toOperationProfileForm,
-	type OperationProfileFormValues,
-} from '../form/operation-profile-form-mapping';
+import { makeDefaultOperation, type OperationProfileFormValues } from '../form/operation-profile-form-mapping';
 
 import { buildOperationFlowNodeData, buildOperationFlowNodeSignature } from './flow/operation-flow-node-model';
 import { buildGraphOperations, buildGraphWatchPaths } from './graph-form-state';
@@ -47,13 +40,16 @@ import { DEFAULT_GROUP_COLOR_HEX, normalizeCssColorToOpaqueRgbString } from './u
 
 import type { OperationFlowNodeData } from './flow/operation-flow-node';
 import type { EditorGroup } from './ui/group-overlays';
-import type { OperationBlockDto, OperationProfileDto } from '../../../../api/chat-core';
+import type { OperationBlockDto } from '../../../../api/chat-core';
 import type { NodeEditorViewState } from '../ui/types';
 
 type Props = {
 	opened: boolean;
 	onClose: () => void;
 	block: OperationBlockDto;
+	form: UseFormReturn<OperationProfileFormValues>;
+	initialValues: OperationProfileFormValues;
+	onSaveDraft: (values: OperationProfileFormValues, meta?: unknown) => Promise<void>;
 };
 
 type OpEdge = { source: string; target: string };
@@ -77,31 +73,17 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
 	return Boolean(target.closest?.('[contenteditable="true"]'));
 }
 
-function toFormValuesFromBlock(block: OperationBlockDto): OperationProfileFormValues {
-	return toOperationProfileForm({
-		profileId: block.blockId,
-		ownerId: block.ownerId,
-		name: block.name,
-		description: block.description,
-		enabled: block.enabled,
-		executionMode: 'sequential',
-		operationProfileSessionId: '00000000-0000-0000-0000-000000000000',
-		blockRefs: [],
-		operations: block.operations,
-		meta: block.meta,
-		version: block.version,
-		createdAt: block.createdAt,
-		updatedAt: block.updatedAt,
-	} satisfies OperationProfileDto);
-}
-
-export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose, block }) => {
+export const OperationBlockNodeEditorModal: React.FC<Props> = ({
+	opened,
+	onClose,
+	block,
+	form: methods,
+	initialValues,
+	onSaveDraft,
+}) => {
 	const { t } = useTranslation();
-	const doUpdate = useUnit(updateOperationBlockFx);
 	const isCompactLayout = useMediaQuery('(max-width: 1024px)');
 
-	const initial = useMemo(() => toFormValuesFromBlock(block), [block]);
-	const methods = useForm<OperationProfileFormValues>({ defaultValues: initial });
 	const { control, reset: resetForm } = methods;
 
 	const { fields, append, replace } = useFieldArray({ name: 'operations', control, keyName: '_key' });
@@ -126,7 +108,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 
 	const resetToInitialState = useCallback(() => {
 		setJsonError(null);
-		resetForm(initial);
+		resetForm(initialValues);
 		setSelectedOpId(null);
 		setSelectedNodeIds([]);
 		const metaGroups = readNodeEditorMeta(block.meta)?.groups ?? {};
@@ -138,9 +120,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 		setIsInspectorVisible(true);
 
 		const meta = readNodeEditorMeta(block.meta);
-		const resetEdges = buildOperationGraphEdges(initial.operations);
-		const resetFallbackPositions = computeSimpleLayout(extractOpIds(initial), edgesToDeps(resetEdges));
-		const nextNodes: Array<Node<OperationFlowNodeData>> = initial.operations.map((op) => {
+		const resetEdges = buildOperationGraphEdges(initialValues.operations);
+		const resetFallbackPositions = computeSimpleLayout(extractOpIds(initialValues), edgesToDeps(resetEdges));
+		const nextNodes: Array<Node<OperationFlowNodeData>> = initialValues.operations.map((op) => {
 			const pos = meta?.nodes?.[op.opId] ?? resetFallbackPositions[op.opId] ?? { x: 0, y: 0 };
 			return {
 				id: op.opId,
@@ -151,11 +133,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 			};
 		});
 		setNodes(nextNodes);
-	}, [initial, block.meta, resetForm, setNodes]);
-
-	useEffect(() => {
-		resetToInitialState();
-	}, [resetToInitialState]);
+	}, [initialValues, block.meta, resetForm, setNodes]);
 
 	const areStringArraysEqual = useCallback((a: string[], b: string[]) => {
 		if (a === b) return true;
@@ -193,6 +171,16 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	// Initialize nodes on open / profile change.
 	useEffect(() => {
 		if (!opened) return;
+		setJsonError(null);
+		setSelectedOpId(null);
+		setSelectedNodeIds([]);
+		setGroups(readNodeEditorMeta(block.meta)?.groups ?? {});
+		setSelectedGroupId(null);
+		setGroupEditor(null);
+		setIsLayoutDirty(false);
+		setViewState('graph');
+		setIsInspectorVisible(true);
+
 		const meta = readNodeEditorMeta(block.meta);
 		const initialNodes: Array<Node<OperationFlowNodeData>> = nodeDrafts.map((draft) => {
 			const pos = meta?.nodes?.[draft.opId] ?? fallbackPositions[draft.opId] ?? { x: 0, y: 0 };
@@ -274,7 +262,6 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 	const onSave = methods.handleSubmit(async (values) => {
 		setJsonError(null);
 		try {
-			const payload = fromOperationProfileForm(values, { validateJson: true });
 			const nodesMap: Record<string, { x: number; y: number }> = {};
 			for (const n of nodes) {
 				nodesMap[String(n.id)] = { x: n.position.x, y: n.position.y };
@@ -293,17 +280,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({ opened, onClose
 				nodes: nodesMap,
 				groups: Object.keys(groupsToSave).length ? groupsToSave : undefined,
 			};
-			const updatedBlock = await doUpdate({
-				blockId: block.blockId,
-				patch: {
-					name: payload.name,
-					description: payload.description,
-					enabled: payload.enabled,
-					operations: payload.operations,
-					meta: writeNodeEditorMeta(block.meta, nodeEditorMeta),
-				},
-			});
-			resetForm(toFormValuesFromBlock(updatedBlock));
+			await onSaveDraft(values, writeNodeEditorMeta(block.meta, nodeEditorMeta));
 			setIsLayoutDirty(false);
 		} catch (e) {
 			setJsonError(e instanceof Error ? e.message : String(e));
