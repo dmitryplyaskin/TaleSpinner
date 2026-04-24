@@ -32,6 +32,7 @@ import { NodeEditorFormHeader } from './ui/node-editor-form-header';
 import { NodeEditorGraphPanel } from './ui/node-editor-graph-panel';
 import { NodeEditorHelpModal } from './ui/node-editor-help-modal';
 import { NodeEditorInspectorPanel } from './ui/node-editor-inspector-panel';
+import { addOperationNamesToErrorMessage } from './utils/operation-error-message';
 
 import type { OperationFlowNodeData } from './flow/operation-flow-node';
 import type { OperationBlockDto } from '../../../../api/chat-core';
@@ -230,7 +231,8 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 			await onSaveDraft(values, writeNodeEditorMeta(block.meta, nodeEditorMeta));
 			setIsLayoutDirty(false);
 		} catch (e) {
-			setJsonError(e instanceof Error ? e.message : String(e));
+			const message = e instanceof Error ? e.message : String(e);
+			setJsonError(addOperationNamesToErrorMessage(message, values.operations));
 		}
 	});
 

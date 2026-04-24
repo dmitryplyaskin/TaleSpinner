@@ -43,7 +43,7 @@ export function mergeOperationNodes(params: MergeOperationNodesParams): MergeOpe
 		const existing = previousById.get(draft.opId);
 		nextSignatures.set(draft.opId, draft.signature);
 
-		if (existing && previousSignatures.get(draft.opId) === draft.signature) {
+		if (existing && previousSignatures.get(draft.opId) === draft.signature && buildOperationFlowNodeSignature(existing.data) === draft.signature) {
 			return existing;
 		}
 
