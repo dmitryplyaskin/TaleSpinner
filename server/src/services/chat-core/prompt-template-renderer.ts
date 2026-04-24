@@ -1,5 +1,12 @@
 import { Liquid } from "liquidjs";
 
+import {
+  INTERNAL_MESSAGE_HELPER_FILTER,
+  preprocessSillyTavernTemplateSyntax,
+  type SillyTavernTemplateVariables,
+  stripSillyTavernTrimSentinel,
+} from "./sillytavern-template-syntax";
+
 export interface InstructionRenderContext {
   char: unknown;
   user: unknown;
@@ -54,15 +61,8 @@ export interface InstructionRenderContext {
 
 type RenderableMessage = { role: string; content: string };
 
-const INTERNAL_MESSAGE_HELPER_FILTER = "__tsMessageHelper";
-const RECENT_MESSAGE_HELPER_RE =
-  /\b(recentMessages(?:Text|ByContextTokens(?:Text)?)?)\s*\(\s*([^()]*)\s*\)/g;
-const LIQUID_SEGMENT_RE = /({{[\s\S]*?}}|{%[\s\S]*?%})/g;
-
 const DEFAULT_MAX_PASSES = 5;
 const DEFAULT_MAX_OUTPUT_CHARS = 200_000;
-const TRIM_SENTINEL = "__TS_LIQUID_TRIM_SENTINEL__";
-const MACRO_TAG_RE = /{{\s*([^{}]*?)\s*}}/g;
 
 function sanitizeRenderableMessages(messages: unknown): RenderableMessage[] {
   return Array.isArray(messages)
@@ -186,136 +186,6 @@ const engine = registerInternalFilters(
   })
 );
 
-function sanitizeOutletKey(value: string): string {
-  // Keep keys printable and stable for object lookup.
-  return value.trim().replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-}
-
-function clampRngValue(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value <= 0) return 0;
-  if (value >= 1) return 0.999_999_999_999;
-  return value;
-}
-
-function pickRandomOption(options: string[], rng: () => number): string {
-  const idx = Math.floor(clampRngValue(rng()) * options.length);
-  return options[idx] ?? options[0] ?? "";
-}
-
-function resolveRandomMacro(rawMacroBody: string, rng: () => number): string | null {
-  const prefix = "random::";
-  if (!rawMacroBody.startsWith(prefix)) return null;
-  const tail = rawMacroBody.slice(prefix.length);
-  if (!tail) return null;
-
-  const options = tail
-    .split("::")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (options.length === 0) return null;
-
-  return pickRandomOption(options, rng);
-}
-
-function rewriteRecentMessageHelperCalls(templateText: string): string {
-  return templateText.replace(LIQUID_SEGMENT_RE, (segment: string) => {
-    const isOutputSegment = segment.startsWith("{{") && segment.endsWith("}}");
-    const isTagSegment = segment.startsWith("{%") && segment.endsWith("%}");
-    if (!isOutputSegment && !isTagSegment) return segment;
-
-    const prefix = segment.slice(0, 2);
-    const suffix = segment.slice(-2);
-    const inner = segment.slice(2, -2);
-    const rewrittenInner = inner.replace(
-      RECENT_MESSAGE_HELPER_RE,
-      (_match: string, helperName: string, rawArg: string) => {
-        const normalizedArg = rawArg.trim().length > 0 ? rawArg.trim() : "nil";
-        return `'' | ${INTERNAL_MESSAGE_HELPER_FILTER}: '${helperName}', ${normalizedArg}`;
-      }
-    );
-    return `${prefix}${rewrittenInner}${suffix}`;
-  });
-}
-
-function preprocessSillyTavernTemplateSyntax(
-  templateText: string,
-  options?: { rng?: () => number }
-): {
-  text: string;
-  hasTrimSentinel: boolean;
-} {
-  const rng = options?.rng ?? Math.random;
-  let hasTrimSentinel = false;
-  const text = rewriteRecentMessageHelperCalls(templateText).replace(
-    MACRO_TAG_RE,
-    (full: string, rawMacroBody: string) => {
-      const macroBody = rawMacroBody.trim();
-      if (!macroBody) return full;
-
-      if (macroBody === "trim") {
-        hasTrimSentinel = true;
-        return TRIM_SENTINEL;
-      }
-
-      if (macroBody.startsWith("outlet::")) {
-        const rawKey = macroBody.slice("outlet::".length);
-        if (!rawKey.trim()) return full;
-        const key = sanitizeOutletKey(rawKey);
-        return `{{ outlet['${key}'] }}`;
-      }
-
-      if (macroBody.startsWith("random::")) {
-        const selected = resolveRandomMacro(macroBody, rng);
-        if (selected !== null) return selected;
-        // Keep malformed random macro literal in output.
-        return `{% raw %}${full}{% endraw %}`;
-      }
-
-      return full;
-    }
-  );
-
-  return { text, hasTrimSentinel };
-}
-
-function isBlankLine(line: string): boolean {
-  return line.trim().length === 0;
-}
-
-function stripTrimSentinel(text: string): string {
-  if (!text.includes(TRIM_SENTINEL)) return text;
-
-  const normalized = text.replace(/\r\n/g, "\n");
-  const lines = normalized.split("\n");
-  const out: string[] = [];
-  let skipLeadingBlankLines = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === TRIM_SENTINEL) {
-      while (out.length > 0 && isBlankLine(out[out.length - 1] ?? "")) out.pop();
-      skipLeadingBlankLines = true;
-      continue;
-    }
-
-    if (line.includes(TRIM_SENTINEL)) {
-      const replaced = line.split(TRIM_SENTINEL).join("");
-      if (!(skipLeadingBlankLines && isBlankLine(replaced))) {
-        out.push(replaced);
-      }
-      if (!isBlankLine(replaced)) skipLeadingBlankLines = false;
-      continue;
-    }
-
-    if (skipLeadingBlankLines && isBlankLine(line)) continue;
-    out.push(line);
-    if (!isBlankLine(line)) skipLeadingBlankLines = false;
-  }
-
-  return out.join("\n");
-}
-
 function normalizeToString(value: unknown): string {
   return typeof value === "string" ? value : String(value);
 }
@@ -383,6 +253,7 @@ export async function renderLiquidTemplate(params: {
      * Useful for deterministic tests.
      */
     rng?: () => number;
+    stVariables?: SillyTavernTemplateVariables;
   };
 }): Promise<string> {
   const renderEngine = params.options?.strictVariables
@@ -397,6 +268,7 @@ export async function renderLiquidTemplate(params: {
 
   const firstPassPreprocessed = preprocessSillyTavernTemplateSyntax(params.templateText, {
     rng: params.options?.rng,
+    variables: params.options?.stVariables,
   });
   sawTrimSentinel = sawTrimSentinel || firstPassPreprocessed.hasTrimSentinel;
 
@@ -415,6 +287,7 @@ export async function renderLiquidTemplate(params: {
     try {
       const passPreprocessed = preprocessSillyTavernTemplateSyntax(current, {
         rng: params.options?.rng,
+        variables: params.options?.stVariables,
       });
       sawTrimSentinel = sawTrimSentinel || passPreprocessed.hasTrimSentinel;
       const next = normalizeToString(
@@ -428,7 +301,7 @@ export async function renderLiquidTemplate(params: {
   }
 
   if (sawTrimSentinel) {
-    return stripTrimSentinel(current);
+    return stripSillyTavernTrimSentinel(current);
   }
 
   return current;

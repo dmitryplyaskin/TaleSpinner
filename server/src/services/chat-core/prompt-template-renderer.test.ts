@@ -22,6 +22,9 @@ describe("prompt-template-renderer", () => {
     expect(() => validateLiquidTemplate("Hello {{ user.name }}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{outlet::default}}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{random::A::B}}")).not.toThrow();
+    expect(() => validateLiquidTemplate("{{// Marinara's Spaghetti Recipe }}")).not.toThrow();
+    expect(() => validateLiquidTemplate("{{setvar::prompt::an excellent protagonist}}")).not.toThrow();
+    expect(() => validateLiquidTemplate("You are {{getvar::prompt}}!")).not.toThrow();
     expect(() => validateLiquidTemplate("{{ recentMessages(2) | size }}")).not.toThrow();
     expect(() => validateLiquidTemplate("{{ broken ")).toThrow();
   });
@@ -82,6 +85,25 @@ describe("prompt-template-renderer", () => {
     });
 
     expect(rendered).toBe("X=OUTLET_TEXT");
+  });
+
+  test("removes ST line comment macros before Liquid parsing", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText: "A{{// Marinara's Spaghetti Recipe }}B",
+      context: makeContext(),
+    });
+
+    expect(rendered).toBe("AB");
+  });
+
+  test("supports ST setvar and getvar macros during one render", async () => {
+    const rendered = await renderLiquidTemplate({
+      templateText:
+        "{{setvar::prompt::an excellent protagonist}}{{trim}}You are {{getvar::prompt}}!",
+      context: makeContext(),
+    });
+
+    expect(rendered).toBe("You are an excellent protagonist!");
   });
 
   test("trim macro removes surrounding blank lines between WI blocks", async () => {

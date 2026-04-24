@@ -223,16 +223,60 @@ describe("instruction-st-base", () => {
     expect(resolved.systemPrompt).toBe("Main Lilly");
     expect(resolved.preHistorySystemMessages).toEqual(["WI BEFORE"]);
     expect(resolved.postHistorySystemMessages).toEqual(["Post Dima"]);
-    expect(resolved.derivedSettings).toMatchObject({
-      temperature: 0.65,
-      maxTokens: 333,
-    });
+    expect(resolved.derivedSettings).toEqual({});
     expect(resolved.usedPromptIdentifiers).toEqual([
       "main",
       "worldInfoBefore",
       "chatHistory",
       "jailbreak",
     ]);
+  });
+
+  test("shares ST variables across ordered prompt blocks", async () => {
+    const stBase = createStBaseConfigFromPreset({
+      preset: {
+        chat_completion_source: "openai",
+        prompts: [
+          {
+            identifier: "roleToggle",
+            role: "system",
+            content: "{{setvar::prompt::an excellent protagonist}}{{trim}}",
+          },
+          {
+            identifier: "role",
+            role: "system",
+            content: "You are {{getvar::prompt}}!",
+          },
+        ],
+        prompt_order: [
+          {
+            character_id: 100001,
+            order: [
+              { identifier: "roleToggle", enabled: true },
+              { identifier: "role", enabled: true },
+            ],
+          },
+        ],
+      },
+      fileName: "Default.json",
+      sensitiveImportMode: "keep",
+    });
+
+    const resolved = await resolveStBaseInstructionRuntime({
+      stBase,
+      context: {
+        char: {},
+        user: {},
+        chat: {},
+        messages: [],
+        rag: {},
+        art: {},
+        now: new Date("2026-02-13T00:00:00.000Z").toISOString(),
+      },
+    });
+
+    expect(resolved.systemPrompt).toBe("You are an excellent protagonist!");
+    expect(resolved.usedPromptIdentifiers).toEqual(["role"]);
   });
 
   test("collects in-chat prompts as ordered depth insertions", async () => {

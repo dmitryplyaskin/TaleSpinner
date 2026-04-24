@@ -9,10 +9,10 @@ import { cloneStPromptWithDefaults } from "@shared/utils/st-prompts";
 import { renderLiquidTemplate } from "./prompt-template-renderer";
 
 import type { InstructionRenderContext } from "./prompt-template-renderer";
+import type { SillyTavernTemplateVariables } from "./sillytavern-template-syntax";
 import type {
   StBaseConfig,
   StBasePromptOrder,
-  StBaseResponseConfig,
 } from "@shared/types/instructions";
 
 type ResolvedDepthInsertion = {
@@ -74,48 +74,11 @@ function resolveDynamicPromptContent(params: {
   }
 }
 
-function toGatewaySettingsFromResponseConfig(
-  config: StBaseResponseConfig
-): Record<string, unknown> {
-  const settings: Record<string, unknown> = {};
-
-  if (typeof config.temperature === "number") settings.temperature = config.temperature;
-  if (typeof config.top_p === "number") settings.top_p = config.top_p;
-  if (typeof config.top_k === "number") settings.top_k = config.top_k;
-  if (typeof config.top_a === "number") settings.top_a = config.top_a;
-  if (typeof config.min_p === "number") settings.min_p = config.min_p;
-  if (typeof config.repetition_penalty === "number") {
-    settings.repetition_penalty = config.repetition_penalty;
-  }
-  if (typeof config.frequency_penalty === "number") {
-    settings.frequency_penalty = config.frequency_penalty;
-  }
-  if (typeof config.presence_penalty === "number") {
-    settings.presence_penalty = config.presence_penalty;
-  }
-  if (typeof config.openai_max_tokens === "number") {
-    settings.maxTokens = config.openai_max_tokens;
-  }
-  if (typeof config.seed === "number") settings.seed = config.seed;
-  if (typeof config.n === "number") settings.n = config.n;
-  if (typeof config.reasoning_effort === "string") {
-    settings.reasoning_effort = config.reasoning_effort;
-  }
-  if (typeof config.verbosity === "string") settings.verbosity = config.verbosity;
-  if (typeof config.enable_web_search === "boolean") {
-    settings.enable_web_search = config.enable_web_search;
-  }
-  if (typeof config.stream_openai === "boolean") {
-    settings.stream = config.stream_openai;
-  }
-
-  return settings;
-}
-
 async function renderPromptContent(params: {
   identifier: string;
   stBase: StBaseConfig;
   context: InstructionRenderContext;
+  stVariables: SillyTavernTemplateVariables;
 }): Promise<{
   content: string;
   role: "system" | "user" | "assistant";
@@ -142,6 +105,9 @@ async function renderPromptContent(params: {
   const rendered = await renderLiquidTemplate({
     templateText: rawContent,
     context: params.context,
+    options: {
+      stVariables: params.stVariables,
+    },
   });
   const content = rendered.trim();
   if (!content) return null;
@@ -190,6 +156,7 @@ export async function resolveStBaseInstructionRuntime(params: {
   const depthInsertions: ResolvedDepthInsertion[] = [];
   const usedPromptIdentifiers: string[] = [];
   let afterHistory = false;
+  const stVariables: SillyTavernTemplateVariables = {};
 
   for (const orderEntry of fallbackOrder) {
     if (!orderEntry.enabled) continue;
@@ -205,6 +172,7 @@ export async function resolveStBaseInstructionRuntime(params: {
       identifier,
       stBase: params.stBase,
       context: params.context,
+      stVariables,
     });
     if (!rendered) continue;
     usedPromptIdentifiers.push(identifier);
@@ -252,9 +220,7 @@ export async function resolveStBaseInstructionRuntime(params: {
     preHistorySystemMessages,
     postHistorySystemMessages,
     depthInsertions,
-    derivedSettings: toGatewaySettingsFromResponseConfig(
-      params.stBase.responseConfig
-    ),
+    derivedSettings: {},
     usedPromptIdentifiers,
   };
 }

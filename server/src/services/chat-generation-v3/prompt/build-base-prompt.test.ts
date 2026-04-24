@@ -138,7 +138,7 @@ describe("buildBasePrompt world-info integration", () => {
     );
   });
 
-  test("uses st_base instructions to build system/pre/post prompts and derived settings", async () => {
+  test("uses st_base instructions to build system/pre/post prompts without sampler settings", async () => {
     mocks.pickInstructionForChat.mockResolvedValue({
       id: "tpl-1",
       ownerId: "global",
@@ -206,10 +206,7 @@ describe("buildBasePrompt world-info integration", () => {
         postHistorySystemMessages: ["Post Dima"],
       })
     );
-    expect(out.instructionDerivedSettings).toMatchObject({
-      temperature: 0.6,
-      maxTokens: 444,
-    });
+    expect(out.instructionDerivedSettings).toEqual({});
   });
 
   test("allows st_base instruction with only in-chat prompts", async () => {
