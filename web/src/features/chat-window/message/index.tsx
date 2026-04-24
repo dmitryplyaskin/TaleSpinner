@@ -517,7 +517,6 @@ const MessageInner: React.FC<MessageProps> = ({
 								entry={data.entry}
 								variant={data.variant}
 								currentTurn={currentTurn}
-								preferPlainText={isAssistant && isLast && isStreaming}
 								canMutateParts={canMutateParts}
 								editingPartId={editingPartId}
 								draftText={draftText}

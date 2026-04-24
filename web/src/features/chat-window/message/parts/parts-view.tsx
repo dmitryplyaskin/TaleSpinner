@@ -17,7 +17,6 @@ type Props = {
 	entry: Entry;
 	variant: Variant | null;
 	currentTurn: number;
-	preferPlainText?: boolean;
 	canMutateParts?: boolean;
 	editingPartId?: string | null;
 	draftText?: string;
@@ -45,7 +44,6 @@ const PartsViewInner: React.FC<Props> = ({
 	entry,
 	variant,
 	currentTurn,
-	preferPlainText = false,
 	canMutateParts = false,
 	editingPartId = null,
 	draftText = '',
@@ -161,7 +159,7 @@ const PartsViewInner: React.FC<Props> = ({
 									/>
 								</>
 							) : (
-								renderPart(p, { plainTextForMarkdown: preferPlainText })
+								renderPart(p)
 							)}
 						</Box>
 					</Box>
@@ -244,7 +242,7 @@ const PartsViewInner: React.FC<Props> = ({
 									{typeof p.replacesPartId === 'string' ? `replaces=${p.replacesPartId}` : ''}
 									{p.softDeleted ? ' softDeleted' : ''}
 								</Text>
-								<Box>{renderPart(p, { plainTextForMarkdown: preferPlainText })}</Box>
+								<Box>{renderPart(p)}</Box>
 							</Box>
 						))}
 					</Stack>
@@ -259,7 +257,6 @@ export const PartsView = memo(PartsViewInner, (prev, next) => {
 		prev.entry === next.entry &&
 		prev.variant === next.variant &&
 		prev.currentTurn === next.currentTurn &&
-		Boolean(prev.preferPlainText) === Boolean(next.preferPlainText) &&
 		Boolean(prev.canMutateParts) === Boolean(next.canMutateParts) &&
 		prev.editingPartId === next.editingPartId &&
 		prev.draftText === next.draftText &&
