@@ -43,6 +43,7 @@
     "dayjs": "^1.11.19",
     "effector": "^23.4.4",
     "effector-react": "^23.3.0",
+    "elkjs": "^0.11.1",
     "embla-carousel": "8.5.2",
     "embla-carousel-react": "8.5.2",
     "handlebars": "^4.7.8",

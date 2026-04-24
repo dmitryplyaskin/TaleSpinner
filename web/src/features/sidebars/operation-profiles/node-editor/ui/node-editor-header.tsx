@@ -8,7 +8,8 @@ import { TOOLTIP_PORTAL_SETTINGS } from '@ui/z-index';
 type Props = {
 	profileName: string;
 	isDirty: boolean;
-	onAutoLayout: () => void;
+	onAutoLayout: () => void | Promise<void>;
+	isAutoLayouting: boolean;
 	onSave: () => void;
 	onClose: () => void;
 	onOpenHelp: () => void;
@@ -21,6 +22,7 @@ export const NodeEditorHeader: React.FC<Props> = ({
 	profileName,
 	isDirty,
 	onAutoLayout,
+	isAutoLayouting,
 	onSave,
 	onClose,
 	onOpenHelp,
@@ -55,7 +57,7 @@ export const NodeEditorHeader: React.FC<Props> = ({
 						{isInspectorVisible ? t('operationProfiles.nodeEditor.hideOperation') : t('operationProfiles.nodeEditor.showOperation')}
 					</Button>
 				)}
-				<Button variant="light" leftSection={<LuLayoutDashboard />} onClick={onAutoLayout}>
+				<Button variant="light" leftSection={<LuLayoutDashboard />} loading={isAutoLayouting} onClick={onAutoLayout}>
 					{t('operationProfiles.nodeEditor.autoLayout')}
 				</Button>
 				<Button leftSection={<LuSave />} disabled={!isDirty} onClick={onSave}>

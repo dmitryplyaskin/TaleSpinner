@@ -8,7 +8,8 @@ import type { OperationProfileFormValues } from '../../form/operation-profile-fo
 type Props = {
 	profileName: string;
 	isLayoutDirty: boolean;
-	onAutoLayout: () => void;
+	onAutoLayout: () => void | Promise<void>;
+	isAutoLayouting: boolean;
 	onSave: () => void;
 	onClose: () => void;
 	onOpenHelp: () => void;
@@ -21,6 +22,7 @@ export const NodeEditorFormHeader: React.FC<Props> = ({
 	profileName,
 	isLayoutDirty,
 	onAutoLayout,
+	isAutoLayouting,
 	onSave,
 	onClose,
 	onOpenHelp,
@@ -36,6 +38,7 @@ export const NodeEditorFormHeader: React.FC<Props> = ({
 			profileName={profileName}
 			isDirty={isLayoutDirty || isFormDirty}
 			onAutoLayout={onAutoLayout}
+			isAutoLayouting={isAutoLayouting}
 			onSave={onSave}
 			onClose={onClose}
 			onOpenHelp={onOpenHelp}

@@ -1,18 +1,10 @@
 import '@xyflow/react/dist/style.css';
 import './node-editor-modal.css';
 
-import { Alert, Button, Divider, Group, Kbd, List, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Alert, Divider, Group, Modal, SegmentedControl, Stack } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import {
-	type EdgeChange,
-	type Edge,
-	type Node,
-	type NodeChange,
-	type Connection,
-	type ReactFlowInstance,
-	useNodesState,
-} from '@xyflow/react';
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { type Node } from '@xyflow/react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
 	type FieldArrayWithId,
 	FormProvider,
@@ -22,33 +14,26 @@ import {
 	type UseFormReturn,
 } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { v4 as uuidv4 } from 'uuid';
 
 import { Z_INDEX } from '@ui/z-index';
 
-import { makeDefaultOperation, type OperationProfileFormValues } from '../form/operation-profile-form-mapping';
+import { type OperationProfileFormValues } from '../form/operation-profile-form-mapping';
 
 import { buildOperationFlowNodeData, buildOperationFlowNodeSignature } from './flow/operation-flow-node-model';
 import { buildGraphOperations, buildGraphWatchPaths } from './graph-form-state';
-import { useGroupLabelDrag } from './hooks/use-group-label-drag';
-import { computeSimpleLayout, readNodeEditorMeta, writeNodeEditorMeta } from './meta/node-editor-meta';
-import {
-	applyConnectionToOperations,
-	buildOperationGraphEdges,
-	connectSourceToOperation,
-	insertOperationBetweenEdge,
-	removeEdgeFromOperations,
-	removeOperationReferences,
-} from './operation-graph';
-import { GroupEditorModal, type GroupEditorDraft } from './ui/group-editor-modal';
+import { useNodeEditorActions } from './hooks/use-node-editor-actions';
+import { useNodeEditorFlowState } from './hooks/use-node-editor-flow-state';
+import { useNodeEditorGroups } from './hooks/use-node-editor-groups';
+import { readNodeEditorMeta, writeNodeEditorMeta } from './meta/node-editor-meta';
+import { buildOperationGraphEdges } from './operation-graph';
+import { GroupEditorModal } from './ui/group-editor-modal';
+import { NodeEditorContextMenu } from './ui/node-editor-context-menu';
 import { NodeEditorFormHeader } from './ui/node-editor-form-header';
 import { NodeEditorGraphPanel } from './ui/node-editor-graph-panel';
+import { NodeEditorHelpModal } from './ui/node-editor-help-modal';
 import { NodeEditorInspectorPanel } from './ui/node-editor-inspector-panel';
-import { computeBoundsFromNodes } from './utils/bounds';
-import { DEFAULT_GROUP_COLOR_HEX, normalizeCssColorToOpaqueRgbString } from './utils/color';
 
 import type { OperationFlowNodeData } from './flow/operation-flow-node';
-import type { EditorGroup } from './ui/group-overlays';
 import type { OperationBlockDto } from '../../../../api/chat-core';
 import type { NodeEditorViewState } from '../ui/types';
 
@@ -66,30 +51,10 @@ type Props = {
 	onSaveDraft: (values: OperationProfileFormValues, meta?: unknown) => Promise<void>;
 };
 
-type OpEdge = { source: string; target: string };
-type PendingConnection = { sourceId: string; sourceHandle: string | null };
-type FlowPosition = { x: number; y: number };
-type NodeEditorContextMenu =
-	| { type: 'pane'; x: number; y: number; position: FlowPosition }
-	| { type: 'node'; x: number; y: number; nodeId: string }
-	| { type: 'edge'; x: number; y: number; edgeId: string };
-
 const GROUP_BG_ALPHA = 0.08;
-
-function edgesToDeps(edges: Array<{ source: string; target: string }>): OpEdge[] {
-	return edges.map((e) => ({ source: e.source, target: e.target }));
-}
 
 function extractOpIds(values: OperationProfileFormValues): string[] {
 	return values.operations.map((o) => o.opId).filter(Boolean);
-}
-
-function isTextEditingTarget(target: EventTarget | null): boolean {
-	if (!target || !(target instanceof HTMLElement)) return false;
-	if (target.isContentEditable) return true;
-	const tag = target.tagName.toLowerCase();
-	if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-	return Boolean(target.closest?.('[contenteditable="true"]'));
 }
 
 export const OperationBlockNodeEditorModal: React.FC<Props> = ({
@@ -107,62 +72,11 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	const { control, reset: resetForm } = methods;
 	const { fields, append, replace } = operationsFieldArray;
 
-	const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
-	const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-	const [groups, setGroups] = useState<Record<string, EditorGroup>>({});
-	const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 	const [jsonError, setJsonError] = useState<string | null>(null);
 	const [isLayoutDirty, setIsLayoutDirty] = useState(false);
-	const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
-	const [groupEditor, setGroupEditor] = useState<GroupEditorDraft | null>(null);
-	const [contextMenu, setContextMenu] = useState<NodeEditorContextMenu | null>(null);
 	const [isHelpOpen, setIsHelpOpen] = useState(false);
 	const [viewState, setViewState] = useState<NodeEditorViewState>('graph');
 	const [isInspectorVisible, setIsInspectorVisible] = useState(true);
-
-	const connectingSourceRef = useRef<PendingConnection | null>(null);
-	const didConnectRef = useRef(false);
-	const prevNodeIdsKeyRef = useRef<string>('');
-	const flowWrapperRef = useRef<HTMLDivElement | null>(null);
-	const nodesRef = useRef<Array<Node<OperationFlowNodeData>>>([]);
-	const [nodes, setNodes, onNodesChangeBase] = useNodesState<Node<OperationFlowNodeData>>([]);
-
-	const resetToInitialState = useCallback(() => {
-		setJsonError(null);
-		resetForm(initialValues);
-		setSelectedOpId(null);
-		setSelectedNodeIds([]);
-		const metaGroups = readNodeEditorMeta(block.meta)?.groups ?? {};
-		setGroups(metaGroups);
-		setSelectedGroupId(null);
-		setGroupEditor(null);
-		setContextMenu(null);
-		setIsLayoutDirty(false);
-		setViewState('graph');
-		setIsInspectorVisible(true);
-
-		const meta = readNodeEditorMeta(block.meta);
-		const resetEdges = buildOperationGraphEdges(initialValues.operations);
-		const resetFallbackPositions = computeSimpleLayout(extractOpIds(initialValues), edgesToDeps(resetEdges));
-		const nextNodes: Array<Node<OperationFlowNodeData>> = initialValues.operations.map((op) => {
-			const pos = meta?.nodes?.[op.opId] ?? resetFallbackPositions[op.opId] ?? { x: 0, y: 0 };
-			return {
-				id: op.opId,
-				type: 'operation',
-				position: pos,
-				zIndex: Z_INDEX.flow.node,
-				data: buildOperationFlowNodeData(op),
-			};
-		});
-		setNodes(nextNodes);
-	}, [initialValues, block.meta, resetForm, setNodes]);
-
-	const areStringArraysEqual = useCallback((a: string[], b: string[]) => {
-		if (a === b) return true;
-		if (a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-		return true;
-	}, []);
 
 	const graphWatchPaths = useMemo(() => buildGraphWatchPaths(fields.length), [fields.length]);
 	const graphWatchValues = useWatch({ control, name: graphWatchPaths as any }) as unknown[] | undefined;
@@ -182,103 +96,112 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 	);
 	const opIndexById = useMemo(() => new Map(fields.map((field, idx) => [String(field.opId), idx])), [fields]);
 	const edges = useMemo(() => buildOperationGraphEdges(deferredGraphOperations), [deferredGraphOperations]);
-	const fallbackPositions = useMemo(
-		() => computeSimpleLayout(nodeDrafts.map((draft) => draft.opId), edgesToDeps(edges)),
-		[nodeDrafts, edges],
-	);
-	useEffect(() => {
-		nodesRef.current = nodes;
+	const {
+		flow,
+		setFlow,
+		flowWrapperRef,
+		nodes,
+		setNodes,
+		nodesRef,
+		onNodesChange,
+		resetNodesFromInitialValues,
+		runAutoLayout,
+		isAutoLayouting,
+	} = useNodeEditorFlowState({
+		opened,
+		blockId: block.blockId,
+		blockMeta: block.meta,
+		initialValues,
+		nodeDrafts,
+		edges,
+		onDirty: () => setIsLayoutDirty(true),
+	});
+	const nodesById = useMemo(() => {
+		const out = new Map<string, Node<OperationFlowNodeData>>();
+		for (const node of nodes) out.set(String(node.id), node);
+		return out;
 	}, [nodes]);
+	const {
+		groups,
+		resetGroups,
+		selectedGroupId,
+		setSelectedGroupId,
+		groupEditor,
+		setGroupEditor,
+		groupSelectData,
+		computeGroupBounds,
+		groupLabelDrag,
+		createGroupFromSelection,
+		ungroupSelectedAction,
+		deleteGroup,
+		saveGroup,
+	} = useNodeEditorGroups({
+		flow,
+		nodes,
+		nodesById,
+		nodesRef,
+		setNodes,
+		onDirty: () => setIsLayoutDirty(true),
+	});
+	const {
+		selectedOpId,
+		selectedNodeIds,
+		contextMenu,
+		resetActionState,
+		addOperation,
+		deleteSelectedAction,
+		openPaneContextMenu,
+		openNodeContextMenu,
+		openEdgeContextMenu,
+		createOperationFromContext,
+		deleteNodeFromContext,
+		deleteEdgeFromContext,
+		insertOperationFromEdgeContext,
+		onConnect,
+		onConnectStart,
+		onConnectEnd,
+		onEdgesChange,
+		onSelectionChange,
+		onNodeClick,
+		onPaneClick,
+		onNodeDragStop,
+	} = useNodeEditorActions({
+		opened,
+		isCompactLayout,
+		flow,
+		flowWrapperRef,
+		fieldsLength: fields.length,
+		append,
+		replace,
+		methods,
+		edges,
+		nodesById,
+		setNodes,
+		setViewState,
+		setIsInspectorVisible,
+		onDirty: () => setIsLayoutDirty(true),
+	});
 
-	// Initialize nodes on open / profile change.
 	useEffect(() => {
 		if (!opened) return;
 		setJsonError(null);
-		setSelectedOpId(null);
-		setSelectedNodeIds([]);
-		setGroups(readNodeEditorMeta(block.meta)?.groups ?? {});
-		setSelectedGroupId(null);
-		setGroupEditor(null);
-		setContextMenu(null);
+		resetActionState();
+		resetGroups(readNodeEditorMeta(block.meta)?.groups ?? {});
 		setIsLayoutDirty(false);
 		setViewState('graph');
 		setIsInspectorVisible(true);
+	}, [opened, block.blockId, block.meta, resetActionState, resetGroups]);
 
-		const meta = readNodeEditorMeta(block.meta);
-		const initialNodes: Array<Node<OperationFlowNodeData>> = nodeDrafts.map((draft) => {
-			const pos = meta?.nodes?.[draft.opId] ?? fallbackPositions[draft.opId] ?? { x: 0, y: 0 };
-			return {
-				id: draft.opId,
-				type: 'operation',
-				position: pos,
-				zIndex: Z_INDEX.flow.node,
-				data: draft.data,
-			};
-		});
-		setNodes(initialNodes);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [opened, block.blockId]);
-
-	useEffect(() => {
-		if (!opened) return;
+	const resetToInitialState = useCallback(() => {
+		setJsonError(null);
+		resetForm(initialValues);
+		resetActionState();
+		resetGroups(readNodeEditorMeta(block.meta)?.groups ?? {});
+		setIsLayoutDirty(false);
+		setViewState('graph');
 		setIsInspectorVisible(true);
-	}, [opened, block.blockId]);
-
-	// Keep node data in sync with form, but preserve positions while dragging.
-	useEffect(() => {
-		if (!opened) return;
-		setNodes((prev) => {
-			const prevById = new Map(prev.map((n) => [String(n.id), n]));
-			const next = nodeDrafts.map((draft) => {
-				const existing = prevById.get(draft.opId);
-
-				// Important: preserve measured/width/height/etc that ReactFlow stores in node state.
-				// Otherwise ReactFlow will keep re-measuring and emitting node changes, which can cause
-				// mount-time update loops ("Maximum update depth exceeded").
-				return {
-					...(existing ?? {}),
-					id: draft.opId,
-					type: 'operation',
-					position: existing?.position ?? fallbackPositions[draft.opId] ?? { x: 0, y: 0 },
-					zIndex: existing?.zIndex ?? Z_INDEX.flow.node,
-					data: draft.data,
-				} satisfies Node<OperationFlowNodeData>;
-			});
-
-			// Avoid pointless state updates (helps prevent feedback loops).
-			if (prev.length === next.length) {
-				let same = true;
-				for (let i = 0; i < next.length; i++) {
-					const a = prev[i];
-					const b = next[i];
-					if (!a || !b) {
-						same = false;
-						break;
-					}
-					if (String(a.id) !== String(b.id)) {
-						same = false;
-						break;
-					}
-					if ((a.type ?? '') !== (b.type ?? '')) {
-						same = false;
-						break;
-					}
-					if ((a.position?.x ?? 0) !== (b.position?.x ?? 0) || (a.position?.y ?? 0) !== (b.position?.y ?? 0)) {
-						same = false;
-						break;
-					}
-					if (nodeDrafts[i]?.signature !== buildOperationFlowNodeSignature(a.data as OperationFlowNodeData)) {
-						same = false;
-						break;
-					}
-				}
-				if (same) return prev;
-			}
-
-			return next;
-		});
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [opened, nodeDrafts, fallbackPositions]);
+		resetNodesFromInitialValues();
+	}, [block.meta, initialValues, resetActionState, resetForm, resetGroups, resetNodesFromInitialValues]);
 
 	const selectedIndex = selectedOpId ? (opIndexById.get(selectedOpId) ?? null) : null;
 
@@ -302,6 +225,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 				version: 1 as const,
 				nodes: nodesMap,
 				groups: Object.keys(groupsToSave).length ? groupsToSave : undefined,
+				viewport: flow?.getViewport(),
 			};
 			await onSaveDraft(values, writeNodeEditorMeta(block.meta, nodeEditorMeta));
 			setIsLayoutDirty(false);
@@ -310,428 +234,9 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 		}
 	});
 
-	const closeContextMenu = useCallback(() => {
-		setContextMenu(null);
-	}, []);
-
-	const addOperationAt = useCallback((position?: FlowPosition) => {
-		const next = makeDefaultOperation();
-		append(next);
-
-		let nextPosition = position ?? { x: 0, y: fields.length * 160 };
-		if (!position && flow && flowWrapperRef.current) {
-			const r = flowWrapperRef.current.getBoundingClientRect();
-			const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-			const p = (flow as any).screenToFlowPosition ? (flow as any).screenToFlowPosition(center) : null;
-			if (p && typeof p.x === 'number' && typeof p.y === 'number') nextPosition = { x: p.x, y: p.y };
-		}
-		setNodes((prev) => [
-			...prev,
-			{
-				id: next.opId,
-				type: 'operation',
-				position: nextPosition,
-				zIndex: Z_INDEX.flow.node,
-				data: buildOperationFlowNodeData(next),
-			},
-		]);
-		setIsLayoutDirty(true);
-		setSelectedOpId(next.opId);
-		if (isCompactLayout) setViewState('inspector');
-		else setIsInspectorVisible(true);
-	}, [append, fields.length, flow, isCompactLayout, setNodes]);
-
-	const addOperation = useCallback(() => {
-		addOperationAt();
-	}, [addOperationAt]);
-
-	const createOperationFromContext = useCallback(() => {
-		if (contextMenu?.type !== 'pane') return;
-		addOperationAt(contextMenu.position);
-		closeContextMenu();
-	}, [addOperationAt, closeContextMenu, contextMenu]);
-
-	const deleteSelectedNodes = useCallback(() => {
-		const ids = selectedNodeIds.length ? selectedNodeIds : selectedOpId ? [selectedOpId] : [];
-		if (ids.length === 0) return;
-
-		let current = methods.getValues();
-		for (const removedOpId of ids) {
-			current = {
-				...current,
-				operations: removeOperationReferences(current.operations, removedOpId),
-			};
-		}
-		const nextOps = current.operations.filter((op) => !ids.includes(op.opId));
-		replace(nextOps);
-
-		setNodes((prev) => prev.filter((n) => !ids.includes(String(n.id))));
-		setIsLayoutDirty(true);
-
-		setSelectedNodeIds((prev) => prev.filter((id) => !ids.includes(id)));
-		setSelectedOpId((prev) => (prev && ids.includes(prev) ? null : prev));
-		closeContextMenu();
-	}, [closeContextMenu, methods, replace, selectedNodeIds, selectedOpId, setNodes]);
-
-	const deleteNodeById = useCallback((nodeId: string) => {
-		const current = methods.getValues();
-		const nextOps = removeOperationReferences(current.operations, nodeId).filter((op) => op.opId !== nodeId);
-		replace(nextOps);
-		setNodes((prev) => prev.filter((n) => String(n.id) !== nodeId));
-		setIsLayoutDirty(true);
-		setSelectedNodeIds((prev) => prev.filter((id) => id !== nodeId));
-		setSelectedOpId((prev) => (prev === nodeId ? null : prev));
-		closeContextMenu();
-	}, [closeContextMenu, methods, replace, setNodes]);
-
-	// Keyboard delete (Delete / Backspace) — but do not interfere with typing in inputs.
-	useEffect(() => {
-		if (!opened) return;
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.defaultPrevented) return;
-			if (isTextEditingTarget(e.target)) return;
-			if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-			deleteSelectedNodes();
-			e.preventDefault();
-		};
-		window.addEventListener('keydown', onKeyDown);
-		return () => window.removeEventListener('keydown', onKeyDown);
-	}, [opened, deleteSelectedNodes]);
-
-	const createGroupFromSelection = useCallback(() => {
-		const ids = [...new Set(selectedNodeIds)].filter(Boolean);
-		if (ids.length < 2) return;
-		const suggestedName = t('operationProfiles.nodeEditor.groupNameDefault', { index: Object.keys(groups).length + 1 });
-		const name = window.prompt(t('operationProfiles.nodeEditor.groupNamePrompt'), suggestedName);
-		if (!name || !name.trim()) return;
-		const groupId = uuidv4();
-		setGroups((prev) => ({ ...prev, [groupId]: { name: name.trim(), nodeIds: ids } }));
-		setSelectedGroupId(groupId);
-		setIsLayoutDirty(true);
-	}, [groups, selectedNodeIds, t]);
-
-	const ungroupSelected = useCallback(() => {
-		if (!selectedGroupId) return;
-		setGroups((prev) => {
-			if (!prev[selectedGroupId]) return prev;
-			const { [selectedGroupId]: _removed, ...rest } = prev;
-			return rest;
-		});
-		setSelectedGroupId(null);
-		setGroupEditor((prev) => (prev?.groupId === selectedGroupId ? null : prev));
-		setIsLayoutDirty(true);
-	}, [selectedGroupId]);
-
-	const groupSelectData = useMemo(
-		() => Object.entries(groups).map(([value, g]) => ({ value, label: g.name })),
-		[groups],
-	);
-
-	const nodesById = useMemo(() => {
-		const out = new Map<string, Node<OperationFlowNodeData>>();
-		for (const node of nodes) out.set(String(node.id), node);
-		return out;
-	}, [nodes]);
-
-	const openPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-		event.preventDefault();
-		const client = { x: event.clientX, y: event.clientY };
-		const position =
-			flow && (flow as any).screenToFlowPosition
-				? (flow as any).screenToFlowPosition(client)
-				: { x: 0, y: 0 };
-		setContextMenu({
-			type: 'pane',
-			x: client.x,
-			y: client.y,
-			position: {
-				x: typeof position?.x === 'number' ? position.x : 0,
-				y: typeof position?.y === 'number' ? position.y : 0,
-			},
-		});
-	}, [flow]);
-
-	const openNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-		event.preventDefault();
-		event.stopPropagation();
-		const nodeId = String(node.id);
-		setSelectedOpId(nodeId);
-		setContextMenu({ type: 'node', x: event.clientX, y: event.clientY, nodeId });
-	}, []);
-
-	const openEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
-		event.preventDefault();
-		event.stopPropagation();
-		setContextMenu({ type: 'edge', x: event.clientX, y: event.clientY, edgeId: String(edge.id) });
-	}, []);
-
-	const deleteNodeFromContext = useCallback(() => {
-		if (contextMenu?.type !== 'node') return;
-		if (!window.confirm(t('operationProfiles.confirm.deleteOperation'))) return;
-		deleteNodeById(contextMenu.nodeId);
-	}, [contextMenu, deleteNodeById, t]);
-
-	const deleteEdgeFromContext = useCallback(() => {
-		if (contextMenu?.type !== 'edge') return;
-		replace(removeEdgeFromOperations(methods.getValues().operations, contextMenu.edgeId));
-		setIsLayoutDirty(true);
-		closeContextMenu();
-	}, [closeContextMenu, contextMenu, methods, replace]);
-
-	const insertOperationFromEdgeContext = useCallback(() => {
-		if (contextMenu?.type !== 'edge') return;
-		const edge = edges.find((item) => item.id === contextMenu.edgeId);
-		if (!edge) {
-			closeContextMenu();
-			return;
-		}
-
-		const sourceNode = nodesById.get(String(edge.source));
-		const targetNode = nodesById.get(String(edge.target));
-		const position = {
-			x: ((sourceNode?.position.x ?? 0) + (targetNode?.position.x ?? 0)) / 2,
-			y: ((sourceNode?.position.y ?? 0) + (targetNode?.position.y ?? 0)) / 2,
-		};
-		const next = makeDefaultOperation();
-		const nextOperations = insertOperationBetweenEdge(methods.getValues().operations, contextMenu.edgeId, next);
-		replace(nextOperations);
-		setNodes((prev) => [
-			...prev,
-			{
-				id: next.opId,
-				type: 'operation',
-				position,
-				zIndex: Z_INDEX.flow.node,
-				data: buildOperationFlowNodeData(next),
-			},
-		]);
-		setSelectedOpId(next.opId);
-		setIsLayoutDirty(true);
-		closeContextMenu();
-		if (isCompactLayout) setViewState('inspector');
-		else setIsInspectorVisible(true);
-	}, [closeContextMenu, contextMenu, edges, isCompactLayout, methods, nodesById, replace, setNodes]);
-
-	const computeGroupBounds = useCallback(
-		(nodeIds: string[]) => {
-			const live: Array<Node<OperationFlowNodeData>> = [];
-			for (const nodeId of nodeIds) {
-				const node = nodesById.get(nodeId);
-				if (node) live.push(node);
-			}
-			return computeBoundsFromNodes(live);
-		},
-		[nodesById],
-	);
-
-	const openGroupEditor = useCallback(
-		(groupId: string) => {
-			const g = groups[groupId];
-			if (!g) return;
-			setSelectedGroupId(groupId);
-			setGroupEditor({
-				groupId,
-				name: (g.name ?? '').trim(),
-				bg: typeof g.bg === 'string' ? g.bg : '',
-			});
-		},
-		[groups],
-	);
-
-	const groupLabelDrag = useGroupLabelDrag({
-		flow,
-		groups,
-		nodesRef,
-		setNodes,
-		onSelectGroup: (groupId) => setSelectedGroupId(groupId),
-		onOpenGroupEditor: openGroupEditor,
-		markLayoutDirty: () => setIsLayoutDirty(true),
-	});
-
-	// Keep groups consistent when nodes are removed.
-	useEffect(() => {
-		// Important: avoid pruning while nodes are still initializing (prevents mount-time loops).
-		if (nodes.length === 0) return;
-		const nodeIdsKey = nodes.map((n) => String(n.id)).join('\u001f');
-		if (prevNodeIdsKeyRef.current === nodeIdsKey) return;
-		prevNodeIdsKeyRef.current = nodeIdsKey;
-
-		const existing = new Set(nodes.map((n) => String(n.id)));
-
-		setGroups((prev) => {
-			const pruned: Record<string, EditorGroup> = {};
-			for (const [groupId, g] of Object.entries(prev)) {
-				const name = (g?.name ?? '').trim();
-				const nodeIds = Array.isArray(g?.nodeIds) ? g.nodeIds.filter((id) => existing.has(id)) : [];
-				if (!groupId || !name || nodeIds.length === 0) continue;
-				const bg = typeof g?.bg === 'string' && g.bg.trim() ? g.bg.trim() : undefined;
-				pruned[groupId] = { name, nodeIds: [...new Set(nodeIds)], bg };
-			}
-
-			const sameKeys = Object.keys(pruned).length === Object.keys(prev).length && Object.keys(pruned).every((k) => prev[k]);
-			const sameContent =
-				sameKeys &&
-				Object.entries(pruned).every(([k, v]) => {
-					const g = prev[k];
-					if (!g) return false;
-					if ((g.name ?? '').trim() !== v.name) return false;
-					const a = [...new Set(g.nodeIds ?? [])].slice().sort();
-					const b = [...new Set(v.nodeIds ?? [])].slice().sort();
-					return a.length === b.length && a.every((id, idx) => id === b[idx]);
-				});
-
-			if (sameContent) return prev;
-			setIsLayoutDirty(true);
-			return pruned;
-		});
-	}, [nodes]);
-
-	// If selected group disappeared, clear selection.
-	useEffect(() => {
-		if (!selectedGroupId) return;
-		if (!groups[selectedGroupId]) setSelectedGroupId(null);
-	}, [groups, selectedGroupId]);
-
-	// If opened group editor group disappeared, close editor.
-	useEffect(() => {
-		if (!groupEditor) return;
-		if (!groups[groupEditor.groupId]) setGroupEditor(null);
-	}, [groupEditor, groups]);
-
-	const onConnect = useCallback((conn: Connection) => {
-		didConnectRef.current = true;
-		if (!conn.source || !conn.target) return;
-		if (conn.source === conn.target) return;
-		const nextOperations = applyConnectionToOperations(methods.getValues().operations, conn);
-		replace(nextOperations);
-	}, [methods, replace]);
-
-	const onConnectStart = useCallback((
-		_: unknown,
-		params: { nodeId?: string | null; handleType?: 'source' | 'target' | null; handleId?: string | null },
-	) => {
-		didConnectRef.current = false;
-		connectingSourceRef.current =
-			params.handleType === 'source' && params.nodeId
-				? { sourceId: String(params.nodeId), sourceHandle: params.handleId ?? null }
-				: null;
-	}, []);
-
-	const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
-		const pendingConnection = connectingSourceRef.current;
-		connectingSourceRef.current = null;
-
-		if (!pendingConnection?.sourceId) return;
-		if (didConnectRef.current) return;
-		if (!flow) return;
-
-		const target = event.target as HTMLElement | null;
-		const isPane = Boolean(target?.closest?.('.react-flow__pane'));
-		if (!isPane) return;
-
-		const p =
-			'touches' in event && event.touches?.[0]
-				? { x: event.touches[0].clientX, y: event.touches[0].clientY }
-				: 'changedTouches' in event && event.changedTouches?.[0]
-					? { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY }
-					: 'clientX' in event && typeof event.clientX === 'number' && typeof event.clientY === 'number'
-						? { x: event.clientX, y: event.clientY }
-						: null;
-		if (!p) return;
-
-		// Create new operation at drop position and connect source -> new (new.dependsOn=[source]).
-		const pos = (flow as any).screenToFlowPosition ? (flow as any).screenToFlowPosition(p) : null;
-		if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') return;
-
-		const next = makeDefaultOperation();
-		const nextOperation = connectSourceToOperation(next, {
-			source: pendingConnection.sourceId,
-			sourceHandle: pendingConnection.sourceHandle,
-		});
-		append(nextOperation);
-
-		setNodes((prev) => [
-			...prev,
-			{
-				id: nextOperation.opId,
-				type: 'operation',
-				position: { x: pos.x, y: pos.y },
-				zIndex: Z_INDEX.flow.node,
-				data: buildOperationFlowNodeData(nextOperation),
-			},
-		]);
-		setSelectedOpId(nextOperation.opId);
-		setIsLayoutDirty(true);
-		if (isCompactLayout) setViewState('inspector');
-		else setIsInspectorVisible(true);
-	}, [append, flow, isCompactLayout, setNodes]);
-
-	const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-		const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id);
-		if (removed.length === 0) return;
-
-		let nextOperations = methods.getValues().operations;
-		for (const id of removed) nextOperations = removeEdgeFromOperations(nextOperations, String(id));
-		replace(nextOperations);
-	}, [methods, replace]);
-
-	const onNodesChange = useCallback((changes: NodeChange[]) => {
-		onNodesChangeBase(changes as any);
-		if (changes.some((c) => c.type === 'position')) setIsLayoutDirty(true);
-	}, [onNodesChangeBase]);
-
-	const onSelectionChange = useCallback(
-		({ nodes: selectedNodes }: { nodes: Array<{ id: string | number }> }) => {
-			const ids = selectedNodes.map((n) => String(n.id));
-			setSelectedNodeIds((prev) => (areStringArraysEqual(prev, ids) ? prev : ids));
-		},
-		[areStringArraysEqual],
-	);
-
-	const onNodeClick = useCallback(
-		(_: unknown, node: Node) => {
-			setSelectedOpId(String(node.id));
-			if (isCompactLayout) setViewState('inspector');
-			else setIsInspectorVisible(true);
-		},
-		[isCompactLayout],
-	);
-
-	const onPaneClick = useCallback(() => {
-		closeContextMenu();
-		setSelectedOpId(null);
-		setSelectedNodeIds((prev) => (prev.length === 0 ? prev : []));
-		if (isCompactLayout) setViewState('graph');
-	}, [closeContextMenu, isCompactLayout]);
-
-	const onNodeDragStop = useCallback((_: unknown, node: Node) => {
-		setNodes((prev) => prev.map((n) => (String(n.id) === String(node.id) ? { ...n, position: node.position } : n)));
-		setIsLayoutDirty(true);
-	}, [setNodes]);
-
-	const autoLayout = useCallback(() => {
-		const opIds = extractOpIds(methods.getValues());
-		const deps = edgesToDeps(edges);
-		const positions = computeSimpleLayout(opIds, deps);
-		setNodes((prev) =>
-			prev.map((n) => {
-				const pos = positions[String(n.id)];
-				return pos ? { ...n, position: pos } : n;
-			}),
-		);
-		setIsLayoutDirty(true);
-	}, [edges, methods, setNodes]);
-
-	const deleteSelectedAction = useCallback(() => {
-		if (!window.confirm(t('operationProfiles.confirm.deleteSelectedOperations'))) return;
-		deleteSelectedNodes();
-	}, [deleteSelectedNodes, t]);
-
-	const ungroupSelectedAction = useCallback(() => {
-		if (!selectedGroupId) return;
-		if (!window.confirm(t('operationProfiles.confirm.ungroupSelected'))) return;
-		ungroupSelected();
-	}, [selectedGroupId, t, ungroupSelected]);
+	const createSelectedGroupAction = useCallback(() => {
+		createGroupFromSelection(selectedNodeIds);
+	}, [createGroupFromSelection, selectedNodeIds]);
 
 	const showGraphPanel = !isCompactLayout || viewState === 'graph';
 	const showInspectorPanel = isCompactLayout ? viewState === 'inspector' : isInspectorVisible;
@@ -754,7 +259,8 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 					<NodeEditorFormHeader
 						profileName={block.name}
 						isLayoutDirty={isLayoutDirty}
-						onAutoLayout={autoLayout}
+						onAutoLayout={runAutoLayout}
+						isAutoLayouting={isAutoLayouting}
 						onSave={onSave}
 						onClose={onClose}
 						onOpenHelp={() => setIsHelpOpen(true)}
@@ -810,7 +316,7 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 								onGroupLabelPointerUp={groupLabelDrag.onPointerUp}
 								onAddOperation={addOperation}
 								onDeleteSelected={deleteSelectedAction}
-								onCreateGroup={createGroupFromSelection}
+								onCreateGroup={createSelectedGroupAction}
 								selectedNodeCount={selectedNodeIds.length}
 								hasSelectedOperation={Boolean(selectedOpId)}
 								groupOptions={groupSelectData}
@@ -838,103 +344,24 @@ export const OperationBlockNodeEditorModal: React.FC<Props> = ({
 					</Group>
 
 					{contextMenu && (
-						<Paper
-							withBorder
-							shadow="md"
-							className="opNodeContextMenu"
-							style={{ left: contextMenu.x, top: contextMenu.y }}
-							onContextMenu={(event) => event.preventDefault()}
-						>
-							{contextMenu.type === 'pane' && (
-								<Button variant="subtle" size="xs" fullWidth justify="flex-start" onClick={createOperationFromContext}>
-									{t('operationProfiles.nodeEditor.context.createBlock')}
-								</Button>
-							)}
-							{contextMenu.type === 'node' && (
-								<Button color="red" variant="subtle" size="xs" fullWidth justify="flex-start" onClick={deleteNodeFromContext}>
-									{t('operationProfiles.nodeEditor.context.deleteBlock')}
-								</Button>
-							)}
-							{contextMenu.type === 'edge' && (
-								<Stack gap={2}>
-									<Button color="red" variant="subtle" size="xs" fullWidth justify="flex-start" onClick={deleteEdgeFromContext}>
-										{t('operationProfiles.nodeEditor.context.deleteEdge')}
-									</Button>
-									<Button variant="subtle" size="xs" fullWidth justify="flex-start" onClick={insertOperationFromEdgeContext}>
-										{t('operationProfiles.nodeEditor.context.insertBlock')}
-									</Button>
-								</Stack>
-							)}
-						</Paper>
+						<NodeEditorContextMenu
+							state={contextMenu}
+							onCreateOperation={createOperationFromContext}
+							onDeleteNode={deleteNodeFromContext}
+							onDeleteEdge={deleteEdgeFromContext}
+							onInsertOperation={insertOperationFromEdgeContext}
+						/>
 					)}
 				</Stack>
 
 				<GroupEditorModal
 					draft={groupEditor}
 					onClose={() => setGroupEditor(null)}
-					onDelete={(groupId) => {
-						setGroups((prev) => {
-							if (!prev[groupId]) return prev;
-							const { [groupId]: _removed, ...rest } = prev;
-							return rest;
-						});
-						setSelectedGroupId((prev) => (prev === groupId ? null : prev));
-						setIsLayoutDirty(true);
-						setGroupEditor(null);
-					}}
-					onSave={(draft) => {
-						const id = draft.groupId;
-						const name = draft.name.trim();
-						const bgRaw = draft.bg.trim();
-						if (!name) return;
-
-						// Store an opaque base color; alpha is applied at render time.
-						const bg = normalizeCssColorToOpaqueRgbString(bgRaw, DEFAULT_GROUP_COLOR_HEX);
-
-						setGroups((prev) => {
-							const g = prev[id];
-							if (!g) return prev;
-							return { ...prev, [id]: { ...g, name, bg: bgRaw ? bg : undefined } };
-						});
-						setIsLayoutDirty(true);
-						setGroupEditor(null);
-					}}
+					onDelete={deleteGroup}
+					onSave={saveGroup}
 				/>
 
-				<Modal
-					opened={isHelpOpen}
-					onClose={() => setIsHelpOpen(false)}
-					title={t('operationProfiles.nodeEditor.help.title')}
-					zIndex={Z_INDEX.overlay.modal + 1}
-					centered
-				>
-					<Stack gap="md">
-						<Stack gap="xs">
-							<Text fw={700}>{t('operationProfiles.nodeEditor.help.hotkeysTitle')}</Text>
-							<List spacing="xs" size="sm">
-								<List.Item>
-									<Kbd>Shift</Kbd> {t('operationProfiles.nodeEditor.help.selectionDrag')}
-								</List.Item>
-								<List.Item>
-									<Kbd>Ctrl</Kbd> / <Kbd>Cmd</Kbd> / <Kbd>Shift</Kbd>{' '}
-									{t('operationProfiles.nodeEditor.help.multiSelect')}
-								</List.Item>
-								<List.Item>
-									<Kbd>Delete</Kbd> / <Kbd>Backspace</Kbd> {t('operationProfiles.nodeEditor.help.deleteSelected')}
-								</List.Item>
-							</List>
-						</Stack>
-
-						<Stack gap="xs">
-							<Text fw={700}>{t('operationProfiles.nodeEditor.help.contextTitle')}</Text>
-							<List spacing="xs" size="sm">
-								<List.Item>{t('operationProfiles.nodeEditor.help.contextPane')}</List.Item>
-								<List.Item>{t('operationProfiles.nodeEditor.help.contextNode')}</List.Item>
-								<List.Item>{t('operationProfiles.nodeEditor.help.contextEdge')}</List.Item>
-							</List>
-						</Stack>
-					</Stack>
-				</Modal>
+				<NodeEditorHelpModal opened={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 			</FormProvider>
 		</Modal>
 	);
