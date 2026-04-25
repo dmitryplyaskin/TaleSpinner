@@ -15,6 +15,9 @@ describe('drawer-presentation', () => {
 			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--drawer ts-sidebar-frame--start',
 			containerClassName: 'ts-sidebar-container ts-sidebar-container--drawer',
 			containerStyle: { width: 560 },
+			modalContentClassName: 'ts-sidebar-modal-content ts-sidebar-modal-content--drawer',
+			modalBodyClassName: 'ts-sidebar-modal-body ts-sidebar-modal-body--drawer',
+			withOverlay: false,
 		});
 	});
 
@@ -30,6 +33,9 @@ describe('drawer-presentation', () => {
 			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
 			containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
 			containerStyle: { maxWidth: 1440 },
+			modalContentClassName: 'ts-sidebar-modal-content ts-sidebar-modal-content--fullscreen',
+			modalBodyClassName: 'ts-sidebar-modal-body ts-sidebar-modal-body--fullscreen',
+			withOverlay: true,
 		});
 	});
 
@@ -38,6 +44,9 @@ describe('drawer-presentation', () => {
 			frameClassName: 'ts-sidebar-frame ts-sidebar-frame--fullscreen',
 			containerClassName: 'ts-sidebar-container ts-sidebar-container--fullscreen',
 			containerStyle: { maxWidth: 1320 },
+			modalContentClassName: 'ts-sidebar-modal-content ts-sidebar-modal-content--fullscreen',
+			modalBodyClassName: 'ts-sidebar-modal-body ts-sidebar-modal-body--fullscreen',
+			withOverlay: true,
 		});
 	});
 });

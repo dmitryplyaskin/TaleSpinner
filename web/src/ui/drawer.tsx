@@ -29,7 +29,14 @@ const drawerWidthBySize: Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', number> = {
 	xl: 640,
 };
 
-export const Drawer = ({ name, title, children, fullscreenContentMaxWidth = 1440, fixedSize, defaultSize = 'lg' }: Props) => {
+export const Drawer = ({
+	name,
+	title,
+	children,
+	fullscreenContentMaxWidth = 1440,
+	fixedSize,
+	defaultSize = 'lg',
+}: Props) => {
 	const { t } = useTranslation();
 	const sidebar = useStoreMap({
 		store: $sidebars,
@@ -92,11 +99,14 @@ export const Drawer = ({ name, title, children, fullscreenContentMaxWidth = 1440
 			withinPortal={!contained}
 			withCloseButton={false}
 			padding={0}
-			withOverlay={!contained}
+			withOverlay={!contained && presentation.withOverlay}
+			trapFocus={fullScreen}
+			lockScroll={fullScreen}
+			closeOnClickOutside={fullScreen}
 			zIndex={Z_INDEX.overlay.drawer}
 			classNames={{
-				content: 'ts-sidebar-modal-content',
-				body: 'ts-sidebar-modal-body',
+				content: presentation.modalContentClassName,
+				body: presentation.modalBodyClassName,
 			}}
 		>
 			<Box className={`${presentation.frameClassName} ts-scrollbar-thin`}>
