@@ -402,13 +402,34 @@ const manualEditBodySchema = z.object({
 });
 
 const batchUpdateEntryPartSchema = z.object({
-  partId: z.string().min(1),
-  deleted: z.boolean(),
+  partId: z.string().min(1).optional(),
+  clientPartId: z.string().min(1).optional(),
+  deleted: z.boolean().optional().default(false),
+  channel: z.enum(["main", "reasoning", "aux", "trace"]).optional(),
+  payloadFormat: z.enum(["text", "markdown", "json"]).optional(),
+  label: z.string().min(1).optional(),
   visibility: z.object({
     ui: z.enum(["always", "never"]),
     prompt: z.boolean(),
   }),
   payload: z.unknown(),
+}).superRefine((value, ctx) => {
+  const hasPartId = typeof value.partId === "string";
+  const hasClientPartId = typeof value.clientPartId === "string";
+  if (hasPartId === hasClientPartId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Either partId or clientPartId is required",
+      path: ["partId"],
+    });
+  }
+  if (hasClientPartId && value.deleted) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "New parts cannot be deleted",
+      path: ["deleted"],
+    });
+  }
 });
 
 const batchUpdateEntryPartsBodySchema = z.object({

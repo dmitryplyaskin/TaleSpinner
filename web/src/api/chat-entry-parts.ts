@@ -368,8 +368,12 @@ export type BatchUpdateEntryPartsRequest = {
 	mainPartId: string;
 	orderedPartIds: string[];
 	parts: Array<{
-		partId: string;
-		deleted: boolean;
+		partId?: string;
+		clientPartId?: string;
+		deleted?: boolean;
+		channel?: 'main' | 'reasoning' | 'aux' | 'trace';
+		payloadFormat?: 'text' | 'markdown' | 'json';
+		label?: string;
 		visibility: { ui: 'always' | 'never'; prompt: boolean };
 		payload: string | object | number | boolean | null;
 	}>;
@@ -381,6 +385,7 @@ export type BatchUpdateEntryPartsResponse = {
 	mainPartId: string;
 	updatedPartIds: string[];
 	deletedPartIds: string[];
+	createdParts: Array<{ clientPartId: string; partId: string }>;
 };
 
 export async function batchUpdateEntryParts(

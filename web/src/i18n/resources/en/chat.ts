@@ -106,13 +106,16 @@
 					replaces: 'Replaces',
 				},
 				actions: {
+					addPart: 'Add block',
 					moveUp: 'Move up',
 					moveDown: 'Move down',
 					makeMain: 'Set as main',
 					mainSelected: 'Main',
+					removePart: 'Delete block',
 				},
 				fields: {
-					deleted: 'Delete part',
+					channel: 'Channel',
+					format: 'Format',
 					showInUi: 'Show in UI',
 					includeInPrompt: 'Include in prompt',
 					payloadJson: 'JSON payload',

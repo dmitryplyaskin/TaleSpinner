@@ -372,8 +372,9 @@ describe("chat entry mutation use cases", () => {
       entryId: entry.entry.entryId,
       variantId: entry.variant.variantId,
       mainPartId: auxPart.partId,
-      updatedPartIds: expect.arrayContaining([mainPart.partId, auxPart.partId, deletePart.partId]),
+      updatedPartIds: expect.arrayContaining([mainPart.partId, auxPart.partId]),
       deletedPartIds: [deletePart.partId],
+      createdParts: [],
     });
 
     const refreshedEntry = await getEntryById({ entryId: entry.entry.entryId });
@@ -394,9 +395,75 @@ describe("chat entry mutation use cases", () => {
       payload: "Old main moved",
       softDeleted: false,
     });
-    expect(refreshedParts.get(deletePart.partId)).toMatchObject({
-      softDeleted: true,
-      softDeletedBy: "user",
+    expect(refreshedParts.get(deletePart.partId)).toBeUndefined();
+  });
+
+  test("batchUpdateEntryParts creates new blocks", async () => {
+    const fixture = await seedChatFixture();
+    const entry = await createEntry({
+      chatId: fixture.chatId,
+      branchId: fixture.branchId,
+      role: "assistant",
+    });
+    const mainPart = await createTextPart({
+      variantId: entry.variant.variantId,
+      payload: "Main",
+      channel: "main",
+      order: 0,
+    });
+
+    const result = await batchUpdateEntryParts({
+      entryId: entry.entry.entryId,
+      body: {
+        variantId: entry.variant.variantId,
+        mainPartId: "client-new-main",
+        orderedPartIds: [mainPart.partId, "client-new-main"],
+        parts: [
+          {
+            partId: mainPart.partId,
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "Main moved",
+          },
+          {
+            clientPartId: "client-new-main",
+            channel: "aux",
+            payloadFormat: "markdown",
+            visibility: { ui: "always", prompt: true },
+            payload: "Created main",
+          },
+        ],
+      },
+    });
+
+    const createdPartId = result.createdParts[0]?.partId;
+    expect(result).toEqual({
+      entryId: entry.entry.entryId,
+      variantId: entry.variant.variantId,
+      mainPartId: createdPartId,
+      updatedPartIds: [mainPart.partId],
+      deletedPartIds: [],
+      createdParts: [{ clientPartId: "client-new-main", partId: createdPartId }],
+    });
+
+    const refreshedEntry = await getEntryById({ entryId: entry.entry.entryId });
+    const refreshedVariant = refreshedEntry
+      ? await getActiveVariantWithParts({ entry: refreshedEntry })
+      : null;
+    const refreshedParts = new Map((refreshedVariant?.parts ?? []).map((part) => [part.partId, part] as const));
+
+    expect(refreshedParts.get(mainPart.partId)).toMatchObject({
+      channel: "aux",
+      order: 0,
+      payload: "Main moved",
+    });
+    expect(createdPartId).toBeTruthy();
+    expect(refreshedParts.get(createdPartId ?? "")).toMatchObject({
+      channel: "main",
+      order: 10,
+      payload: "Created main",
+      payloadFormat: "markdown",
+      source: "user",
     });
   });
 

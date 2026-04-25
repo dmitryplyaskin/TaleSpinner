@@ -19,6 +19,7 @@ export type BatchUpdateEntryPartsResult = {
   mainPartId: string;
   updatedPartIds: string[];
   deletedPartIds: string[];
+  createdParts: Array<{ clientPartId: string; partId: string }>;
 };
 
 export async function batchUpdateEntryParts(
@@ -40,19 +41,24 @@ export async function batchUpdateEntryParts(
   const plan = buildBatchUpdatePartPlan({
     variantParts: activeVariant.parts ?? [],
     body: params.body,
-    nowMs: Date.now(),
   });
 
-  await applyPartMutableBatchPatches({
+  const applyResult = await applyPartMutableBatchPatches({
     variantId: activeVariant.variantId,
     patches: plan.patches,
+    creates: plan.creates,
+    deletePartIds: plan.deletedPartIds,
   });
+  const createdPartIdByClientId = new Map(
+    applyResult.createdParts.map((item) => [item.clientPartId, item.partId] as const)
+  );
 
   return {
     entryId: entry.entryId,
     variantId: activeVariant.variantId,
-    mainPartId: plan.mainPartId,
+    mainPartId: createdPartIdByClientId.get(plan.mainPartId) ?? plan.mainPartId,
     updatedPartIds: plan.updatedPartIds,
     deletedPartIds: plan.deletedPartIds,
+    createdParts: applyResult.createdParts,
   };
 }

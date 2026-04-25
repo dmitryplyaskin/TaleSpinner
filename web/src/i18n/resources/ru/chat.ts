@@ -106,13 +106,16 @@
 					replaces: 'Заменяет',
 				},
 				actions: {
+					addPart: 'Добавить блок',
 					moveUp: 'Переместить вверх',
 					moveDown: 'Переместить вниз',
 					makeMain: 'Сделать основным',
 					mainSelected: 'Основной',
+					removePart: 'Удалить блок',
 				},
 				fields: {
-					deleted: 'Удалить блок',
+					channel: 'Канал',
+					format: 'Формат',
 					showInUi: 'Показывать в UI',
 					includeInPrompt: 'Включать в prompt',
 					payloadJson: 'JSON payload',
