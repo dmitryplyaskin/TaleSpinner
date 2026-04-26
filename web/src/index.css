@@ -598,13 +598,20 @@ a {
 }
 
 .ts-sidebar-container--drawer {
+  --ts-sidebar-drawer-padding: 16px;
+
   display: flex;
   flex-direction: column;
   height: 100vh;
   min-height: 0;
   border-radius: 0;
-  padding: 16px;
+  padding: var(--ts-sidebar-drawer-padding);
   pointer-events: auto;
+}
+
+.ts-sidebar-shell__content--edge-scrollbar {
+  margin-right: calc(var(--ts-sidebar-drawer-padding) * -1);
+  padding-right: calc(var(--ts-sidebar-drawer-padding) + 2px);
 }
 
 .ts-md {

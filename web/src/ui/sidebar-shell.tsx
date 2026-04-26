@@ -11,6 +11,7 @@ type SidebarShellProps = {
 	onToggleFullscreen: () => void;
 	onTogglePlacement: () => void;
 	onClose: () => void;
+	contentClassName?: string;
 	labels: {
 		toggleFullscreen: string;
 		togglePlacement: string;
@@ -26,8 +27,11 @@ export const SidebarShell = ({
 	onToggleFullscreen,
 	onTogglePlacement,
 	onClose,
+	contentClassName = '',
 	labels,
 }: SidebarShellProps) => {
+	const contentClasses = ['ts-sidebar-shell__content', 'ts-scrollbar-thin', contentClassName].filter(Boolean).join(' ');
+
 	return (
 		<Box className="ts-sidebar-shell">
 			<Group justify="space-between" align="center" wrap="nowrap" className="ts-sidebar-shell__header">
@@ -48,7 +52,7 @@ export const SidebarShell = ({
 				</Box>
 			</Group>
 
-			<Box className="ts-sidebar-shell__content ts-scrollbar-thin">{children}</Box>
+			<Box className={contentClasses}>{children}</Box>
 		</Box>
 	);
 };

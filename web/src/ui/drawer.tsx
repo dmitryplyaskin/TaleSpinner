@@ -81,6 +81,7 @@ export const Drawer = ({
 			onTogglePlacement={() =>
 				changeSidebarSettings({ name, settings: { placement: placement === 'start' ? 'end' : 'start' } })
 			}
+			contentClassName={presentation.shellContentClassName}
 			labels={{
 				toggleFullscreen: t('drawer.toggleFullscreen'),
 				togglePlacement: t('drawer.togglePlacement'),
