@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "node --no-warnings ./node_modules/vitest/vitest.mjs run --silent=passed-only --reporter=dot",
+    "test:watch": "node --no-warnings ./node_modules/vitest/vitest.mjs",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

@@ -84,6 +84,7 @@ async function streamScenario(req: Request, res: Response): Promise<void> {
   const token = getToken(req);
 
   if (scenario === "fallback_token_first_fails_second_succeeds" && token === "tok_fail") {
+    res.setHeader("x-should-retry", "false");
     res.status(500).json({
       error: { message: "first token failed" },
     });
