@@ -55,28 +55,27 @@ export const defaultSidebars: SidebarSettings = {
 	},
 };
 
+const standardSidebarNames = Object.keys(defaultSidebars);
+
 function normalizeLegacySidebarSettings(incoming: SidebarSettings): SidebarSettings {
 	const normalized = { ...incoming };
-	const settings = normalized.settings;
-	const worldInfo = normalized.worldInfo;
 	const appSettings = normalized.appSettings;
-
-	if (settings && settings.size === 'sm' && !settings.isFullscreen) {
-		normalized.settings = { ...settings, size: 'lg' };
-	}
-
-	if (worldInfo && worldInfo.size === 'xl' && !worldInfo.isFullscreen) {
-		normalized.worldInfo = { ...worldInfo, size: 'lg' };
-	}
 
 	if (appSettings && appSettings.size === 'full' && appSettings.isFullscreen) {
 		normalized.appSettings = { ...appSettings, size: 'lg', isFullscreen: false };
 	}
 
+	for (const name of standardSidebarNames) {
+		const sidebar = normalized[name];
+		if (sidebar && sidebar.size !== defaultSidebarSetting.size) {
+			normalized[name] = { ...sidebar, size: defaultSidebarSetting.size };
+		}
+	}
+
 	return normalized;
 }
 
-function mergeSidebarsState(defaults: SidebarSettings, incoming: SidebarSettings): SidebarSettings {
+export function mergeSidebarsState(defaults: SidebarSettings, incoming: SidebarSettings): SidebarSettings {
 	const normalizedIncoming = normalizeLegacySidebarSettings(incoming);
 	const result: SidebarSettings = { ...defaults, ...normalizedIncoming };
 	for (const key of Object.keys(result)) {
@@ -89,13 +88,12 @@ function mergeSidebarsState(defaults: SidebarSettings, incoming: SidebarSettings
 
 export const $sidebars = createStore<SidebarSettings>(defaultSidebars);
 
-// Создаем отдельное событие для изменения isOpen
+// Dedicated event for changing isOpen.
 export const toggleSidebarOpen = createEvent<{ name: SidebarName; isOpen: boolean }>();
 
-// Создаем событие для изменения других настроек (кроме isOpen)
+// Event for changing settings other than isOpen.
 export const changeSidebarSettings = createEvent<{ name: SidebarName; settings: Partial<SidebarSetting> }>();
 
-// Обрабатываем изменение isOpen отдельно
 $sidebars.on(toggleSidebarOpen, (sidebars, { name, isOpen }) => ({
 	...sidebars,
 	[name]: {
@@ -104,9 +102,8 @@ $sidebars.on(toggleSidebarOpen, (sidebars, { name, isOpen }) => ({
 	},
 }));
 
-// Обрабатываем изменение других настроек
 $sidebars.on(changeSidebarSettings, (sidebars, { name, settings }) => {
-	// Исключаем isOpen из настроек, чтобы не перезаписать его случайно
+	// Keep isOpen controlled by toggleSidebarOpen only.
 	const { isOpen: _isOpen, ...otherSettings } = settings;
 
 	return {
@@ -139,7 +136,6 @@ export const getSettingsFx = createEffect<void, SidebarSettings>(() =>
 
 $sidebars.on(getSettingsFx.doneData, (_, payload) => mergeSidebarsState(defaultSidebars, payload));
 
-// Сохраняем настройки только при изменении через changeSidebarSettings
 sample({
 	clock: changeSidebarSettings,
 	source: $sidebars,

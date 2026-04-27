@@ -10,7 +10,6 @@ import { FormInput } from '@ui/form-components';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
-import { WorldInfoEntryItem } from './world-info-entry-item';
 import {
 	DEFAULT_PAGE_SIZE,
 	PAGE_SIZE_OPTIONS,
@@ -24,6 +23,7 @@ import {
 	type BookDraft,
 	type EntryState,
 } from './world-info-editor-shared';
+import { WorldInfoEntryItem } from './world-info-entry-item';
 
 import type { WorldInfoBookDto } from '../../../api/world-info';
 

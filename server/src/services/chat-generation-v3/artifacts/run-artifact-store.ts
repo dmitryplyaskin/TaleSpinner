@@ -1,5 +1,9 @@
 import type { ArtifactValue } from "../contracts";
-import type { ArtifactUsage, ArtifactSemantics } from "@shared/types/operation-profiles";
+import type {
+  ArtifactFormat,
+  ArtifactSemantics,
+  ArtifactWriteMode,
+} from "@shared/types/operation-profiles";
 
 
 export class RunArtifactStore {
@@ -16,32 +20,46 @@ export class RunArtifactStore {
   }
 
   upsert(params: {
-    tag: string;
-    usage: ArtifactUsage;
+    artifactId: string;
+    format: ArtifactFormat;
     semantics: ArtifactSemantics;
-    value: string;
+    writeMode: ArtifactWriteMode;
+    history: {
+      enabled: boolean;
+      maxItems: number;
+    };
+    value: unknown;
   }): ArtifactValue {
-    const existing = this.byTag.get(params.tag);
+    const existing = this.byTag.get(params.artifactId);
+    const nextHistory = existing
+      ? [...existing.history, params.value]
+      : [params.value];
+    const history = params.history.enabled
+      ? nextHistory.slice(-params.history.maxItems)
+      : [];
+
     if (existing) {
       const next: ArtifactValue = {
         ...existing,
-        usage: params.usage,
+        format: params.format,
         semantics: params.semantics,
+        writeMode: params.writeMode,
         value: params.value,
-        history: [...existing.history, params.value],
+        history,
       };
-      this.byTag.set(params.tag, next);
+      this.byTag.set(params.artifactId, next);
       return next;
     }
 
     const created: ArtifactValue = {
-      usage: params.usage,
+      format: params.format,
       semantics: params.semantics,
       persistence: "run_only",
+      writeMode: params.writeMode,
       value: params.value,
-      history: [params.value],
+      history,
     };
-    this.byTag.set(params.tag, created);
+    this.byTag.set(params.artifactId, created);
     return created;
   }
 }

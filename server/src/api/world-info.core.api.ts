@@ -10,8 +10,6 @@ import { replaceWorldInfoBindingsWithValidation } from "../application/world-inf
 import { resolveWorldInfoForChat } from "../application/world-info/use-cases/resolve-world-info-for-chat";
 import { idSchema, ownerIdSchema } from "../chat-core/schemas";
 import { getRequestOwnerId } from "../core/request-context/request-context";
-import { getChatById } from "../services/chat-core/chats-repository";
-import { listProjectedPromptMessages } from "../services/chat-entry-parts/prompt-history";
 import {
   convertWorldInfoImport,
   exportWorldInfoBookToStNative,
@@ -27,16 +25,13 @@ import {
   createWorldInfoBook,
   duplicateWorldInfoBook,
   getWorldInfoBookById,
-  getWorldInfoBooksByIds,
   getWorldInfoSettings,
   listWorldInfoBindings,
   listWorldInfoBooks,
   patchWorldInfoSettings,
-  replaceWorldInfoBindings,
   softDeleteWorldInfoBook,
   updateWorldInfoBook,
 } from "../services/world-info/world-info-repositories";
-import { resolveWorldInfoRuntimeForChat } from "../services/world-info/world-info-runtime";
 import { worldInfoBindingRoles, worldInfoScopes } from "../services/world-info/world-info-types";
 
 const router = express.Router();

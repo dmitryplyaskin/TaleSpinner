@@ -16,12 +16,22 @@ type Props = {
 	isActive: boolean;
 	favoritePending: boolean;
 	worldInfoBookName: string | null;
+	onWorldInfoStatusAltClick: (profile: EntityProfileDto) => void;
 	onEdit: (profile: EntityProfileDto) => void;
 	onDelete: (profile: EntityProfileDto) => void;
 	onToggleFavorite: (profile: EntityProfileDto) => void;
 };
 
-export const AgentCard = ({ data, isActive, favoritePending, worldInfoBookName, onEdit, onDelete, onToggleFavorite }: Props) => {
+export const AgentCard = ({
+	data,
+	isActive,
+	favoritePending,
+	worldInfoBookName,
+	onWorldInfoStatusAltClick,
+	onEdit,
+	onDelete,
+	onToggleFavorite,
+}: Props) => {
 	const { t } = useTranslation();
 	const handleSelect = () => {
 		selectEntityProfile(data);
@@ -54,15 +64,24 @@ export const AgentCard = ({ data, isActive, favoritePending, worldInfoBookName, 
 						<Text fw={600} truncate>
 							{data.name}
 						</Text>
-						{worldInfoBookName && (
-							<IconButtonWithTooltip
-								tooltip={t('agentCards.worldInfoBadgeTooltip', { name: worldInfoBookName })}
-								variant="subtle"
-								size="xs"
-								aria-label={t('agentCards.worldInfoBadgeAria')}
-								icon={<LuBookMarked />}
-							/>
-						)}
+						<IconButtonWithTooltip
+							tooltip={
+								worldInfoBookName
+									? t('agentCards.worldInfo.statusBoundTooltip', { name: worldInfoBookName })
+									: t('agentCards.worldInfo.statusUnboundTooltip')
+							}
+							variant={worldInfoBookName ? 'subtle' : 'outline'}
+							colorPalette={worldInfoBookName ? 'cyan' : 'gray'}
+							size="xs"
+							aria-label={t('agentCards.worldInfo.statusAria')}
+							onClick={(event) => {
+								event.preventDefault();
+								event.stopPropagation();
+								if (!event.altKey) return;
+								onWorldInfoStatusAltClick(data);
+							}}
+							icon={<LuBookMarked />}
+						/>
 						{isActive && (
 							<Badge size="xs" color="cyan" variant="light">
 								{t('agentCards.badges.active')}

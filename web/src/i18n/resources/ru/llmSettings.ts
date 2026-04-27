@@ -14,11 +14,21 @@ const ruLlmSettings = {
 		rename: 'Переименовать',
 		renamePrompt: 'Введите новое название пресета',
 		duplicate: 'Дублировать',
+		import: 'Импортировать',
+		export: 'Экспортировать',
 		delete: 'Удалить',
 	},
 	confirm: {
 		delete: 'Удалить выбранный пресет?',
 		discardChanges: 'Есть несохранённые изменения. Отменить их и переключить пресет?',
+	},
+	toasts: {
+		exportDone: 'Пресет экспортирован',
+		exportFailed: 'Не удалось экспортировать пресет',
+		importDone: 'Пресеты импортированы',
+		importFailed: 'Не удалось импортировать пресеты',
+		importWarning: 'Импорт завершён с предупреждениями',
+		importedCount: 'Импортировано пресетов: {{count}}',
 	},
 	fields: {
 		maxTokens: {

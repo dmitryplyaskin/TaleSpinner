@@ -6,6 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { LuPlus, LuSlidersHorizontal } from 'react-icons/lu';
 
 import { createEmptyUserPerson, userPersonsModel } from '@model/user-persons';
+import {
+	$worldInfoBooks,
+	$worldInfoPersonaBookByPersonaId,
+	loadWorldInfoBooksFx,
+	loadWorldInfoPersonaBindingsFx,
+} from '@model/world-info';
 import { Dialog } from '@ui/dialog';
 import { Drawer } from '@ui/drawer';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
@@ -95,7 +101,14 @@ export const UserPersonSidebar: React.FC = () => {
 	}
 	const initialUiState = initialUiStateRef.current;
 
-	const [items, settings] = useUnit([userPersonsModel.$items, userPersonsModel.$settings]);
+	const [items, settings, worldInfoBooks, personaBookByPersonaId, loadWorldInfoBooks, loadWorldInfoPersonaBindings] = useUnit([
+		userPersonsModel.$items,
+		userPersonsModel.$settings,
+		$worldInfoBooks,
+		$worldInfoPersonaBookByPersonaId,
+		loadWorldInfoBooksFx,
+		loadWorldInfoPersonaBindingsFx,
+	]);
 	const [searchValue, setSearchValue] = useState(initialUiState.searchValue);
 	const [sortType, setSortType] = useState<SortType>(initialUiState.sortType);
 	const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(initialUiState.advancedFiltersOpen);
@@ -103,6 +116,11 @@ export const UserPersonSidebar: React.FC = () => {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
 	const [deletingPerson, setDeletingPerson] = useState<UserPersonType | null>(null);
+
+	useEffect(() => {
+		void loadWorldInfoBooks();
+		void loadWorldInfoPersonaBindings();
+	}, [loadWorldInfoBooks, loadWorldInfoPersonaBindings]);
 
 	const sortOptions = useMemo(
 		() => [
@@ -170,6 +188,15 @@ export const UserPersonSidebar: React.FC = () => {
 		if (!editingPersonId) return null;
 		return items.find((person) => person.id === editingPersonId) ?? null;
 	}, [editingPersonId, items]);
+	const worldInfoBookById = useMemo(() => new Map(worldInfoBooks.map((book) => [book.id, book])), [worldInfoBooks]);
+	const worldInfoBookNameByPersonaId = useMemo(() => {
+		return Object.fromEntries(
+			Object.entries(personaBookByPersonaId).map(([personaId, bookId]) => [
+				personaId,
+				bookId ? worldInfoBookById.get(bookId)?.name ?? null : null,
+			]),
+		) as Record<string, string | null>;
+	}, [personaBookByPersonaId, worldInfoBookById]);
 
 	const handleDeleteConfirm = async () => {
 		if (!deletingPerson) return;
@@ -280,6 +307,7 @@ export const UserPersonSidebar: React.FC = () => {
 									key={person.id}
 									data={person}
 									isActive={settings?.selectedId === person.id}
+									worldInfoBookName={worldInfoBookNameByPersonaId[person.id] ?? null}
 									onSelect={(selectedPerson) => userPersonsModel.updateSettingsFx({ selectedId: selectedPerson.id })}
 									onEdit={(selectedPerson) => setEditingPersonId(selectedPerson.id)}
 									onDelete={setDeletingPerson}

@@ -9,16 +9,12 @@ import { deleteOperationBlockWithValidation } from "../application/operations/us
 import { importOperationBlocks } from "../application/operations/use-cases/import-operation-blocks";
 import { idSchema, jsonValueSchema, ownerIdSchema } from "../chat-core/schemas";
 import { getRequestOwnerId } from "../core/request-context/request-context";
-import { validateOperationBlockImport } from "../services/operations/operation-block-validator";
 import {
   createOperationBlock,
-  deleteOperationBlock,
   getOperationBlockById,
   listOperationBlocks,
-  resolveImportedOperationBlockName,
   updateOperationBlock,
 } from "../services/operations/operation-blocks-repository";
-import { listOperationProfiles } from "../services/operations/operation-profiles-repository";
 
 const router = express.Router();
 

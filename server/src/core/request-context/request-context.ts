@@ -19,11 +19,9 @@ export type RequestContext = {
   };
 };
 
-declare global {
-  namespace Express {
-    interface Request {
-      context?: RequestContext;
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    context?: RequestContext;
   }
 }
 

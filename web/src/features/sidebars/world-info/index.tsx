@@ -1,13 +1,12 @@
-import { Accordion, Button, Group, NumberInput, Select, Stack, Switch, Text } from '@mantine/core';
+import { Accordion, Button, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useUnit } from 'effector-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuCopy, LuDownload, LuPencilLine, LuPlus, LuRefreshCw, LuTrash2, LuUpload } from 'react-icons/lu';
+import { LuCopy, LuPencilLine, LuPlus, LuRefreshCw, LuTrash2 } from 'react-icons/lu';
 
-import { $currentChat } from '@model/chat-core';
 import {
-	$isWorldInfoBookBoundToCurrentChat,
+	$worldInfoGlobalBookId,
 	$worldInfoEditorLaunch,
 	$selectedWorldInfoBook,
 	$selectedWorldInfoBookId,
@@ -18,11 +17,11 @@ import {
 	duplicateWorldInfoBookFx,
 	importWorldInfoBookFx,
 	loadWorldInfoBooksFx,
-	loadWorldInfoChatBindingsFx,
+	loadWorldInfoGlobalBindingsFx,
 	loadWorldInfoSettingsFx,
 	saveWorldInfoBookFx,
 	saveWorldInfoSettingsFx,
-	worldInfoBookBindingToggleRequested,
+	setWorldInfoBookBoundToGlobalRequested,
 	worldInfoBookCreateRequested,
 	worldInfoBookDeleteRequested,
 	worldInfoBookDuplicateRequested,
@@ -32,17 +31,14 @@ import {
 	worldInfoSettingsSaveRequested,
 } from '@model/world-info';
 import { Drawer } from '@ui/drawer';
+import { EXPORT_FILE_ICON, IMPORT_FILE_ICON } from '@ui/file-transfer-icons';
 import { IconButtonWithTooltip } from '@ui/icon-button-with-tooltip';
 import { toaster } from '@ui/toaster';
 
 import { exportWorldInfoBookToStNative, type WorldInfoSettingsDto } from '../../../api/world-info';
 
 import { WorldInfoEditorModal } from './world-info-editor-modal';
-
-function parseNumberInput(value: string | number, fallback: number): number {
-	if (typeof value === 'number' && Number.isFinite(value)) return value;
-	return fallback;
-}
+import { WorldInfoSettingsPanel } from './world-info-settings-panel';
 
 export const WorldInfoSidebar = () => {
 	const { t } = useTranslation();
@@ -50,13 +46,12 @@ export const WorldInfoSidebar = () => {
 	const [editorOpen, setEditorOpen] = useState(false);
 	const isMobile = useMediaQuery('(max-width: 48em)');
 
-	const [books, selectedId, selectedBook, settings, isBoundToCurrentChat, currentChat, worldInfoEditorLaunch] = useUnit([
+	const [books, selectedId, selectedBook, settings, globalBookId, worldInfoEditorLaunch] = useUnit([
 		$worldInfoBooks,
 		$selectedWorldInfoBookId,
 		$selectedWorldInfoBook,
 		$worldInfoSettings,
-		$isWorldInfoBookBoundToCurrentChat,
-		$currentChat,
+		$worldInfoGlobalBookId,
 		$worldInfoEditorLaunch,
 	]);
 
@@ -87,10 +82,8 @@ export const WorldInfoSidebar = () => {
 
 	useEffect(() => {
 		if (worldInfoEditorLaunch.nonce === 0) return;
-		if (worldInfoEditorLaunch.bookId) {
-			worldInfoBookSelected(worldInfoEditorLaunch.bookId);
-		}
-		setEditorOpen(true);
+		worldInfoBookSelected(worldInfoEditorLaunch.bookId);
+		setEditorOpen(Boolean(worldInfoEditorLaunch.bookId));
 	}, [worldInfoEditorLaunch]);
 
 	const [isCreatePending, isDuplicatePending, isDeletePending, isSaveBookPending, isSaveSettingsPending, isImportPending] = useUnit([
@@ -105,6 +98,14 @@ export const WorldInfoSidebar = () => {
 		isCreatePending || isDuplicatePending || isDeletePending || isSaveBookPending || isSaveSettingsPending || isImportPending;
 
 	const bookOptions = useMemo(() => books.map((item) => ({ value: item.id, label: item.name })), [books]);
+	const globalBindingOptions = useMemo(
+		() => [{ value: '__none__', label: t('worldInfo.globalBinding.none') }, ...bookOptions],
+		[bookOptions, t],
+	);
+	const globalBoundBook = useMemo(
+		() => books.find((item) => item.id === globalBookId) ?? null,
+		[books, globalBookId],
+	);
 
 	const handleSaveSettings = () => {
 		if (!settingsDraft) return;
@@ -191,8 +192,8 @@ export const WorldInfoSidebar = () => {
 									worldInfoBookDuplicateRequested({ id: selectedId });
 								}}
 							/>
-							<IconButtonWithTooltip tooltip={t('common.import')} icon={<LuUpload />} aria-label={t('worldInfo.actions.importBook')} onClick={() => fileInputRef.current?.click()} />
-							<IconButtonWithTooltip tooltip={t('common.export')} icon={<LuDownload />} aria-label={t('worldInfo.actions.exportBook')} disabled={!selectedId} onClick={() => void handleExport()} />
+							<IconButtonWithTooltip tooltip={t('common.import')} icon={<IMPORT_FILE_ICON />} aria-label={t('worldInfo.actions.importBook')} onClick={() => fileInputRef.current?.click()} />
+							<IconButtonWithTooltip tooltip={t('common.export')} icon={<EXPORT_FILE_ICON />} aria-label={t('worldInfo.actions.exportBook')} disabled={!selectedId} onClick={() => void handleExport()} />
 							<IconButtonWithTooltip
 								tooltip={t('worldInfo.actions.openEditor')}
 								icon={<LuPencilLine />}
@@ -207,9 +208,7 @@ export const WorldInfoSidebar = () => {
 								onClick={() => {
 									void loadWorldInfoBooksFx();
 									void loadWorldInfoSettingsFx();
-									if (currentChat?.id) {
-										void loadWorldInfoChatBindingsFx({ chatId: currentChat.id });
-									}
+									void loadWorldInfoGlobalBindingsFx();
 								}}
 							/>
 							<IconButtonWithTooltip
@@ -229,6 +228,40 @@ export const WorldInfoSidebar = () => {
 						</Group>
 					</Group>
 
+					<Paper withBorder p="md" radius="md">
+						<Stack gap="sm">
+							<Text size="sm" fw={600}>
+								{t('worldInfo.globalBinding.title')}
+							</Text>
+							<Select
+								label={t('worldInfo.globalBinding.label')}
+								value={globalBookId ?? '__none__'}
+								data={globalBindingOptions}
+								disabled={isBusy}
+								comboboxProps={{ withinPortal: false }}
+								onChange={(value) =>
+									setWorldInfoBookBoundToGlobalRequested({
+										bookId: value === '__none__' ? null : value ?? null,
+									})
+								}
+							/>
+							{globalBoundBook ? (
+								<Stack gap={4}>
+									<Text size="sm" fw={600}>
+										{globalBoundBook.name}
+									</Text>
+									<Text size="xs" c="dimmed">
+										slug: {globalBoundBook.slug}
+									</Text>
+								</Stack>
+							) : (
+								<Text size="sm" c="dimmed">
+									{t('worldInfo.globalBinding.notBound')}
+								</Text>
+							)}
+						</Stack>
+					</Paper>
+
 					{!selectedBook ? (
 						<Text c="dimmed" size="sm">{t('sidebars.selectBookToEdit')}</Text>
 					) : (
@@ -236,13 +269,6 @@ export const WorldInfoSidebar = () => {
 							<Text size="sm" fw={600}>{selectedBook.name}</Text>
 							<Text size="xs" c="dimmed">slug: {selectedBook.slug}</Text>
 							{selectedBook.description && <Text size="sm" c="dimmed">{selectedBook.description}</Text>}
-
-							<Switch
-								label={currentChat ? t('worldInfo.fields.bindToChat', { chatTitle: currentChat.title }) : t('worldInfo.fields.noActiveChat')}
-								checked={isBoundToCurrentChat}
-								disabled={!currentChat}
-								onChange={(event) => worldInfoBookBindingToggleRequested({ bookId: selectedBook.id, enabled: event.currentTarget.checked })}
-							/>
 
 							<Button leftSection={<LuPencilLine />} onClick={() => setEditorOpen(true)}>
 								{t('worldInfo.actions.openEditor')}
@@ -254,72 +280,13 @@ export const WorldInfoSidebar = () => {
 						<Accordion.Item value="world-info-settings">
 							<Accordion.Control>{t('worldInfo.settings.title')}</Accordion.Control>
 							<Accordion.Panel>
-								{!settingsDraft ? (
-									<Text size="sm" c="dimmed">{t('worldInfo.settings.notLoaded')}</Text>
-								) : (
-									<Stack gap="sm">
-										<NumberInput label={t('worldInfo.settings.scanDepth')} min={0} value={settingsDraft.scanDepth ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), scanDepth: parseNumberInput(value, 0) }))} />
-										<NumberInput
-											label={t('worldInfo.settings.minActivations')}
-											min={0}
-											value={settingsDraft.minActivations ?? 0}
-											onChange={(value) =>
-												setSettingsDraft((prev) => {
-													const minActivations = parseNumberInput(value, 0);
-													return {
-														...(prev ?? {}),
-														minActivations,
-														maxRecursionSteps:
-															minActivations > 0 ? 0 : (prev?.maxRecursionSteps ?? 0),
-													};
-												})
-											}
-										/>
-										<NumberInput label={t('worldInfo.settings.minDepthMax')} min={0} value={settingsDraft.minDepthMax ?? settingsDraft.minActivationsDepthMax ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), minDepthMax: parseNumberInput(value, 0) }))} />
-										<NumberInput
-											label={t('worldInfo.settings.maxRecursionSteps')}
-											min={0}
-											value={settingsDraft.maxRecursionSteps ?? 0}
-											onChange={(value) =>
-												setSettingsDraft((prev) => {
-													const maxRecursionSteps = parseNumberInput(value, 0);
-													return {
-														...(prev ?? {}),
-														maxRecursionSteps,
-														minActivations:
-															maxRecursionSteps > 0 ? 0 : (prev?.minActivations ?? 0),
-													};
-												})
-											}
-										/>
-										<Select
-											label={t('worldInfo.settings.insertionStrategy')}
-											data={[
-												{ value: '0', label: t('worldInfo.settings.insertionStrategyEvenly') },
-												{ value: '1', label: t('worldInfo.settings.insertionStrategyCharacterFirst') },
-												{ value: '2', label: t('worldInfo.settings.insertionStrategyGlobalFirst') },
-											]}
-											value={String(settingsDraft.insertionStrategy ?? settingsDraft.characterStrategy ?? 1)}
-											onChange={(value) =>
-												setSettingsDraft((prev) => ({
-													...(prev ?? {}),
-													insertionStrategy: (Number(value) || 0) as 0 | 1 | 2,
-												}))
-											}
-											comboboxProps={{ withinPortal: false }}
-										/>
-										<NumberInput label={t('worldInfo.settings.budgetPercent')} min={1} max={100} value={settingsDraft.budgetPercent ?? 25} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), budgetPercent: parseNumberInput(value, 25) }))} />
-										<NumberInput label={t('worldInfo.settings.budgetCapTokens')} min={0} value={settingsDraft.budgetCapTokens ?? 0} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), budgetCapTokens: parseNumberInput(value, 0) }))} />
-										<NumberInput label={t('worldInfo.settings.contextWindowTokens')} min={1} value={settingsDraft.contextWindowTokens ?? 8192} onChange={(value) => setSettingsDraft((prev) => ({ ...(prev ?? {}), contextWindowTokens: parseNumberInput(value, 8192) }))} />
-										<Switch label={t('worldInfo.settings.recursive')} checked={Boolean(settingsDraft.recursive)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), recursive: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.overflowAlert')} checked={Boolean(settingsDraft.overflowAlert)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), overflowAlert: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.includeNames')} checked={Boolean(settingsDraft.includeNames)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), includeNames: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.caseSensitive')} checked={Boolean(settingsDraft.caseSensitive)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), caseSensitive: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.matchWholeWords')} checked={Boolean(settingsDraft.matchWholeWords)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), matchWholeWords: event.currentTarget.checked }))} />
-										<Switch label={t('worldInfo.settings.useGroupScoring')} checked={Boolean(settingsDraft.useGroupScoring)} onChange={(event) => setSettingsDraft((prev) => ({ ...(prev ?? {}), useGroupScoring: event.currentTarget.checked }))} />
-										<Button onClick={handleSaveSettings} loading={isSaveSettingsPending} disabled={isBusy}>{t('worldInfo.actions.saveSettings')}</Button>
-									</Stack>
-								)}
+								<WorldInfoSettingsPanel
+									settingsDraft={settingsDraft}
+									isBusy={isBusy}
+									isSaveSettingsPending={isSaveSettingsPending}
+									onDraftChange={setSettingsDraft}
+									onSave={handleSaveSettings}
+								/>
 							</Accordion.Panel>
 						</Accordion.Item>
 					</Accordion>

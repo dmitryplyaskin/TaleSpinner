@@ -1,5 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { randomUUID as uuidv4 } from "node:crypto";
+
+import { and, eq, inArray } from "drizzle-orm";
 
 import { safeJsonParse, safeJsonStringify } from "../../chat-core/json";
 import { type DbExecutor, initDb } from "../../db/client";
@@ -80,12 +81,12 @@ export async function listPartsForVariants(params: {
   return map;
 }
 
-type CreatePartParams = {
+export type CreatePartParams = {
   ownerId?: string;
   variantId: string;
   channel: PartChannel;
   order: number;
-  payload: string | object;
+  payload: string | object | number | boolean | null;
   payloadFormat: PartPayloadFormat;
   schemaId?: string;
   label?: string;
@@ -98,7 +99,7 @@ type CreatePartParams = {
   agentId?: string;
   model?: string;
   requestId?: string;
-  replacesPartId?: string;
+  replacesPartId?: string | null;
   tags?: string[];
   executor?: DbExecutor;
 };
@@ -166,7 +167,7 @@ export function createPart(params: CreatePartParams): Promise<Part> | Part {
         agentId: params.agentId,
         model: params.model,
         requestId: params.requestId,
-        replacesPartId: params.replacesPartId,
+        replacesPartId: params.replacesPartId ?? undefined,
         softDeleted: false,
         tags: params.tags,
       };
@@ -385,13 +386,31 @@ export type PartMutableBatchPatch = {
   softDeletedBy?: "user" | "agent" | null;
 };
 
+export type PartMutableBatchCreate = Omit<CreatePartParams, "executor" | "ownerId" | "variantId"> & {
+  clientPartId: string;
+};
+
+export type PartMutableBatchApplyResult = {
+  createdParts: Array<{ clientPartId: string; partId: string }>;
+};
+
 export async function applyPartMutableBatchPatches(params: {
   variantId: string;
   patches: PartMutableBatchPatch[];
-}): Promise<void> {
+  creates?: PartMutableBatchCreate[];
+  deletePartIds?: string[];
+}): Promise<PartMutableBatchApplyResult> {
   const db = await initDb();
+  const createdParts: Array<{ clientPartId: string; partId: string }> = [];
 
   await db.transaction((tx) => {
+    for (const partId of params.deletePartIds ?? []) {
+      tx
+        .delete(variantParts)
+        .where(and(eq(variantParts.partId, partId), eq(variantParts.variantId, params.variantId)))
+        .run();
+    }
+
     for (const patch of params.patches) {
       tx
         .update(variantParts)
@@ -421,6 +440,17 @@ export async function applyPartMutableBatchPatches(params: {
         )
         .run();
     }
+
+    for (const create of params.creates ?? []) {
+      const created = createPart({
+        ...create,
+        variantId: params.variantId,
+        executor: tx,
+      });
+      createdParts.push({ clientPartId: create.clientPartId, partId: created.partId });
+    }
   });
+
+  return { createdParts };
 }
 

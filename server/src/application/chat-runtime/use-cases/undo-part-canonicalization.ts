@@ -3,7 +3,6 @@ import { HttpError } from "@core/middleware/error-handler";
 import { withDbTransaction } from "../../../db/client";
 import { getPartWithVariantContextById, softDeletePart } from "../../../services/chat-entry-parts/parts-repository";
 import { listEntryVariants } from "../../../services/chat-entry-parts/variants-repository";
-
 import {
   isCanonicalizationPart,
   resolveActiveUndoCascade,

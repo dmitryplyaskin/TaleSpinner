@@ -1,6 +1,5 @@
 import { HttpError } from "@core/middleware/error-handler";
 
-import { renderGreetingTemplateSinglePass } from "../greeting-template";
 import {
   createChat,
   createImportedAssistantMessage,
@@ -17,6 +16,7 @@ import {
   createVariant,
   updateVariantDerived,
 } from "../../../services/chat-entry-parts/variants-repository";
+import { renderGreetingTemplateSinglePass } from "../greeting-template";
 
 export type CreateChatFromEntityProfileInput = {
   entityProfileId: string;

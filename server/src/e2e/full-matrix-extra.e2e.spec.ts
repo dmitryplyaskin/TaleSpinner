@@ -430,4 +430,73 @@ describe("backend e2e full matrix extra", () => {
 
     expectApiSuccess(await requestJson({ baseUrl, method: "GET", path: `/api/entries/${meta.assistantEntryId}/prompt-diagnostics` }));
   });
+
+  test("app backgrounds lifecycle", async () => {
+    const baseUrl = appServer!.baseUrl;
+
+    const initialCatalog = expectApiSuccess<{
+      items: Array<{ id: string; source: string; deletable: boolean }>;
+      activeBackgroundId: string | null;
+    }>(await requestJson({ baseUrl, method: "GET", path: "/api/app-backgrounds" }));
+
+    expect(initialCatalog.items.some((item) => item.id === "builtin:default")).toBe(true);
+    expect(initialCatalog.activeBackgroundId).toBe("builtin:default");
+
+    expectApiError(
+      await requestJson({
+        baseUrl,
+        method: "DELETE",
+        path: "/api/app-backgrounds/builtin%3Adefault",
+      }),
+      400,
+      "VALIDATION_ERROR"
+    );
+
+    const uploadForm = new FormData();
+    uploadForm.append("image", new Blob([Buffer.from(PNG_1X1_BASE64, "base64")], { type: "image/png" }), "app-bg.png");
+    const uploaded = expectApiSuccess<{ id: string; name: string; deletable: boolean }>(
+      await requestForm({
+        baseUrl,
+        method: "POST",
+        path: "/api/app-backgrounds/import",
+        form: uploadForm,
+      })
+    );
+
+    expect(uploaded.id.startsWith("upload:")).toBe(true);
+    expect(uploaded.deletable).toBe(true);
+
+    expectApiSuccess(
+      await requestJson({
+        baseUrl,
+        method: "PUT",
+        path: "/api/app-backgrounds/active",
+        body: { activeBackgroundId: uploaded.id },
+      })
+    );
+
+    const selectedCatalog = expectApiSuccess<{
+      items: Array<{ id: string }>;
+      activeBackgroundId: string | null;
+    }>(await requestJson({ baseUrl, method: "GET", path: "/api/app-backgrounds" }));
+    expect(selectedCatalog.items.some((item) => item.id === uploaded.id)).toBe(true);
+    expect(selectedCatalog.activeBackgroundId).toBe(uploaded.id);
+
+    const deleted = expectApiSuccess<{ deletedId: string; activeBackgroundId: string | null }>(
+      await requestJson({
+        baseUrl,
+        method: "DELETE",
+        path: `/api/app-backgrounds/${encodeURIComponent(uploaded.id)}`,
+      })
+    );
+    expect(deleted.deletedId).toBe(uploaded.id);
+    expect(deleted.activeBackgroundId).toBe("builtin:default");
+
+    const finalCatalog = expectApiSuccess<{
+      items: Array<{ id: string }>;
+      activeBackgroundId: string | null;
+    }>(await requestJson({ baseUrl, method: "GET", path: "/api/app-backgrounds" }));
+    expect(finalCatalog.items.some((item) => item.id === uploaded.id)).toBe(false);
+    expect(finalCatalog.activeBackgroundId).toBe("builtin:default");
+  });
 });

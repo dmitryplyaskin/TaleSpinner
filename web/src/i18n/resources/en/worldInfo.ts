@@ -4,8 +4,12 @@
 				slug: 'Slug',
 				description: 'Description',
 				bookDataJson: 'Book data JSON',
-				bindToChat: 'Bind to chat: {{chatTitle}}',
-				noActiveChat: 'No active chat to bind',
+			},
+			globalBinding: {
+				title: 'Global binding',
+				label: 'Global World Info book',
+				none: 'Not linked',
+				notBound: 'No global World Info book is linked.',
 			},
 			actions: {
 				createBook: 'Create World Info book',
@@ -21,6 +25,24 @@
 			settings: {
 				title: 'World Info settings',
 				notLoaded: 'Settings are not loaded.',
+				groups: {
+					matching: {
+						title: 'Matching',
+						description: 'Which messages and World Info keys are used for matching.',
+					},
+					activation: {
+						title: 'Entry activation',
+						description: 'When entries are considered active and how recursion works.',
+					},
+					budget: {
+						title: 'Context budget',
+						description: 'How much prompt space World Info can use.',
+					},
+					insertion: {
+						title: 'Prompt insertion',
+						description: 'How activated entries are distributed while building context.',
+					},
+				},
 				scanDepth: 'Scan depth',
 				minActivations: 'Min activations',
 				minDepthMax: 'Min depth max',
@@ -140,7 +162,7 @@
 				saveBookErrorTitle: 'Failed to save book',
 				settingsSaved: 'World Info settings saved',
 				saveSettingsErrorTitle: 'Failed to save settings',
-				bindingUpdated: 'Chat binding updated',
+				bindingUpdated: 'World Info binding updated',
 				bindingUpdateErrorTitle: 'Failed to update binding',
 				importedBook: 'Imported {{name}}{{warningSuffix}}',
 				importErrorTitle: 'Failed to import book',

@@ -6,6 +6,8 @@ import { useFormContext, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { LuPlus, LuSearch } from 'react-icons/lu';
 
+import { isOperationKind } from '../utils/operation-kind';
+
 import { OperationRowContainer } from './operation-row-container';
 
 import type { OperationFilterState, OperationListRowMeta } from './types';
@@ -18,6 +20,8 @@ type Props = {
 	onQuickAdd: () => void;
 	onMoveSelection: (direction: 'prev' | 'next') => void;
 	onFocusEditor?: () => void;
+	className?: string;
+	scrollAreaClassName?: string;
 };
 
 const DEFAULT_FILTERS: OperationFilterState = {
@@ -38,18 +42,6 @@ type OperationRowFilterSnapshot = OperationListRowMeta & {
 const ROW_WATCH_STRIDE = 5;
 const VIRTUALIZATION_THRESHOLD = 25;
 const ROW_ESTIMATED_HEIGHT = 82;
-
-function isOperationKind(value: unknown): value is OperationKind {
-	return (
-		value === 'template' ||
-		value === 'llm' ||
-		value === 'rag' ||
-		value === 'tool' ||
-		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
-	);
-}
 
 function matchesEnabledFilter(item: OperationRowFilterSnapshot, filter: OperationFilterState['enabled']): boolean {
 	if (filter === 'all') return true;
@@ -77,6 +69,8 @@ export const OperationList: React.FC<Props> = ({
 	onQuickAdd,
 	onMoveSelection,
 	onFocusEditor,
+	className,
+	scrollAreaClassName = 'op-listScrollArea',
 }) => {
 	const { t } = useTranslation();
 	const { control } = useFormContext();
@@ -124,7 +118,12 @@ export const OperationList: React.FC<Props> = ({
 
 	const kindOptions = useMemo(() => {
 		const set = new Set(rowFilterSnapshots.map((item) => item.kind));
-		return [{ value: 'all', label: t('operationProfiles.filters.allKinds') }, ...Array.from(set).sort().map((value) => ({ value, label: value }))];
+		return [
+			{ value: 'all', label: t('operationProfiles.filters.allKinds') },
+			...Array.from(set)
+				.sort()
+				.map((value) => ({ value, label: t(`operationProfiles.kind.${value}`) })),
+		];
 	}, [rowFilterSnapshots, t]);
 
 	const filteredRows = useMemo(() => {
@@ -164,7 +163,7 @@ export const OperationList: React.FC<Props> = ({
 			gap="xs"
 			role="listbox"
 			tabIndex={0}
-			className="op-focusRing"
+			className={className ?? 'op-focusRing op-listLayout'}
 			onKeyDown={(event) => {
 				if (isTextEditingTarget(event.target)) return;
 				if (event.key === 'ArrowUp') {
@@ -257,12 +256,12 @@ export const OperationList: React.FC<Props> = ({
 				/>
 			</Group>
 
-			{filteredRows.length === 0 ? (
-				<Text size="sm" c="dimmed">
-					{t('operationProfiles.filters.noMatches')}
-				</Text>
-			) : shouldVirtualize ? (
-				<div ref={scrollRef} className="op-listScrollArea">
+			<div ref={scrollRef} className={scrollAreaClassName}>
+				{filteredRows.length === 0 ? (
+					<Text size="sm" c="dimmed">
+						{t('operationProfiles.filters.noMatches')}
+					</Text>
+				) : shouldVirtualize ? (
 					<div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
 						{virtualizer.getVirtualItems().map((virtualRow) => {
 							const row = filteredRows[virtualRow.index];
@@ -289,18 +288,20 @@ export const OperationList: React.FC<Props> = ({
 							);
 						})}
 					</div>
-				</div>
-			) : (
-				filteredRows.map((row) => (
-					<OperationRowContainer
-						key={row.rowKey}
-						index={row.index}
-						opId={row.opId}
-						selected={selectedOpId === row.opId}
-						onSelect={onSelect}
-					/>
-				))
-			)}
+				) : (
+					<div className="op-listRows">
+						{filteredRows.map((row) => (
+							<OperationRowContainer
+								key={row.rowKey}
+								index={row.index}
+								opId={row.opId}
+								selected={selectedOpId === row.opId}
+								onSelect={onSelect}
+							/>
+						))}
+					</div>
+				)}
+			</div>
 		</Stack>
 	);
 };

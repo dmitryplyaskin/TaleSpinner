@@ -1,24 +1,45 @@
+import {
+  normalizeOperationArtifactConfig,
+  type ArtifactExposure,
+  type ArtifactFormat,
+  type ArtifactPersistence,
+  type ArtifactUsage,
+  type ArtifactWriteMode,
+  type OperationActivationConfig,
+  type OperationBlockExport,
+  type OperationBlockUpsertInput,
+  type OperationHook,
+  type OperationInProfile,
+  type OperationKind,
+  type OperationProfile,
+  type OperationRunCondition,
+  type OperationTemplateParams,
+  type OperationTrigger,
+  type PromptTimeMessageRole,
+} from "@shared/types/operation-profiles";
 import { z } from "zod";
 
 import { HttpError } from "@core/middleware/error-handler";
 
 import { validateLiquidTemplate } from "../chat-core/prompt-template-renderer";
 
+import {
+  auxLlmGuardParamsSchema,
+  guardOperationParamsSchema,
+  liquidGuardParamsSchema,
+} from "./guard-operation-params";
+import { compileGuardOutputSchema } from "./guard-output-contract";
+import {
+  parseKnowledgeRevealOperationParams,
+  parseKnowledgeSearchOperationParams,
+} from "./knowledge-operation-params";
 import { compileLlmJsonSchemaSpec } from "./llm-json-schema-spec";
 import { llmOperationParamsSchema } from "./llm-operation-params";
 
 import type {
-  OperationActivationConfig,
-  ArtifactPersistence,
-  ArtifactUsage,
-  OperationBlockExport,
-  OperationBlockUpsertInput,
-  OperationHook,
-  OperationInProfile,
-  OperationKind,
-  OperationTrigger,
-  PromptTimeMessageRole,
-} from "@shared/types/operation-profiles";
+  KnowledgeRevealOperationParams,
+  KnowledgeSearchOperationParams,
+} from "@shared/types/chat-knowledge";
 
 const uuidSchema = z.string().uuid();
 
@@ -40,6 +61,63 @@ const operationActivationSchema = z
 
 const artifactPersistenceSchema = z.enum(["persisted", "run_only"] satisfies ArtifactPersistence[]);
 const artifactUsageSchema = z.enum(["prompt_only", "ui_only", "prompt+ui", "internal"] satisfies ArtifactUsage[]);
+const artifactWriteModeSchema = z.enum(["replace", "append"] satisfies ArtifactWriteMode[]);
+const artifactFormatSchema = z.enum(["text", "markdown", "json"] satisfies ArtifactFormat[]);
+const promptTimeRoleSchema = z
+  .enum(["system", "developer", "user", "assistant"])
+  .transform((value): PromptTimeMessageRole => (value === "developer" ? "system" : value));
+
+const promptPartExposureSchema = z.object({
+  type: z.literal("prompt_part"),
+  target: z.literal("system"),
+  mode: z.enum(["prepend", "append", "replace"]),
+  source: z.string().trim().min(1).optional(),
+});
+
+const promptMessageExposureSchema = z.union([
+  z.object({
+    type: z.literal("prompt_message"),
+    role: promptTimeRoleSchema,
+    anchor: z.literal("after_last_user"),
+    source: z.string().trim().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("prompt_message"),
+    role: promptTimeRoleSchema,
+    anchor: z.literal("depth_from_end"),
+    depthFromEnd: z.number().finite().transform((value) => Math.max(0, Math.floor(Math.abs(value)))),
+    source: z.string().trim().min(1).optional(),
+  }),
+]);
+
+const turnRewriteExposureSchema = z.object({
+  type: z.literal("turn_rewrite"),
+  target: z.enum(["current_user_main", "assistant_output_main"]),
+  mode: z.literal("replace"),
+});
+
+const uiInlineExposureSchema = z.union([
+  z.object({
+    type: z.literal("ui_inline"),
+    role: promptTimeRoleSchema,
+    anchor: z.literal("after_last_user"),
+    source: z.string().trim().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("ui_inline"),
+    role: promptTimeRoleSchema,
+    anchor: z.literal("depth_from_end"),
+    depthFromEnd: z.number().finite().transform((value) => Math.max(0, Math.floor(Math.abs(value)))),
+    source: z.string().trim().min(1).optional(),
+  }),
+]);
+
+const artifactExposureSchema: z.ZodType<ArtifactExposure> = z.union([
+  promptPartExposureSchema,
+  promptMessageExposureSchema,
+  turnRewriteExposureSchema,
+  uiInlineExposureSchema,
+]);
 
 const artifactTagSchema = z
   .string()
@@ -47,27 +125,30 @@ const artifactTagSchema = z
   .min(1)
   .regex(/^[a-z][a-z0-9_]*$/, "tag must match ^[a-z][a-z0-9_]*$");
 
-function normalizePromptTimeRole(value: "system" | "developer" | "user" | "assistant"): PromptTimeMessageRole {
-  return value === "developer" ? "system" : value;
-}
+const artifactConfigSchema = z.object({
+  artifactId: z.string().trim().min(1),
+  tag: artifactTagSchema.optional(),
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1).optional(),
+  format: artifactFormatSchema,
+  persistence: artifactPersistenceSchema,
+  writeMode: artifactWriteModeSchema,
+  history: z.object({
+    enabled: z.boolean(),
+    maxItems: z.number().int().min(1),
+  }),
+  semantics: z.string().trim().min(1).optional(),
+  exposures: z.array(artifactExposureSchema),
+});
 
-function normalizeDepthFromEnd(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.abs(Math.floor(value));
-}
-
-const promptTimeRoleSchema = z
-  .enum(["system", "developer", "user", "assistant"])
-  .transform((value): PromptTimeMessageRole => normalizePromptTimeRole(value));
-
-const artifactWriteTargetSchema = z.object({
+const legacyArtifactWriteTargetSchema = z.object({
   tag: artifactTagSchema,
   persistence: artifactPersistenceSchema,
   usage: artifactUsageSchema,
   semantics: z.string().min(1),
 });
 
-const promptTimeEffectSchema = z.discriminatedUnion("kind", [
+const legacyPromptTimeEffectSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("append_after_last_user"),
     role: promptTimeRoleSchema,
@@ -80,62 +161,58 @@ const promptTimeEffectSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("insert_at_depth"),
-    depthFromEnd: z.number().finite().transform((value) => normalizeDepthFromEnd(value)),
+    depthFromEnd: z.number().finite().transform((value) => Math.max(0, Math.floor(Math.abs(value)))),
     role: promptTimeRoleSchema,
     source: z.string().trim().min(1).optional(),
   }),
 ]);
 
-const turnCanonicalizationEffectSchema = z.object({
-  kind: z.literal("replace_text"),
-  target: z.enum(["user", "assistant"]),
-});
-
-const operationOutputSchema = z.discriminatedUnion("type", [
+const legacyOperationOutputSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("artifacts"),
-    writeArtifact: artifactWriteTargetSchema,
+    writeArtifact: legacyArtifactWriteTargetSchema,
   }),
   z.object({
     type: z.literal("prompt_time"),
-    promptTime: promptTimeEffectSchema,
+    promptTime: legacyPromptTimeEffectSchema,
   }),
   z.object({
     type: z.literal("turn_canonicalization"),
-    canonicalization: turnCanonicalizationEffectSchema,
+    canonicalization: z.object({
+      kind: z.literal("replace_text"),
+      target: z.enum(["user", "assistant"]),
+    }),
   }),
 ]);
 
-const templateParamsNewSchema = z.object({
+const templateParamsSchema = z.object({
   template: z.string(),
   strictVariables: z.boolean().optional(),
-  output: operationOutputSchema,
-});
-
-const templateParamsLegacySchema = z.object({
-  template: z.string(),
-  strictVariables: z.boolean().optional(),
-  writeArtifact: artifactWriteTargetSchema,
-});
-
-const templateParamsSchema = z.union([templateParamsNewSchema, templateParamsLegacySchema]).transform((v) => {
-  if ("output" in v) return v;
-  return {
-    template: v.template,
-    strictVariables: v.strictVariables,
-    output: {
-      type: "artifacts" as const,
-      writeArtifact: v.writeArtifact,
-    },
-  };
+  artifact: artifactConfigSchema.optional(),
+  output: legacyOperationOutputSchema.optional(),
+  writeArtifact: legacyArtifactWriteTargetSchema.optional(),
 });
 
 const otherKindParamsSchema = z.object({
   params: z.record(z.string(), z.unknown()),
-  output: operationOutputSchema,
+  artifact: artifactConfigSchema.optional(),
+  output: legacyOperationOutputSchema.optional(),
 });
 
-const operationConfigTemplateSchema = z.object({
+const runConditionSchema: z.ZodType<OperationRunCondition> = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("guard_output"),
+    sourceOpId: uuidSchema,
+    outputKey: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[a-z][a-zA-Z0-9_]*$/, "guard output key must match ^[a-z][a-zA-Z0-9_]*$"),
+    operator: z.enum(["is_true", "is_false"]),
+  }),
+]);
+
+const operationConfigBaseSchema = z.object({
   enabled: z.boolean(),
   required: z.boolean(),
   hooks: z.array(operationHookSchema).min(1),
@@ -143,63 +220,154 @@ const operationConfigTemplateSchema = z.object({
   activation: operationActivationSchema.optional(),
   order: z.number().finite(),
   dependsOn: z.array(uuidSchema).optional(),
+  runConditions: z.array(runConditionSchema).optional(),
+});
+
+const operationConfigTemplateSchema = operationConfigBaseSchema.extend({
   params: templateParamsSchema,
 });
 
-const operationConfigOtherSchema = z.object({
-  enabled: z.boolean(),
-  required: z.boolean(),
-  hooks: z.array(operationHookSchema).min(1),
-  triggers: z.array(operationTriggerSchema).min(1).optional(),
-  activation: operationActivationSchema.optional(),
-  order: z.number().finite(),
-  dependsOn: z.array(uuidSchema).optional(),
+const operationConfigOtherSchema = operationConfigBaseSchema.extend({
   params: otherKindParamsSchema,
 });
 
-const operationConfigLlmSchema = z.object({
-  enabled: z.boolean(),
-  required: z.boolean(),
-  hooks: z.array(operationHookSchema).min(1),
-  triggers: z.array(operationTriggerSchema).min(1).optional(),
-  activation: operationActivationSchema.optional(),
-  order: z.number().finite(),
-  dependsOn: z.array(uuidSchema).optional(),
+const knowledgeRequestSourceSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("inline"),
+    requestTemplate: z.string().min(1),
+    strictVariables: z.boolean().optional(),
+  }),
+  z.object({
+    mode: z.literal("artifact"),
+    artifactTag: artifactTagSchema,
+  }),
+]);
+
+const operationConfigKnowledgeSearchSchema = operationConfigBaseSchema.extend({
   params: z.object({
-    params: llmOperationParamsSchema,
-    output: operationOutputSchema,
+    params: z.object({
+      source: knowledgeRequestSourceSchema,
+    }),
+    artifact: artifactConfigSchema.optional(),
+    output: legacyOperationOutputSchema.optional(),
   }),
 });
 
-export const operationInProfileSchema: z.ZodType<OperationInProfile> = z.discriminatedUnion("kind", [
-  z.object({
-    opId: uuidSchema,
-    name: z.string().trim().min(1),
-    description: z.string().trim().min(1).optional(),
-    kind: z.literal("template"),
-    config: operationConfigTemplateSchema,
+const operationConfigKnowledgeRevealSchema = operationConfigBaseSchema.extend({
+  params: z.object({
+    params: z.object({
+      source: knowledgeRequestSourceSchema,
+    }),
+    artifact: artifactConfigSchema.optional(),
+    output: legacyOperationOutputSchema.optional(),
   }),
-  z.object({
-    opId: uuidSchema,
-    name: z.string().trim().min(1),
-    description: z.string().trim().min(1).optional(),
-    kind: z.literal("llm"),
-    config: operationConfigLlmSchema,
+});
+
+const operationConfigLlmSchema = operationConfigBaseSchema.extend({
+  params: z.object({
+    params: llmOperationParamsSchema,
+    artifact: artifactConfigSchema.optional(),
+    output: legacyOperationOutputSchema.optional(),
   }),
-  z.object({
-    opId: uuidSchema,
-    name: z.string().trim().min(1),
-    description: z.string().trim().min(1).optional(),
-    kind: z.enum([
-      "rag",
-      "tool",
-      "compute",
-      "transform",
-      "legacy",
-    ] satisfies Exclude<OperationKind, "template" | "llm">[]),
-    config: operationConfigOtherSchema,
-  }),
-]);
+});
+
+const operationConfigGuardSchema = operationConfigBaseSchema.extend({
+  params: z.discriminatedUnion("engine", [
+    liquidGuardParamsSchema.extend({
+      artifact: artifactConfigSchema.optional(),
+    }),
+    auxLlmGuardParamsSchema.extend({
+      artifact: artifactConfigSchema.optional(),
+    }),
+  ]),
+});
+
+export const operationInProfileSchema: z.ZodType<OperationInProfile> = z
+  .discriminatedUnion("kind", [
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("template"),
+      config: operationConfigTemplateSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("llm"),
+      config: operationConfigLlmSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("guard"),
+      config: operationConfigGuardSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("knowledge_search"),
+      config: operationConfigKnowledgeSearchSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.literal("knowledge_reveal"),
+      config: operationConfigKnowledgeRevealSchema,
+    }),
+    z.object({
+      opId: uuidSchema,
+      name: z.string().trim().min(1),
+      description: z.string().trim().min(1).optional(),
+      kind: z.enum([
+        "rag",
+        "tool",
+        "compute",
+        "transform",
+      ] satisfies Exclude<
+        OperationKind,
+        "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal"
+      >[]),
+      config: operationConfigOtherSchema,
+    }),
+  ])
+  .transform((op): OperationInProfile => {
+    const artifact = normalizeOperationArtifactConfig({
+      opId: op.opId,
+      kind: op.kind,
+      title: op.name,
+      rawParams: op.config.params,
+    });
+
+    const normalizedConfig = {
+      ...op.config,
+      params:
+        op.kind === "template"
+          ? {
+              template: op.config.params.template,
+              strictVariables: op.config.params.strictVariables,
+              artifact,
+            }
+          : op.kind === "guard"
+            ? {
+                ...op.config.params,
+                artifact,
+              }
+          : {
+              params: op.config.params.params,
+              artifact,
+            },
+    };
+
+    return {
+      ...op,
+      config: normalizedConfig,
+    } as OperationInProfile;
+  });
 
 const upsertInputSchema: z.ZodType<OperationBlockUpsertInput> = z.object({
   name: z.string().trim().min(1),
@@ -228,6 +396,21 @@ function normalizeHooks(hooks: OperationHook[]): OperationHook[] {
 function normalizeDependsOn(dependsOn: string[] | undefined): string[] | undefined {
   if (!dependsOn?.length) return undefined;
   return Array.from(new Set(dependsOn));
+}
+
+function normalizeRunConditions(
+  runConditions: OperationRunCondition[] | undefined
+): OperationRunCondition[] | undefined {
+  if (!runConditions?.length) return undefined;
+  const seen = new Set<string>();
+  const normalized: OperationRunCondition[] = [];
+  for (const condition of runConditions) {
+    const key = `${condition.type}:${condition.sourceOpId}:${condition.outputKey}:${condition.operator}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(condition);
+  }
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function normalizeActivation(
@@ -280,6 +463,36 @@ function detectDependencyCycle(ops: OperationInProfile[]): boolean {
   return false;
 }
 
+function validateExposurePolicy(op: OperationInProfile, exposure: ArtifactExposure): void {
+  if (exposure.type === "prompt_part" || exposure.type === "prompt_message") {
+    if (!op.config.hooks.includes("before_main_llm")) {
+      throw new HttpError(
+        400,
+        `${exposure.type} requires before_main_llm hook`,
+        "VALIDATION_ERROR",
+        { opId: op.opId }
+      );
+    }
+    return;
+  }
+
+  if (exposure.type === "turn_rewrite" && exposure.target === "assistant_output_main") {
+    if (!op.config.hooks.includes("after_main_llm")) {
+      throw new HttpError(
+        400,
+        "turn_rewrite target=assistant_output_main requires after_main_llm hook",
+        "VALIDATION_ERROR",
+        { opId: op.opId }
+      );
+    }
+    return;
+  }
+
+  if (exposure.type === "ui_inline") {
+    return;
+  }
+}
+
 function validateCrossRules(input: ValidatedOperationBlockInput): void {
   const opsById = new Map<string, OperationInProfile>();
   const opIds = new Set<string>();
@@ -293,7 +506,13 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
     opsById.set(op.opId, op);
   }
 
+  const artifactIds = new Map<string, string>();
+  const artifactTags = new Map<string, string>();
   for (const op of input.operations) {
+    for (const exposure of op.config.params.artifact.exposures) {
+      validateExposurePolicy(op, exposure);
+    }
+
     const deps = op.config.dependsOn ?? [];
     for (const dep of deps) {
       if (dep === op.opId) {
@@ -326,36 +545,57 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
       }
     }
 
-    const params: Record<string, unknown> = op.config.params as unknown as Record<string, unknown>;
-    const output = params.output as
-      | { type: "prompt_time"; promptTime?: { target?: unknown } }
-      | { type: "turn_canonicalization"; canonicalization?: { target?: unknown } }
-      | undefined;
-    if (output?.type === "prompt_time" && !op.config.hooks.includes("before_main_llm")) {
-      throw new HttpError(
-        400,
-        "prompt_time output requires before_main_llm hook",
-        "VALIDATION_ERROR",
-        { opId: op.opId }
-      );
-    }
+    for (const condition of op.config.runConditions ?? []) {
+      if (condition.type !== "guard_output") continue;
+      if (!opIds.has(condition.sourceOpId)) {
+        throw new HttpError(400, "runCondition references unknown opId", "VALIDATION_ERROR", {
+          opId: op.opId,
+          sourceOpId: condition.sourceOpId,
+        });
+      }
+      if (!(op.config.dependsOn ?? []).includes(condition.sourceOpId)) {
+        throw new HttpError(
+          400,
+          "runCondition sourceOpId must also appear in dependsOn",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+          }
+        );
+      }
 
-    if (
-      output?.type === "turn_canonicalization" &&
-      output?.canonicalization?.target === "assistant" &&
-      !op.config.hooks.includes("after_main_llm")
-    ) {
-      throw new HttpError(
-        400,
-        "turn_canonicalization target=assistant requires after_main_llm hook",
-        "VALIDATION_ERROR",
-        { opId: op.opId }
-      );
+      const sourceOp = opsById.get(condition.sourceOpId);
+      if (!sourceOp || sourceOp.kind !== "guard") {
+        throw new HttpError(
+          400,
+          "runCondition sourceOpId must reference guard operation",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+          }
+        );
+      }
+
+      const outputKeys = new Set(sourceOp.config.params.outputContract.map((item) => item.key));
+      if (!outputKeys.has(condition.outputKey)) {
+        throw new HttpError(
+          400,
+          "runCondition references unknown guard output",
+          "VALIDATION_ERROR",
+          {
+            opId: op.opId,
+            sourceOpId: condition.sourceOpId,
+            outputKey: condition.outputKey,
+          }
+        );
+      }
     }
 
     if (op.kind === "template") {
       try {
-        validateLiquidTemplate(op.config.params.template);
+        validateLiquidTemplate((op.config.params as OperationTemplateParams).template);
       } catch (error) {
         throw new HttpError(
           400,
@@ -422,27 +662,124 @@ function validateCrossRules(input: ValidatedOperationBlockInput): void {
         }
       }
     }
+
+    if (op.kind === "guard") {
+      const { artifact: _artifact, ...rawGuardParams } = op.config.params;
+      const guardParams = guardOperationParamsSchema.parse(rawGuardParams);
+      try {
+        compileGuardOutputSchema(guardParams.outputContract);
+      } catch (error) {
+        throw new HttpError(
+          400,
+          `Guard output contract is invalid: ${error instanceof Error ? error.message : String(error)}`,
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (op.config.params.artifact.format !== "json") {
+        throw new HttpError(
+          400,
+          "Guard artifact format must be json",
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (guardParams.engine === "liquid") {
+        try {
+          validateLiquidTemplate(guardParams.template);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `Guard template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
+        }
+      }
+
+      if (guardParams.engine === "aux_llm") {
+        try {
+          validateLiquidTemplate(guardParams.prompt);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `Guard prompt template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
+        }
+        if (typeof guardParams.system === "string" && guardParams.system.length > 0) {
+          try {
+            validateLiquidTemplate(guardParams.system);
+          } catch (error) {
+            throw new HttpError(
+              400,
+              `Guard system template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+              "VALIDATION_ERROR",
+              { opId: op.opId }
+            );
+          }
+        }
+      }
+    }
+
+    if (op.kind === "knowledge_search" || op.kind === "knowledge_reveal") {
+      const parser:
+        | ((raw: unknown) => KnowledgeSearchOperationParams)
+        | ((raw: unknown) => KnowledgeRevealOperationParams) =
+        op.kind === "knowledge_search"
+          ? parseKnowledgeSearchOperationParams
+          : parseKnowledgeRevealOperationParams;
+      const knowledgeParams = parser(op.config.params.params);
+
+      if (op.config.params.artifact.format !== "json") {
+        throw new HttpError(
+          400,
+          `${op.kind} artifact format must be json`,
+          "VALIDATION_ERROR",
+          { opId: op.opId }
+        );
+      }
+
+      if (knowledgeParams.source.mode === "inline") {
+        try {
+          validateLiquidTemplate(knowledgeParams.source.requestTemplate);
+        } catch (error) {
+          throw new HttpError(
+            400,
+            `${op.kind} template не компилируется: ${error instanceof Error ? error.message : String(error)}`,
+            "VALIDATION_ERROR",
+            { opId: op.opId }
+          );
+        }
+      }
+    }
+
+    const existingArtifactId = artifactIds.get(op.config.params.artifact.artifactId);
+    if (existingArtifactId) {
+      throw new HttpError(400, "Duplicate artifactId in block", "VALIDATION_ERROR", {
+        artifactId: op.config.params.artifact.artifactId,
+        opId: op.opId,
+        conflictsWithOpId: existingArtifactId,
+      });
+    }
+    artifactIds.set(op.config.params.artifact.artifactId, op.opId);
+
+    const existingTag = artifactTags.get(op.config.params.artifact.tag);
+    if (existingTag) {
+      throw new HttpError(400, "Duplicate artifact tag in block", "VALIDATION_ERROR", {
+        tag: op.config.params.artifact.tag,
+        opId: op.opId,
+        conflictsWithOpId: existingTag,
+      });
+    }
+    artifactTags.set(op.config.params.artifact.tag, op.opId);
   }
 
   if (detectDependencyCycle(input.operations)) {
     throw new HttpError(400, "Dependency cycle detected", "VALIDATION_ERROR");
-  }
-
-  const tags = new Map<string, string>(); // tag -> opId
-  for (const op of input.operations) {
-    const params = op.config.params as unknown as { output?: { type?: string; writeArtifact?: { tag?: string } } };
-    if (!params?.output || params.output.type !== "artifacts") continue;
-    const tag = params.output.writeArtifact?.tag;
-    if (!tag) continue;
-    const existing = tags.get(tag);
-    if (existing) {
-      throw new HttpError(400, "Duplicate artifact tag in block", "VALIDATION_ERROR", {
-        tag,
-        opId: op.opId,
-        conflictsWithOpId: existing,
-      });
-    }
-    tags.set(tag, op.opId);
   }
 }
 
@@ -461,6 +798,7 @@ export function validateOperationBlockUpsertInput(raw: unknown): ValidatedOperat
       triggers: normalizeTriggers(op.config.triggers),
       activation: normalizeActivation(op.config.activation),
       dependsOn: normalizeDependsOn(op.config.dependsOn),
+      runConditions: normalizeRunConditions(op.config.runConditions),
     };
     return { ...op, config: normalizedConfig } as OperationInProfile;
   });
@@ -497,4 +835,33 @@ export function validateOperationBlockImport(raw: unknown): ValidatedOperationBl
     operations: parsed.data.operations,
     meta: parsed.data.meta,
   });
+}
+
+export function validateCompiledProfileArtifactWriters(profile: OperationProfile): void {
+  const artifactIds = new Map<string, string>();
+  const artifactTags = new Map<string, string>();
+
+  for (const op of profile.operations ?? []) {
+    const artifactId = op.config.params.artifact.artifactId;
+    const existingArtifactId = artifactIds.get(artifactId);
+    if (existingArtifactId) {
+      throw new HttpError(400, "Duplicate artifactId in compiled profile", "VALIDATION_ERROR", {
+        artifactId,
+        opId: op.opId,
+        conflictsWithOpId: existingArtifactId,
+      });
+    }
+    artifactIds.set(artifactId, op.opId);
+
+    const tag = op.config.params.artifact.tag;
+    const existingTag = artifactTags.get(tag);
+    if (existingTag) {
+      throw new HttpError(400, "Duplicate artifact tag in compiled profile", "VALIDATION_ERROR", {
+        tag,
+        opId: op.opId,
+        conflictsWithOpId: existingTag,
+      });
+    }
+    artifactTags.set(tag, op.opId);
+  }
 }

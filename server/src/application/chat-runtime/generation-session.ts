@@ -13,6 +13,7 @@ async function* streamWithFinalization(params: {
 }): AsyncGenerator<RunEvent> {
   let generationId: string | null = null;
   let streamError: unknown;
+  let finalizationError: unknown;
 
   try {
     for await (const event of params.events) {
@@ -29,9 +30,13 @@ async function* streamWithFinalization(params: {
       await params.afterRun?.({ generationId });
     } catch (afterRunError) {
       if (!streamError) {
-        throw afterRunError;
+        finalizationError = afterRunError;
       }
     }
+  }
+
+  if (finalizationError) {
+    throw finalizationError;
   }
 }
 

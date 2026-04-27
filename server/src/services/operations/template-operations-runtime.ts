@@ -1,15 +1,11 @@
 import { runOrchestrator } from "@core/operation-orchestrator";
 
 import { renderLiquidTemplate } from "../chat-core/prompt-template-renderer";
+import { compileArtifactExposureEffect } from "../chat-generation-v3/contracts";
+import { applyPromptEffect } from "../chat-generation-v3/operations/effect-handlers/prompt-effects";
 
 import type { InstructionRenderContext } from "../chat-core/prompt-template-renderer";
-import type {
-  OperationInProfile,
-  OperationOutput,
-  OperationProfile,
-  OperationTrigger,
-} from "@shared/types/operation-profiles";
-
+import type { OperationInProfile, OperationProfile, OperationTrigger } from "@shared/types/operation-profiles";
 
 export type PromptDraftMessage = {
   role: "system" | "user" | "assistant";
@@ -18,7 +14,7 @@ export type PromptDraftMessage = {
 
 type RuntimeState = {
   messages: PromptDraftMessage[];
-  art: Record<string, { value: string; history: string[] }>;
+  art: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
 };
 
@@ -34,108 +30,89 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
 
-function normalizePromptTimeRole(value: unknown): PromptDraftMessage["role"] {
-  if (value === "assistant" || value === "user" || value === "system") return value;
-  if (value === "developer") return "system";
-  return "system";
+function mapArtifactsByOpId(
+  operations: OperationInProfile[],
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
+  for (const op of operations) {
+    const artifact = artifacts[op.config.params.artifact.artifactId];
+    if (!artifact) continue;
+    mapped[op.opId] = { value: artifact.value, history: [...artifact.history] };
+  }
+  return mapped;
 }
 
-function resolveMinInsertIndex(messages: PromptDraftMessage[]): number {
-  const firstSystemIdx = messages.findIndex((message) => message.role === "system");
-  return firstSystemIdx >= 0 ? firstSystemIdx + 1 : 0;
+function mapArtifactsForTemplate(
+  operations: OperationInProfile[],
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
+  for (const op of operations) {
+    const artifact = artifacts[op.config.params.artifact.artifactId];
+    if (!artifact) continue;
+    const snapshot = { value: artifact.value, history: [...artifact.history] };
+    mapped[op.config.params.artifact.tag] = snapshot;
+    mapped[op.config.params.artifact.artifactId] = snapshot;
+  }
+  return mapped;
 }
 
-function applyPromptTimeEffect(
+function applyArtifactEffects(
   state: RuntimeState,
-  output: Extract<OperationOutput, { type: "prompt_time" }>,
+  op: Extract<OperationInProfile, { kind: "template" }>,
   payload: string
 ): void {
-  const promptTime = output.promptTime;
-  if (promptTime.kind === "system_update") {
-    const idx = state.messages.findIndex((m) => m.role === "system");
-    const current = idx >= 0 ? state.messages[idx]!.content : "";
-
-    const next =
-      promptTime.mode === "replace"
-        ? payload
-        : promptTime.mode === "prepend"
-          ? `${payload}${current}`
-          : `${current}${payload}`;
-
-    if (idx >= 0) state.messages[idx] = { role: "system", content: next };
-    else state.messages.unshift({ role: "system", content: next });
-    return;
+  const artifact = op.config.params.artifact;
+  const existing = state.art[artifact.artifactId];
+  if (existing) {
+    existing.value = payload;
+    existing.history.push(payload);
+  } else {
+    state.art[artifact.artifactId] = { value: payload, history: [payload] };
   }
 
-  if (promptTime.kind === "append_after_last_user") {
-    const lastUserIdx = state.messages.map((m) => m.role).lastIndexOf("user");
-    const insertAt = lastUserIdx >= 0 ? lastUserIdx + 1 : state.messages.length;
-    state.messages.splice(insertAt, 0, { role: normalizePromptTimeRole(promptTime.role), content: payload });
-    return;
-  }
-
-  const raw = state.messages.length - Math.abs(promptTime.depthFromEnd);
-  const minInsertAt = resolveMinInsertIndex(state.messages);
-  const insertAt = Math.min(state.messages.length, Math.max(minInsertAt, raw));
-  state.messages.splice(insertAt, 0, { role: normalizePromptTimeRole(promptTime.role), content: payload });
-}
-
-function applyTurnCanonicalizationEffect(
-  state: RuntimeState,
-  output: Extract<OperationOutput, { type: "turn_canonicalization" }>,
-  payload: string,
-  hook: "before_main_llm" | "after_main_llm"
-): void {
-  const canonicalization = output.canonicalization;
-  if (canonicalization.kind !== "replace_text") return;
-
-  if (canonicalization.target === "assistant" && hook === "after_main_llm") {
-    state.assistantText = payload;
-    return;
-  }
-
-  if (canonicalization.target === "user") {
-    const lastUserIdx = state.messages.map((m) => m.role).lastIndexOf("user");
-    if (lastUserIdx >= 0) {
-      state.messages[lastUserIdx] = { role: "user", content: payload };
+  for (const exposure of artifact.exposures) {
+    const effect = compileArtifactExposureEffect({
+      opId: op.opId,
+      artifact,
+      exposure,
+      value: payload,
+    });
+    if (
+      effect.type === "prompt.system_update" ||
+      effect.type === "prompt.append_after_last_user" ||
+      effect.type === "prompt.insert_at_depth"
+    ) {
+      state.messages = applyPromptEffect(state.messages, effect);
+      continue;
+    }
+    if (effect.type === "turn.assistant.replace_text") {
+      state.assistantText = effect.text;
+      continue;
+    }
+    if (effect.type === "turn.user.replace_text") {
+      const lastUserIdx = state.messages.map((m) => m.role).lastIndexOf("user");
+      if (lastUserIdx >= 0) {
+        state.messages[lastUserIdx] = { role: "user", content: effect.text };
+      }
     }
   }
 }
 
-function applyOperationOutput(
-  state: RuntimeState,
-  output: OperationOutput,
-  payload: string,
-  hook: "before_main_llm" | "after_main_llm"
-): void {
-  if (output.type === "prompt_time") {
-    if (hook === "before_main_llm") applyPromptTimeEffect(state, output, payload);
-    return;
-  }
-
-  if (output.type === "turn_canonicalization") {
-    applyTurnCanonicalizationEffect(state, output, payload, hook);
-    return;
-  }
-
-  const tag = output.writeArtifact.tag;
-  const existing = state.art[tag];
-  if (existing) {
-    existing.value = payload;
-    existing.history.push(payload);
-    return;
-  }
-  state.art[tag] = { value: payload, history: [payload] };
-}
-
 function buildOperationContext(
   base: InstructionRenderContext,
-  state: RuntimeState
+  state: RuntimeState,
+  operations: OperationInProfile[]
 ): InstructionRenderContext {
   return {
     ...base,
     promptSystem: resolvePromptSystem(state.messages),
-    art: { ...(base.art ?? {}), ...state.art },
+    art: { ...(base.art ?? {}), ...mapArtifactsForTemplate(operations, state.art) },
+    artByOpId: {
+      ...(base.artByOpId ?? {}),
+      ...mapArtifactsByOpId(operations, state.art),
+    },
     messages: state.messages.map((m) => ({ role: m.role, content: m.content })),
   };
 }
@@ -173,12 +150,12 @@ async function runTemplateOperations(params: {
         const rendered = normalizeText(
           await renderLiquidTemplate({
             templateText: op.config.params.template,
-            context: buildOperationContext(params.templateContext, params.state),
+            context: buildOperationContext(params.templateContext, params.state, params.profile.operations ?? []),
             options: { strictVariables: Boolean(op.config.params.strictVariables) },
           })
         );
 
-        applyOperationOutput(params.state, op.config.params.output, rendered, params.hook);
+        applyArtifactEffects(params.state, op, rendered);
         return { output: rendered };
       },
     })),
@@ -204,7 +181,7 @@ export async function applyTemplateOperationsToPromptDraft(params: {
   templateContext: InstructionRenderContext;
 }): Promise<{
   messages: PromptDraftMessage[];
-  artifacts: Record<string, { value: string; history: string[] }>;
+  artifacts: Record<string, { value: unknown; history: unknown[] }>;
 }> {
   const state: RuntimeState = {
     messages: params.draftMessages.map((m) => ({ ...m })),
@@ -233,7 +210,7 @@ export async function applyTemplateOperationsAfterMainLlm(params: {
   templateContext: InstructionRenderContext;
 }): Promise<{
   assistantText: string;
-  artifacts: Record<string, { value: string; history: string[] }>;
+  artifacts: Record<string, { value: unknown; history: unknown[] }>;
 }> {
   const state: RuntimeState = {
     messages: params.draftMessages.map((m) => ({ ...m })),
@@ -241,7 +218,6 @@ export async function applyTemplateOperationsAfterMainLlm(params: {
     assistantText: params.assistantText,
   };
 
-  // Make the generated assistant message available for after_main_llm templates.
   state.messages.push({ role: "assistant", content: state.assistantText });
 
   await runTemplateOperations({
@@ -258,3 +234,4 @@ export async function applyTemplateOperationsAfterMainLlm(params: {
     artifacts: state.art,
   };
 }
+

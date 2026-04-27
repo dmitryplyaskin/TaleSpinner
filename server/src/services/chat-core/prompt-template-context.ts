@@ -142,6 +142,13 @@ function cloneTemplateContextForWorldInfoRender(
     anBottom: context.anBottom ? [...context.anBottom] : [],
     emTop: context.emTop ? [...context.emTop] : [],
     emBottom: context.emBottom ? [...context.emBottom] : [],
+    worldInfo: context.worldInfo
+      ? {
+          activatedCount: context.worldInfo.activatedCount,
+          activatedEntries: context.worldInfo.activatedEntries.map((entry) => ({ ...entry })),
+          warnings: [...context.worldInfo.warnings],
+        }
+      : undefined,
   };
   applyWorldInfoToTemplateContext(cloned, worldInfo);
   return cloned;
@@ -429,6 +436,15 @@ export async function resolveAndApplyWorldInfoToTemplateContext(params: {
     context: params.context,
   });
   applyWorldInfoToTemplateContext(params.context, resolved);
+  params.context.worldInfo = {
+    activatedCount: resolved.activatedCount,
+    activatedEntries: resolved.activatedEntries.map((entry) => ({
+      ...entry,
+      matchedKeys: [...entry.matchedKeys],
+      reasons: [...entry.reasons],
+    })),
+    warnings: [...resolved.warnings],
+  };
   return resolved;
 }
 
@@ -485,6 +501,11 @@ export async function buildInstructionRenderContext(params: {
     chat: {},
     messages: [],
     rag: {},
+    worldInfo: {
+      activatedCount: 0,
+      activatedEntries: [],
+      warnings: [],
+    },
     art: {},
     now: new Date().toISOString(),
   };
@@ -539,6 +560,11 @@ export async function buildInstructionRenderContext(params: {
     },
     messages: history.map((m) => ({ role: m.role, content: m.content })),
     rag: {},
+    worldInfo: {
+      activatedCount: 0,
+      activatedEntries: [],
+      warnings: [],
+    },
     art: {},
     now: new Date().toISOString(),
   }, params.worldInfo);

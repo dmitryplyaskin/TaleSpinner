@@ -1,0 +1,9 @@
+{
+  "items": [
+    {
+      "id": "builtin:default",
+      "name": "Default background",
+      "fileName": "default-bg.png"
+    }
+  ]
+}

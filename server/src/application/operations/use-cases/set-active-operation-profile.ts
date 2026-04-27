@@ -1,7 +1,7 @@
 import { HttpError } from "@core/middleware/error-handler";
 
-import { getOperationProfileById } from "../../../services/operations/operation-profiles-repository";
 import { setActiveOperationProfile } from "../../../services/operations/operation-profile-settings-repository";
+import { getOperationProfileById } from "../../../services/operations/operation-profiles-repository";
 
 export async function setActiveOperationProfileWithValidation(
   activeProfileId: string | null

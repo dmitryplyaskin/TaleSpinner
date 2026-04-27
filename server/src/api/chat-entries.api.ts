@@ -6,8 +6,6 @@ import { HttpError } from "@core/middleware/error-handler";
 import { validate } from "@core/middleware/validate";
 import { initSse, type SseWriter } from "@core/sse/sse";
 
-import type { BatchUpdateEntryPartsBody as ChatRuntimeBatchUpdateEntryPartsBody } from "../application/chat-runtime/chat-entry-helpers";
-import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
 import { batchUpdateEntryParts } from "../application/chat-runtime/use-cases/batch-update-entry-parts";
 import { continueGeneration } from "../application/chat-runtime/use-cases/continue-generation";
 import { createEntryAndStartGeneration } from "../application/chat-runtime/use-cases/create-entry-and-start-generation";
@@ -31,6 +29,8 @@ import {
 } from "../services/chat-entry-parts/entries-repository";
 import { softDeletePart } from "../services/chat-entry-parts/parts-repository";
 
+import type { BatchUpdateEntryPartsBody as ChatRuntimeBatchUpdateEntryPartsBody } from "../application/chat-runtime/chat-entry-helpers";
+import type { ChatGenerationSession } from "../application/chat-runtime/contracts";
 import type { RunEvent } from "../services/chat-generation-v3/contracts";
 
 const router = express.Router();
@@ -402,13 +402,34 @@ const manualEditBodySchema = z.object({
 });
 
 const batchUpdateEntryPartSchema = z.object({
-  partId: z.string().min(1),
-  deleted: z.boolean(),
+  partId: z.string().min(1).optional(),
+  clientPartId: z.string().min(1).optional(),
+  deleted: z.boolean().optional().default(false),
+  channel: z.enum(["main", "reasoning", "aux", "trace"]).optional(),
+  payloadFormat: z.enum(["text", "markdown", "json"]).optional(),
+  label: z.string().min(1).optional(),
   visibility: z.object({
     ui: z.enum(["always", "never"]),
     prompt: z.boolean(),
   }),
   payload: z.unknown(),
+}).superRefine((value, ctx) => {
+  const hasPartId = typeof value.partId === "string";
+  const hasClientPartId = typeof value.clientPartId === "string";
+  if (hasPartId === hasClientPartId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Either partId or clientPartId is required",
+      path: ["partId"],
+    });
+  }
+  if (hasClientPartId && value.deleted) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "New parts cannot be deleted",
+      path: ["deleted"],
+    });
+  }
 });
 
 const batchUpdateEntryPartsBodySchema = z.object({

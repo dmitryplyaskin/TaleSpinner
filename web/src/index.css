@@ -164,6 +164,9 @@ a {
   height: 100%;
   min-height: 0;
   background: transparent;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .ts-app-main {
@@ -541,18 +544,6 @@ a {
   gap: 6px;
 }
 
-.ts-sidebar-drawer-body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  padding: 16px;
-}
-
-.ts-sidebar-drawer-content {
-  border-radius: 0;
-}
-
 .ts-sidebar-modal-content {
   background: transparent;
   box-shadow: none;
@@ -563,21 +554,64 @@ a {
   padding: 0;
 }
 
-.ts-sidebar-modal-frame {
+.ts-sidebar-modal-content--drawer,
+.ts-sidebar-modal-body--drawer,
+.ts-sidebar-frame--drawer {
+  pointer-events: none;
+}
+
+.ts-sidebar-frame {
   height: 100%;
-  overflow: auto;
-  padding: 20px;
   background: var(--ts-overlay);
 }
 
-.ts-sidebar-modal-container {
-  height: calc(100vh - 40px);
-  margin: 0 auto;
+.ts-sidebar-frame--fullscreen {
+  overflow: auto;
+  padding: 20px;
+}
+
+.ts-sidebar-frame--drawer {
+  display: flex;
+  padding: 0;
+  background: transparent;
+}
+
+.ts-sidebar-frame--start {
+  justify-content: flex-start;
+}
+
+.ts-sidebar-frame--end {
+  justify-content: flex-end;
+}
+
+.ts-sidebar-container {
   border: 1px solid var(--ts-border-soft);
-  border-radius: 18px;
   background: var(--ts-surface);
   box-shadow: var(--ts-shadow-strong);
+}
+
+.ts-sidebar-container--fullscreen {
+  height: calc(100vh - 40px);
+  margin: 0 auto;
+  border-radius: 18px;
   padding: 18px;
+}
+
+.ts-sidebar-container--drawer {
+  --ts-sidebar-drawer-padding: 16px;
+
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  border-radius: 0;
+  padding: var(--ts-sidebar-drawer-padding);
+  pointer-events: auto;
+}
+
+.ts-sidebar-shell__content--edge-scrollbar {
+  margin-right: calc(var(--ts-sidebar-drawer-padding) * -1);
+  padding-right: calc(var(--ts-sidebar-drawer-padding) + 2px);
 }
 
 .ts-md {
@@ -649,7 +683,7 @@ a {
 .ts-scrollbar-thin,
 .ts-chat-scroll,
 .ts-sidebar-shell__content,
-.ts-sidebar-modal-frame {
+.ts-sidebar-frame--fullscreen {
   scrollbar-width: thin;
   scrollbar-color: var(--ts-scrollbar-thumb) transparent;
 }
@@ -657,7 +691,7 @@ a {
 .ts-scrollbar-thin::-webkit-scrollbar,
 .ts-chat-scroll::-webkit-scrollbar,
 .ts-sidebar-shell__content::-webkit-scrollbar,
-.ts-sidebar-modal-frame::-webkit-scrollbar {
+.ts-sidebar-frame--fullscreen::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
@@ -665,7 +699,7 @@ a {
 .ts-scrollbar-thin::-webkit-scrollbar-thumb,
 .ts-chat-scroll::-webkit-scrollbar-thumb,
 .ts-sidebar-shell__content::-webkit-scrollbar-thumb,
-.ts-sidebar-modal-frame::-webkit-scrollbar-thumb {
+.ts-sidebar-frame--fullscreen::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -681,11 +715,11 @@ a {
     width: min(42vw, 320px);
   }
 
-  .ts-sidebar-modal-frame {
+  .ts-sidebar-frame--fullscreen {
     padding: 12px;
   }
 
-  .ts-sidebar-modal-container {
+  .ts-sidebar-container--fullscreen {
     height: calc(100vh - 24px);
     padding: 12px;
   }

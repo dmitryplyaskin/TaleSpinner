@@ -1,11 +1,16 @@
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
+
 import { HttpError } from "@core/middleware/error-handler";
 
+import { validateCompiledProfileArtifactWriters } from "./operation-block-validator";
 import { getOperationBlockById } from "./operation-blocks-repository";
 
 import type {
+  OperationArtifactConfig,
   OperationBlock,
   OperationInProfile,
   OperationProfile,
+  OperationKind,
 } from "@shared/types/operation-profiles";
 
 const ORDER_BUCKET = 1_000_000;
@@ -30,7 +35,19 @@ function mapOperationToRuntime(params: {
   const blockPrefix = `${params.blockId}:`;
   const opId = `${blockPrefix}${params.op.opId}`;
   const dependsOn = params.op.config.dependsOn?.map((dep) => `${blockPrefix}${dep}`);
+  const runConditions = params.op.config.runConditions?.map((condition) =>
+    condition.type === "guard_output"
+      ? {
+          ...condition,
+          sourceOpId: `${blockPrefix}${condition.sourceOpId}`,
+        }
+      : condition
+  );
   const order = params.blockOrderIndex * ORDER_BUCKET + normalizeOrder(params.op.config.order);
+  const artifact: OperationArtifactConfig = {
+    ...params.op.config.params.artifact,
+    artifactId: buildOperationArtifactId(opId),
+  };
   return {
     ...params.op,
     opId,
@@ -38,8 +55,19 @@ function mapOperationToRuntime(params: {
       ...params.op.config,
       order,
       dependsOn: dependsOn?.length ? dependsOn : undefined,
+      runConditions: runConditions?.length ? runConditions : undefined,
+      params:
+        params.op.kind === "template"
+          ? {
+              ...params.op.config.params,
+              artifact,
+            }
+          : {
+              ...params.op.config.params,
+              artifact,
+            },
     },
-  } as OperationInProfile;
+  } as Extract<OperationInProfile, { kind: OperationKind }>;
 }
 
 async function resolveBlocks(
@@ -72,6 +100,7 @@ export async function resolveCompiledOperationProfile(
 ): Promise<CompiledOperationProfile> {
   if (!Array.isArray(profile.blockRefs) || profile.blockRefs.length === 0) {
     const operations = profile.operations ?? [];
+    validateCompiledProfileArtifactWriters({ ...profile, operations });
     return {
       profile,
       operations,
@@ -100,6 +129,8 @@ export async function resolveCompiledOperationProfile(
   const blockVersionFingerprint = blockVersions
     .map((item) => `${item.blockId}:${item.version}`)
     .join("|");
+
+  validateCompiledProfileArtifactWriters({ ...profile, operations });
 
   return {
     profile,

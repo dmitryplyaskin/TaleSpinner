@@ -1,11 +1,12 @@
 import { getChromaConfig } from "../../config/chroma-config";
 import { HttpError } from "../../core/middleware/error-handler";
+import { generateRagEmbedding } from "../rag.service";
+import { normalizeWorldInfoBookEntries } from "../world-info/world-info-normalizer";
 import {
   getBookDataEntries,
   listWorldInfoBooksForIndexing,
 } from "../world-info/world-info-repositories";
-import { normalizeWorldInfoBookEntries } from "../world-info/world-info-normalizer";
-import type { WorldInfoBookDto } from "../world-info/world-info-types";
+
 
 import {
   chromaClient,
@@ -15,7 +16,9 @@ import {
   type ChromaWhere,
 } from "./chroma-client";
 import { extractEmbeddings } from "./rag-embeddings-normalizer";
-import { generateRagEmbedding } from "../rag.service";
+
+import type { WorldInfoBookDto } from "../world-info/world-info-types";
+
 
 type ChromaMetadataValue = string | number | boolean | null;
 

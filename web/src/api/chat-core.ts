@@ -1,5 +1,7 @@
 import { BASE_URL } from '../const';
 
+import { getApiErrorMessage } from './api-error';
+
 import type {
 	OperationBlock,
 	OperationBlockExport,
@@ -24,11 +26,11 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 	});
 
 	const body = (await res.json().catch(() => ({}))) as Partial<ApiEnvelope<T>> & {
-		error?: { message?: string };
+		error?: { message?: string; code?: string; details?: unknown };
 	};
 
 	if (!res.ok) {
-		const message = body?.error?.message ?? `HTTP error ${res.status}`;
+		const message = getApiErrorMessage(body, res.status);
 		throw new Error(message);
 	}
 
@@ -43,11 +45,11 @@ async function apiForm<T>(path: string, form: FormData, init?: Omit<RequestInit,
 	});
 
 	const body = (await res.json().catch(() => ({}))) as Partial<ApiEnvelope<T>> & {
-		error?: { message?: string };
+		error?: { message?: string; code?: string; details?: unknown };
 	};
 
 	if (!res.ok) {
-		const message = body?.error?.message ?? `HTTP error ${res.status}`;
+		const message = getApiErrorMessage(body, res.status);
 		throw new Error(message);
 	}
 

@@ -1,8 +1,35 @@
+import { buildOperationArtifactId } from "@shared/types/operation-profiles";
 import { describe, expect, test } from "vitest";
+
 
 import { validateOperationBlockUpsertInput } from "./operation-block-validator";
 
 describe("operation block validator", () => {
+  test("rejects legacy operation kind", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "6ff77029-5037-4d21-8ace-c9836f58a14b",
+            name: "legacy-op",
+            kind: "legacy",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 10,
+              params: {
+                params: {},
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/Validation error/);
+  });
+
   test("accepts valid block", () => {
     const out = validateOperationBlockUpsertInput({
       name: "block",
@@ -37,6 +64,8 @@ describe("operation block validator", () => {
       ],
     });
     expect(out.operations).toHaveLength(1);
+    expect(out.operations[0]?.config.params.artifact.artifactId).toBe(buildOperationArtifactId("6ff77029-5037-4d21-8ace-c9836f58a14b"));
+    expect(out.operations[0]?.config.params.artifact.tag).toBe("world_state");
   });
 
   test("rejects dependency to unknown opId", () => {
@@ -116,4 +145,404 @@ describe("operation block validator", () => {
       expect(issues.some((issue) => issue.message === "activation must include at least one interval")).toBe(true);
     }
   });
+
+  test("fills missing tag for artifact configs loaded from older saved blocks", () => {
+    const out = validateOperationBlockUpsertInput({
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "9ff77029-5037-4d21-8ace-c9836f58a14b",
+          name: "saved-op",
+          kind: "template",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 10,
+            params: {
+              template: "Hello",
+              artifact: {
+                artifactId: "artifact:9ff77029-5037-4d21-8ace-c9836f58a14b",
+                title: "Saved artifact",
+                format: "markdown",
+                persistence: "run_only",
+                writeMode: "replace",
+                history: {
+                  enabled: true,
+                  maxItems: 20,
+                },
+                exposures: [],
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(out.operations[0]?.config.params.artifact.tag).toBe("saved_op");
+  });
+
+  test("migrates legacy prompt_time output into artifact exposures", () => {
+    const out = validateOperationBlockUpsertInput({
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "7ff77029-5037-4d21-8ace-c9836f58a14b",
+          name: "prompt-op",
+          kind: "template",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 10,
+            params: {
+              template: "Hello",
+              output: {
+                type: "prompt_time",
+                promptTime: {
+                  kind: "append_after_last_user",
+                  role: "system",
+                  source: "legacy",
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(out.operations[0]?.config.params.artifact.exposures).toEqual([
+      {
+        type: "prompt_message",
+        role: "system",
+        anchor: "after_last_user",
+        source: "legacy",
+      },
+    ]);
+  });
+
+  test("rejects prompt_message exposure in after_main_llm hook", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "8ff77029-5037-4d21-8ace-c9836f58a14b",
+            name: "bad-op",
+            kind: "template",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["after_main_llm"],
+              order: 10,
+              params: {
+                template: "Hello",
+                artifact: {
+                  artifactId: "artifact:bad-op",
+                  tag: "bad_artifact",
+                  title: "Bad artifact",
+                  format: "markdown",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [
+                    {
+                      type: "prompt_message",
+                      role: "system",
+                      anchor: "after_last_user",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/before_main_llm/i);
+  });
+
+  test("accepts valid guard with run condition consumer", () => {
+    const out = validateOperationBlockUpsertInput({
+      name: "block",
+      enabled: true,
+      operations: [
+        {
+          opId: "11111111-1111-4111-8111-111111111111",
+          name: "combat-guard",
+          kind: "guard",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 10,
+            params: {
+              engine: "liquid",
+              outputContract: [
+                { key: "isBattle", title: "Battle" },
+                { key: "isNight", title: "Night" },
+              ],
+              template: "{\"isBattle\": true, \"isNight\": false}",
+              artifact: {
+                artifactId: "artifact:11111111-1111-4111-8111-111111111111",
+                tag: "combat_guard_state",
+                title: "Combat guard state",
+                format: "json",
+                persistence: "run_only",
+                writeMode: "replace",
+                history: {
+                  enabled: true,
+                  maxItems: 20,
+                },
+                exposures: [],
+              },
+            },
+          },
+        },
+        {
+          opId: "22222222-2222-4222-8222-222222222222",
+          name: "combat-consumer",
+          kind: "template",
+          config: {
+            enabled: true,
+            required: false,
+            hooks: ["before_main_llm"],
+            order: 20,
+            dependsOn: ["11111111-1111-4111-8111-111111111111"],
+            runConditions: [
+              {
+                type: "guard_output",
+                sourceOpId: "11111111-1111-4111-8111-111111111111",
+                outputKey: "isBattle",
+                operator: "is_true",
+              },
+            ],
+            params: {
+              template: "combat",
+              artifact: {
+                artifactId: "artifact:22222222-2222-4222-8222-222222222222",
+                tag: "combat_text",
+                title: "Combat text",
+                format: "markdown",
+                persistence: "run_only",
+                writeMode: "replace",
+                history: {
+                  enabled: true,
+                  maxItems: 20,
+                },
+                exposures: [],
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(out.operations[0]?.kind).toBe("guard");
+    expect(out.operations[1]?.config.runConditions).toEqual([
+      {
+        type: "guard_output",
+        sourceOpId: "11111111-1111-4111-8111-111111111111",
+        outputKey: "isBattle",
+        operator: "is_true",
+      },
+    ]);
+  });
+
+  test("rejects guard with non-json artifact format", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "11111111-1111-4111-8111-111111111111",
+            name: "combat-guard",
+            kind: "guard",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 10,
+              params: {
+                engine: "liquid",
+                outputContract: [{ key: "isBattle", title: "Battle" }],
+                template: "{\"isBattle\": true}",
+                artifact: {
+                  artifactId: "artifact:11111111-1111-4111-8111-111111111111",
+                  tag: "combat_guard_state",
+                  title: "Combat guard state",
+                  format: "markdown",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [],
+                },
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/guard artifact format/i);
+  });
+
+  test("rejects run condition with unknown output key", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "11111111-1111-4111-8111-111111111111",
+            name: "combat-guard",
+            kind: "guard",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 10,
+              params: {
+                engine: "liquid",
+                outputContract: [{ key: "isBattle", title: "Battle" }],
+                template: "{\"isBattle\": true}",
+                artifact: {
+                  artifactId: "artifact:11111111-1111-4111-8111-111111111111",
+                  tag: "combat_guard_state",
+                  title: "Combat guard state",
+                  format: "json",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [],
+                },
+              },
+            },
+          },
+          {
+            opId: "22222222-2222-4222-8222-222222222222",
+            name: "consumer",
+            kind: "template",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 20,
+              dependsOn: ["11111111-1111-4111-8111-111111111111"],
+              runConditions: [
+                {
+                  type: "guard_output",
+                  sourceOpId: "11111111-1111-4111-8111-111111111111",
+                  outputKey: "missingFlag",
+                  operator: "is_true",
+                },
+              ],
+              params: {
+                template: "Hello",
+                artifact: {
+                  artifactId: "artifact:22222222-2222-4222-8222-222222222222",
+                  tag: "consumer_state",
+                  title: "Consumer state",
+                  format: "markdown",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [],
+                },
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/runCondition references unknown guard output/i);
+  });
+
+  test("rejects run condition without matching dependsOn", () => {
+    expect(() =>
+      validateOperationBlockUpsertInput({
+        name: "block",
+        enabled: true,
+        operations: [
+          {
+            opId: "11111111-1111-4111-8111-111111111111",
+            name: "combat-guard",
+            kind: "guard",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 10,
+              params: {
+                engine: "liquid",
+                outputContract: [{ key: "isBattle", title: "Battle" }],
+                template: "{\"isBattle\": true}",
+                artifact: {
+                  artifactId: "artifact:11111111-1111-4111-8111-111111111111",
+                  tag: "combat_guard_state",
+                  title: "Combat guard state",
+                  format: "json",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [],
+                },
+              },
+            },
+          },
+          {
+            opId: "22222222-2222-4222-8222-222222222222",
+            name: "consumer",
+            kind: "template",
+            config: {
+              enabled: true,
+              required: false,
+              hooks: ["before_main_llm"],
+              order: 20,
+              runConditions: [
+                {
+                  type: "guard_output",
+                  sourceOpId: "11111111-1111-4111-8111-111111111111",
+                  outputKey: "isBattle",
+                  operator: "is_true",
+                },
+              ],
+              params: {
+                template: "Hello",
+                artifact: {
+                  artifactId: "artifact:22222222-2222-4222-8222-222222222222",
+                  tag: "consumer_state",
+                  title: "Consumer state",
+                  format: "markdown",
+                  persistence: "run_only",
+                  writeMode: "replace",
+                  history: {
+                    enabled: true,
+                    maxItems: 20,
+                  },
+                  exposures: [],
+                },
+              },
+            },
+          },
+        ],
+      })
+    ).toThrow(/runCondition sourceOpId must also appear in dependsOn/i);
+  });
 });
+

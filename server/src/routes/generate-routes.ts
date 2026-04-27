@@ -1,5 +1,6 @@
-import express, { type Request, type Response } from "express";
 import { randomUUID as uuidv4 } from "node:crypto";
+
+import express, { type Request, type Response } from "express";
 import { z } from "zod";
 
 import { asyncHandler } from "@core/middleware/async-handler";

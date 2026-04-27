@@ -2,6 +2,7 @@ export { OrchestratorError } from "./errors";
 export { executeOrchestratorPlan } from "./executor";
 export { buildOrchestratorPlan } from "./planner";
 export { runOrchestrator } from "./orchestrator";
+export { createTaskSkip, isTaskSkipError } from "./skip";
 
 export type { OrchestratorPlan, OrchestratorPlanningResult } from "./planner";
 export type {
@@ -19,4 +20,3 @@ export type {
   TaskSkipReason,
   TaskStatus,
 } from "./types";
-

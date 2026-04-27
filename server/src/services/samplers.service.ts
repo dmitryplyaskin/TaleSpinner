@@ -22,6 +22,16 @@ class SamplersSettings extends ConfigService<SamplersSettingsType> {
   }
 }
 
+export function resolveImportedSamplerPresetName(input: string, existingNames: string[]): string {
+  const base = input.trim() || "Imported sampler preset";
+  if (!existingNames.includes(base)) return base;
+  for (let idx = 2; idx <= 9999; idx += 1) {
+    const candidate = `${base} (imported ${idx})`;
+    if (!existingNames.includes(candidate)) return candidate;
+  }
+  return `${base} (imported ${Date.now()})`;
+}
+
 export const samplersService = {
   samplers: new Samplers(),
   samplersSettings: new SamplersSettings(),

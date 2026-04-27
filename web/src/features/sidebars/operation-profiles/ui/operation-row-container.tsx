@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 
+import { isOperationKind } from '../utils/operation-kind';
+
 import { OperationRow } from './operation-row';
 
 import type { OperationKind } from '@shared/types/operation-profiles';
@@ -12,18 +14,6 @@ type Props = {
 	selected: boolean;
 	onSelect: (opId: string) => void;
 };
-
-function isOperationKind(value: unknown): value is OperationKind {
-	return (
-		value === 'template' ||
-		value === 'llm' ||
-		value === 'rag' ||
-		value === 'tool' ||
-		value === 'compute' ||
-		value === 'transform' ||
-		value === 'legacy'
-	);
-}
 
 export const OperationRowContainer: React.FC<Props> = memo(({ index, opId, selected, onSelect }) => {
 	const { t } = useTranslation();

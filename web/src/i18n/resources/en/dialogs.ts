@@ -8,38 +8,15 @@
 				},
 			},
 			liquidDocs: {
+				title: 'Liquid reference',
 				open: 'Open Liquid docs',
+				searchPlaceholder: 'Search tokens, descriptions, and examples',
+				noSearchResults: 'No Liquid docs entries match your search',
 				sections: {
-					usage: 'Usage',
 					variables: 'Variables',
+					methods: 'Methods',
 					macros: 'Macros',
 					examples: 'Examples',
-				},
-				contexts: {
-					instruction: {
-						title: 'Instruction Liquid docs',
-						usage: 'Used when rendering chat instructions before generation.',
-					},
-					operationTemplate: {
-						title: 'Template operation Liquid docs',
-						usage: 'Used by operation kind=template for rendered effect payloads.',
-					},
-					operationLlm: {
-						title: 'LLM operation Liquid docs',
-						usage: 'Used by operation kind=llm for system and user prompt rendering.',
-					},
-					entityProfile: {
-						title: 'Entity profile Liquid docs',
-						usage: 'Liquid can be resolved in profile text fields directly and through multi-pass usage in other templates.',
-					},
-					worldInfoEntry: {
-						title: 'World Info Liquid docs',
-						usage: 'Used when rendering World Info entry content in runtime context.',
-					},
-					chatManualEdit: {
-						title: 'Manual edit Liquid docs',
-						usage: 'Used when chat message part is edited manually and rendered via Liquid.',
-					},
 				},
 				variables: {
 					char: 'Character object alias. Works as string and as object.',
@@ -76,6 +53,16 @@
 					promptSystem: 'Resolved system prompt visible in operation context.',
 					art: 'Operation artifacts map by tag.',
 					artValue: 'Artifact value by tag, for example art.note.value.',
+				},
+				methods: {
+					recentMessages:
+						'Returns the last N conversational messages with user/assistant roles in chronological order.',
+					recentMessagesText:
+						'Returns the last N conversational messages as text in `role: content` format separated by newlines.',
+					recentMessagesByContextTokens:
+						'Returns the last user/assistant messages until their approximate size reaches tokenLimit. Token counting is approximate and uses the current app heuristic `ceil(chars / 4)` while rounding upward on the last included message.',
+					recentMessagesByContextTokensText:
+						'Same as recentMessagesByContextTokens(tokenLimit), but formatted as newline-separated `role: content` text. Token counting is approximate and uses the current app heuristic `ceil(chars / 4)`.',
 				},
 				macros: {
 					trim: 'Removes surrounding blank lines around macro location.',
@@ -118,6 +105,12 @@
 					},
 					chatManualEditHistory: {
 						title: 'Manual edit history-aware template',
+					},
+					recentMessagesCount: {
+						title: 'Recent message helpers by count',
+					},
+					recentMessagesTokens: {
+						title: 'Recent message helpers by token budget',
 					},
 				},
 			},

@@ -1,8 +1,5 @@
-import {
-  abortRegisteredGeneration,
-  registerGenerationAbortController,
-  unregisterGenerationAbortController,
-} from "./generation-runtime";
+import { structuredLogger } from "../../core/logging/structured-logger";
+
 import {
   clearGenerationControlLease,
   getGenerationControlByGenerationId,
@@ -10,7 +7,11 @@ import {
   markGenerationAbortRequested,
   upsertGenerationControlLease,
 } from "./generation-control-repository";
-import { structuredLogger } from "../../core/logging/structured-logger";
+import {
+  abortRegisteredGeneration,
+  registerGenerationAbortController,
+  unregisterGenerationAbortController,
+} from "./generation-runtime";
 
 import type { RunResult } from "../chat-generation-v3/contracts";
 

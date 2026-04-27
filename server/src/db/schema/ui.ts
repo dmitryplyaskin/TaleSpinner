@@ -13,6 +13,13 @@ export const uiAppSettings = sqliteTable("ui_app_settings", {
   autoSelectCurrentPersona: integer("auto_select_current_persona", { mode: "boolean" })
     .notNull()
     .default(false),
+  activeAppBackgroundId: text("active_app_background_id"),
+  bindChatCompletionPresetToConnection: integer(
+    "bind_chat_completion_preset_to_connection",
+    { mode: "boolean" }
+  )
+    .notNull()
+    .default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

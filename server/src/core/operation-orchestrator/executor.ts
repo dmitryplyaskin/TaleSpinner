@@ -1,4 +1,5 @@
 import { OrchestratorError } from "./errors";
+import { isTaskSkipError } from "./skip";
 import {
   abortReasonToString,
   createSafeEventEmitter,
@@ -30,6 +31,13 @@ type ExecutePlanArgs = {
 
 type TaskCompletion =
   | { taskId: TaskId; status: "done"; startedAt: number; finishedAt: number; result: unknown }
+  | {
+      taskId: TaskId;
+      status: "skipped";
+      startedAt: number;
+      finishedAt: number;
+      reason: "runtime_condition";
+    }
   | {
       taskId: TaskId;
       status: "error";
@@ -249,6 +257,16 @@ export async function executeOrchestratorPlan(args: ExecutePlanArgs): Promise<vo
       };
     }
 
+    if (completion.status === "skipped") {
+      return {
+        taskId: completion.taskId,
+        status: "skipped",
+        startedAt: completion.startedAt,
+        finishedAt: completion.finishedAt,
+        reason: completion.reason,
+      };
+    }
+
     if (completion.status === "error") {
       return {
         taskId: completion.taskId,
@@ -290,6 +308,23 @@ export async function executeOrchestratorPlan(args: ExecutePlanArgs): Promise<vo
       return { taskId: task.taskId, status: "done", startedAt, finishedAt, result };
     } catch (error) {
       const finishedAt = nowFn();
+      if (isTaskSkipError(error)) {
+        emitEvent({
+          type: "orch.task.skipped",
+          data: { runId: ctx.runId, taskId: task.taskId, reason: error.reason },
+        });
+        emitEvent({
+          type: "orch.task.finished",
+          data: { runId: ctx.runId, taskId: task.taskId, status: "skipped" },
+        });
+        return {
+          taskId: task.taskId,
+          status: "skipped",
+          startedAt,
+          finishedAt,
+          reason: "runtime_condition",
+        };
+      }
       const aborted = classifyAbortError(error, { signal: ctx.signal });
 
       if (aborted) {

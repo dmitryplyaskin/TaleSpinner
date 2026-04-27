@@ -1,29 +1,48 @@
+import {
+	buildOperationArtifactId,
+	makeDefaultOperationArtifactConfig,
+	normalizeOperationArtifactConfig,
+	type LlmOperationRetryOn,
+	type OperationArtifactConfig,
+	type OperationInProfile,
+	type OperationKind,
+	type OperationRunCondition,
+	type OperationTemplateParams,
+} from '@shared/types/operation-profiles';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { OperationProfileDto } from '../../../../api/chat-core';
-import type {
-	LlmOperationParams,
-	LlmOperationRetryOn,
-	LlmOperationSamplers,
-	OperationInProfile,
-	OperationKind,
-	OperationOutput,
-	OperationTemplateParams,
-} from '@shared/types/operation-profiles';
+import {
+	normalizeGuardKindParams,
+	serializeGuardKindParams,
+	type FormGuardKindParams,
+} from './guard-kind-form';
+import {
+	normalizeKnowledgeKindParams,
+	serializeKnowledgeKindParams,
+	type FormKnowledgeKindParams,
+} from './knowledge-kind-form';
+import {
+	normalizeRetryOn,
+	pickNumericSamplers,
+	type OperationLlmRuntimeFields,
+	type OperationSamplerFields,
+} from './operation-llm-form-utils';
 
-export type FormTemplateParams = OperationTemplateParams & {
+import type { OperationProfileDto } from '../../../../api/chat-core';
+
+export type FormTemplateParams = Omit<OperationTemplateParams, 'strictVariables'> & {
 	strictVariables: boolean;
 };
 
 export type FormOtherKindParams = {
 	paramsJson: string;
-	output: OperationOutput;
+	artifact: OperationArtifactConfig;
 };
 
-export type FormLlmKindParams = {
-	providerId: LlmOperationParams['providerId'];
-	credentialRef: string;
-	model: string;
+export type FormRunCondition = OperationRunCondition;
+
+export type FormLlmKindParams = OperationLlmRuntimeFields &
+	OperationSamplerFields & {
 	system: string;
 	prompt: string;
 	strictVariables: boolean;
@@ -33,15 +52,13 @@ export type FormLlmKindParams = {
 	jsonCustomFlags: string;
 	jsonSchemaText: string;
 	strictSchemaValidation: boolean;
-	samplerPresetId: string;
-	samplers: LlmOperationSamplers;
 	timeoutMs: number;
 	retry: {
 		maxAttempts: number;
 		backoffMs: number;
 		retryOn: LlmOperationRetryOn[];
 	};
-	output: OperationOutput;
+	artifact: OperationArtifactConfig;
 };
 
 export type FormOperation = {
@@ -60,7 +77,13 @@ export type FormOperation = {
 		};
 		order: number;
 		dependsOn: string[];
-		params: FormTemplateParams | FormLlmKindParams | FormOtherKindParams;
+		runConditions: FormRunCondition[];
+		params:
+			| FormTemplateParams
+			| FormLlmKindParams
+			| FormGuardKindParams
+			| FormKnowledgeKindParams
+			| FormOtherKindParams;
 	};
 };
 
@@ -73,25 +96,32 @@ export type OperationProfileFormValues = {
 	operations: FormOperation[];
 };
 
-export function makeDefaultArtifactOutput(): Extract<OperationOutput, { type: 'artifacts' }> {
+function makeDefaultArtifactTag(opId: string): string {
+	const suffix = opId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(0, 10) || uuidv4().replace(/-/g, '').slice(0, 10);
+	return `art_${suffix}`;
+}
+
+export function makeDefaultArtifactOutput(opId = uuidv4(), kind: OperationKind = 'template'): OperationArtifactConfig {
+	const artifact = makeDefaultOperationArtifactConfig({
+		opId,
+		kind,
+		title: 'Artifact',
+	});
 	return {
-		type: 'artifacts',
-		writeArtifact: {
-			tag: `artifact_${Math.random().toString(16).slice(2, 8)}`,
-			persistence: 'run_only',
-			usage: 'internal',
-			semantics: 'intermediate',
-		},
+		...artifact,
+		tag: makeDefaultArtifactTag(opId),
 	};
 }
 
 export function makeDefaultLlmKindParams(
-	output: OperationOutput = makeDefaultArtifactOutput(),
+	opId: string,
+	artifact: OperationArtifactConfig = makeDefaultArtifactOutput(opId, 'llm'),
 ): FormLlmKindParams {
 	return {
 		providerId: 'openrouter',
 		credentialRef: '',
 		model: '',
+		llmPresetId: '',
 		system: '',
 		prompt: '',
 		strictVariables: false,
@@ -101,6 +131,7 @@ export function makeDefaultLlmKindParams(
 		jsonCustomFlags: '',
 		jsonSchemaText: '',
 		strictSchemaValidation: false,
+		samplersEnabled: false,
 		samplerPresetId: '',
 		samplers: {},
 		timeoutMs: 60000,
@@ -109,156 +140,19 @@ export function makeDefaultLlmKindParams(
 			backoffMs: 0,
 			retryOn: ['timeout', 'provider_error', 'rate_limit'],
 		},
-		output,
+		artifact,
 	};
 }
 
 export function makeDefaultOtherKindParams(
-	output: OperationOutput = makeDefaultArtifactOutput(),
+	opId: string,
+	kind: Exclude<OperationKind, 'template' | 'llm' | 'guard' | 'knowledge_search' | 'knowledge_reveal'>,
+	artifact: OperationArtifactConfig = makeDefaultArtifactOutput(opId, kind),
 ): FormOtherKindParams {
 	return {
 		paramsJson: '{\n  \n}',
-		output,
+		artifact,
 	};
-}
-
-function normalizePromptTimeRole(value: unknown): 'system' | 'user' | 'assistant' {
-	if (value === 'user' || value === 'assistant' || value === 'system') return value;
-	if (value === 'developer') return 'system';
-	return 'system';
-}
-
-function normalizeDepthFromEnd(value: unknown): number {
-	if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
-	return Math.max(0, Math.floor(Math.abs(value)));
-}
-
-function normalizeOperationOutput(output: unknown, fallback: OperationOutput): OperationOutput {
-	if (!output || typeof output !== 'object') return fallback;
-	const raw = output as Record<string, unknown>;
-	if (raw.type !== 'prompt_time') return output as OperationOutput;
-
-	const promptTime = raw.promptTime;
-	if (!promptTime || typeof promptTime !== 'object') return fallback;
-	const pt = promptTime as Record<string, unknown>;
-
-	if (pt.kind === 'append_after_last_user') {
-		return {
-			type: 'prompt_time',
-			promptTime: {
-				kind: 'append_after_last_user',
-				role: normalizePromptTimeRole(pt.role),
-				source: typeof pt.source === 'string' ? pt.source : undefined,
-			},
-		};
-	}
-
-	if (pt.kind === 'insert_at_depth') {
-		return {
-			type: 'prompt_time',
-			promptTime: {
-				kind: 'insert_at_depth',
-				depthFromEnd: normalizeDepthFromEnd(pt.depthFromEnd),
-				role: normalizePromptTimeRole(pt.role),
-				source: typeof pt.source === 'string' ? pt.source : undefined,
-			},
-		};
-	}
-
-	return output as OperationOutput;
-}
-
-function normalizeTemplateParams(params: unknown): OperationTemplateParams {
-	if (!params || typeof params !== 'object') {
-		return {
-			template: '',
-			strictVariables: false,
-			output: {
-				type: 'artifacts',
-				writeArtifact: makeDefaultArtifactOutput().writeArtifact,
-			},
-		};
-	}
-
-	const p = params as any;
-	if (p.output && typeof p.output === 'object') {
-		return {
-			template: typeof p.template === 'string' ? p.template : '',
-			strictVariables: Boolean(p.strictVariables),
-			output: normalizeOperationOutput(p.output, makeDefaultArtifactOutput()),
-		};
-	}
-
-	// Legacy compatibility: params.writeArtifact -> params.output.type="artifacts"
-	if (p.writeArtifact && typeof p.writeArtifact === 'object') {
-		return {
-			template: typeof p.template === 'string' ? p.template : '',
-			strictVariables: Boolean(p.strictVariables),
-			output: {
-				type: 'artifacts',
-				writeArtifact: p.writeArtifact,
-			},
-		};
-	}
-
-	return {
-		template: typeof p.template === 'string' ? p.template : '',
-		strictVariables: Boolean(p.strictVariables),
-		output: {
-			type: 'artifacts',
-			writeArtifact: {
-				tag: `artifact_${Math.random().toString(16).slice(2, 8)}`,
-				persistence: 'run_only',
-				usage: 'internal',
-				semantics: 'intermediate',
-			},
-		},
-	};
-}
-
-function normalizeOtherKindParams(params: unknown): FormOtherKindParams {
-	const defaultOutput = makeDefaultArtifactOutput();
-	if (!params || typeof params !== 'object') return makeDefaultOtherKindParams(defaultOutput);
-
-	const p = params as any;
-	const output: OperationOutput = normalizeOperationOutput(p.output, defaultOutput);
-	const rawParams = p.params && typeof p.params === 'object' && !Array.isArray(p.params) ? (p.params as Record<string, unknown>) : {};
-	return { paramsJson: JSON.stringify(rawParams, null, 2), output };
-}
-
-function pickNumericSamplers(raw: unknown): LlmOperationSamplers {
-	if (!raw || typeof raw !== 'object') return {};
-	const r = raw as Record<string, unknown>;
-	const out: LlmOperationSamplers = {};
-	if (typeof r.temperature === 'number' && Number.isFinite(r.temperature)) out.temperature = r.temperature;
-	if (typeof r.topP === 'number' && Number.isFinite(r.topP)) out.topP = r.topP;
-	if (typeof r.topK === 'number' && Number.isFinite(r.topK)) out.topK = r.topK;
-	if (typeof r.minP === 'number' && Number.isFinite(r.minP)) out.minP = r.minP;
-	if (typeof r.topA === 'number' && Number.isFinite(r.topA)) out.topA = r.topA;
-	if (typeof r.frequencyPenalty === 'number' && Number.isFinite(r.frequencyPenalty)) out.frequencyPenalty = r.frequencyPenalty;
-	if (typeof r.presencePenalty === 'number' && Number.isFinite(r.presencePenalty)) out.presencePenalty = r.presencePenalty;
-	if (typeof r.repetitionPenalty === 'number' && Number.isFinite(r.repetitionPenalty)) out.repetitionPenalty = r.repetitionPenalty;
-	if (typeof r.seed === 'number' && Number.isFinite(r.seed)) out.seed = r.seed;
-	if (typeof r.maxTokens === 'number' && Number.isFinite(r.maxTokens)) out.maxTokens = r.maxTokens;
-	if (r.reasoning && typeof r.reasoning === 'object' && !Array.isArray(r.reasoning)) {
-		const rr = r.reasoning as Record<string, unknown>;
-		const reasoning: NonNullable<LlmOperationSamplers['reasoning']> = {};
-		if (typeof rr.enabled === 'boolean') reasoning.enabled = rr.enabled;
-		if (rr.effort === 'low' || rr.effort === 'medium' || rr.effort === 'high') reasoning.effort = rr.effort;
-		if (typeof rr.maxTokens === 'number' && Number.isFinite(rr.maxTokens)) reasoning.maxTokens = rr.maxTokens;
-		if (typeof rr.exclude === 'boolean') reasoning.exclude = rr.exclude;
-		if (Object.keys(reasoning).length > 0) out.reasoning = reasoning;
-	}
-	return out;
-}
-
-function normalizeRetryOn(value: unknown): LlmOperationRetryOn[] {
-	if (!Array.isArray(value)) return ['timeout', 'provider_error', 'rate_limit'];
-	const filtered = value.filter(
-		(item): item is LlmOperationRetryOn => item === 'timeout' || item === 'provider_error' || item === 'rate_limit',
-	);
-	const unique = Array.from(new Set(filtered));
-	return unique.length > 0 ? unique : ['timeout', 'provider_error', 'rate_limit'];
 }
 
 function toNonNegativeInteger(value: unknown): number {
@@ -272,6 +166,20 @@ function toNonNegativeInteger(value: unknown): number {
 		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
 	}
 	return 0;
+}
+
+function normalizeRunConditions(value: unknown): FormRunCondition[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter(
+		(item): item is FormRunCondition =>
+			Boolean(item) &&
+			typeof item === 'object' &&
+			(item as Record<string, unknown>).type === 'guard_output' &&
+			typeof (item as Record<string, unknown>).sourceOpId === 'string' &&
+			typeof (item as Record<string, unknown>).outputKey === 'string' &&
+			((item as Record<string, unknown>).operator === 'is_true' ||
+				(item as Record<string, unknown>).operator === 'is_false'),
+	);
 }
 
 function normalizeActivation(value: unknown): { everyNTurns: number; everyNContextTokens: number } {
@@ -289,29 +197,62 @@ function normalizeActivation(value: unknown): { everyNTurns: number; everyNConte
 	};
 }
 
-function normalizeLlmKindParams(params: unknown): FormLlmKindParams {
-	if (!params || typeof params !== 'object') return makeDefaultLlmKindParams();
+function normalizeTemplateParams(op: OperationInProfile): FormTemplateParams {
+	const params = op.config.params as Record<string, unknown>;
+	return {
+		template: typeof params.template === 'string' ? params.template : '',
+		strictVariables: Boolean(params.strictVariables),
+		artifact: normalizeOperationArtifactConfig({
+			opId: op.opId,
+			kind: op.kind,
+			title: op.name,
+			rawParams: params,
+		}),
+	};
+}
 
-	const raw = params as any;
-	const llmParamsRaw = raw.params && typeof raw.params === 'object' ? raw.params : {};
-	const output: OperationOutput =
-		normalizeOperationOutput(raw.output, makeDefaultArtifactOutput());
+function normalizeOtherKindParams(op: OperationInProfile): FormOtherKindParams {
+	const params = op.config.params as Record<string, unknown>;
+	const rawParams =
+		params.params && typeof params.params === 'object' && !Array.isArray(params.params)
+			? (params.params as Record<string, unknown>)
+			: {};
+	return {
+		paramsJson: JSON.stringify(rawParams, null, 2),
+		artifact: normalizeOperationArtifactConfig({
+			opId: op.opId,
+			kind: op.kind,
+			title: op.name,
+			rawParams: params,
+		}),
+	};
+}
 
-	const base = makeDefaultLlmKindParams(output);
+function normalizeLlmKindParams(op: Extract<OperationInProfile, { kind: 'llm' }>): FormLlmKindParams {
+	const raw = op.config.params as Record<string, unknown>;
+	const llmParamsRaw = raw.params && typeof raw.params === 'object' ? (raw.params as Record<string, unknown>) : {};
 	const providerId = llmParamsRaw.providerId === 'openai_compatible' ? 'openai_compatible' : 'openrouter';
 	const outputMode = llmParamsRaw.outputMode === 'json' ? 'json' : 'text';
 	const jsonParseMode =
 		llmParamsRaw.jsonParseMode === 'markdown_code_block' || llmParamsRaw.jsonParseMode === 'custom_regex'
 			? llmParamsRaw.jsonParseMode
 			: 'raw';
-	const retryRaw = llmParamsRaw.retry && typeof llmParamsRaw.retry === 'object' ? llmParamsRaw.retry : {};
+	const retryRaw = llmParamsRaw.retry && typeof llmParamsRaw.retry === 'object' ? (llmParamsRaw.retry as Record<string, unknown>) : {};
 
 	return {
-		...base,
-		output,
+		...makeDefaultLlmKindParams(
+			op.opId,
+			normalizeOperationArtifactConfig({
+				opId: op.opId,
+				kind: op.kind,
+				title: op.name,
+				rawParams: raw,
+			}),
+		),
 		providerId,
 		credentialRef: typeof llmParamsRaw.credentialRef === 'string' ? llmParamsRaw.credentialRef : '',
 		model: typeof llmParamsRaw.model === 'string' ? llmParamsRaw.model : '',
+		llmPresetId: '',
 		system: typeof llmParamsRaw.system === 'string' ? llmParamsRaw.system : '',
 		prompt: typeof llmParamsRaw.prompt === 'string' ? llmParamsRaw.prompt : '',
 		strictVariables: llmParamsRaw.strictVariables === true,
@@ -320,23 +261,27 @@ function normalizeLlmKindParams(params: unknown): FormLlmKindParams {
 		jsonCustomPattern: typeof llmParamsRaw.jsonCustomPattern === 'string' ? llmParamsRaw.jsonCustomPattern : '',
 		jsonCustomFlags: typeof llmParamsRaw.jsonCustomFlags === 'string' ? llmParamsRaw.jsonCustomFlags : '',
 		jsonSchemaText:
-			typeof llmParamsRaw.jsonSchema === 'undefined'
-				? ''
-				: JSON.stringify(llmParamsRaw.jsonSchema, null, 2),
+			typeof llmParamsRaw.jsonSchema === 'undefined' ? '' : JSON.stringify(llmParamsRaw.jsonSchema, null, 2),
 		strictSchemaValidation: llmParamsRaw.strictSchemaValidation === true,
+		samplersEnabled:
+			typeof llmParamsRaw.samplerPresetId === 'string' && llmParamsRaw.samplerPresetId.length > 0
+				? true
+				: Object.keys(pickNumericSamplers(llmParamsRaw.samplers)).length > 0,
 		samplerPresetId: typeof llmParamsRaw.samplerPresetId === 'string' ? llmParamsRaw.samplerPresetId : '',
 		samplers: pickNumericSamplers(llmParamsRaw.samplers),
 		timeoutMs:
-			typeof llmParamsRaw.timeoutMs === 'number' && Number.isFinite(llmParamsRaw.timeoutMs) ? llmParamsRaw.timeoutMs : base.timeoutMs,
+			typeof llmParamsRaw.timeoutMs === 'number' && Number.isFinite(llmParamsRaw.timeoutMs)
+				? llmParamsRaw.timeoutMs
+				: 60000,
 		retry: {
 			maxAttempts:
 				typeof retryRaw.maxAttempts === 'number' && Number.isFinite(retryRaw.maxAttempts)
 					? Math.max(1, Math.floor(retryRaw.maxAttempts))
-					: base.retry.maxAttempts,
+					: 1,
 			backoffMs:
 				typeof retryRaw.backoffMs === 'number' && Number.isFinite(retryRaw.backoffMs)
 					? Math.max(0, Math.floor(retryRaw.backoffMs))
-					: base.retry.backoffMs,
+					: 0,
 			retryOn: normalizeRetryOn(retryRaw.retryOn),
 		},
 	};
@@ -359,18 +304,20 @@ export function toOperationProfileForm(profile: OperationProfileDto): OperationP
 				triggers: (op.config.triggers?.length ? op.config.triggers : ['generate', 'regenerate']) as any,
 				activation: normalizeActivation((op.config as any).activation),
 				dependsOn: op.config.dependsOn ?? [],
+				runConditions: normalizeRunConditions((op.config as Record<string, unknown>).runConditions),
 				enabled: Boolean(op.config.enabled),
 				required: Boolean(op.config.required),
 				order: Number((op.config as any).order ?? 0),
 				params:
 					op.kind === 'template'
-						? ({
-								...normalizeTemplateParams(op.config.params as unknown),
-								strictVariables: Boolean((op.config.params as any)?.strictVariables),
-							} satisfies FormTemplateParams)
+						? normalizeTemplateParams(op)
+						: op.kind === 'guard'
+							? normalizeGuardKindParams(op)
 						: op.kind === 'llm'
-							? (normalizeLlmKindParams(op.config.params as unknown) satisfies FormLlmKindParams)
-						: (normalizeOtherKindParams(op.config.params as unknown) satisfies FormOtherKindParams),
+							? normalizeLlmKindParams(op)
+							: op.kind === 'knowledge_search' || op.kind === 'knowledge_reveal'
+								? normalizeKnowledgeKindParams(op)
+							: normalizeOtherKindParams(op),
 			},
 		})),
 	};
@@ -403,6 +350,7 @@ export function fromOperationProfileForm(
 							everyNContextTokens: everyNContextTokens > 0 ? everyNContextTokens : undefined,
 						}
 					: undefined;
+			const runConditions = op.config.runConditions?.length ? normalizeRunConditions(op.config.runConditions) : undefined;
 			if (op.kind === 'template') {
 				const params = op.config.params as FormTemplateParams;
 				return {
@@ -418,13 +366,59 @@ export function fromOperationProfileForm(
 						activation,
 						order: Number(op.config.order),
 						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+						runConditions,
 						params: {
 							template: params.template,
 							strictVariables: params.strictVariables ? true : undefined,
-							output: params.output,
+							artifact: {
+								...params.artifact,
+								artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+							},
 						},
 					},
 				};
+			}
+
+			if (op.kind === 'guard') {
+				const params = op.config.params as FormGuardKindParams;
+				return {
+					opId: op.opId,
+					name: op.name,
+					description: op.description.trim() ? op.description.trim() : undefined,
+					kind: 'guard',
+					config: {
+						enabled: Boolean(op.config.enabled),
+						required: Boolean(op.config.required),
+						hooks: op.config.hooks,
+						triggers: op.config.triggers,
+						activation,
+						order: Number(op.config.order),
+						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+						runConditions,
+						params: serializeGuardKindParams(params, op.opId),
+					},
+				};
+			}
+
+			if (op.kind === 'knowledge_search' || op.kind === 'knowledge_reveal') {
+				const params = op.config.params as FormKnowledgeKindParams;
+				return {
+					opId: op.opId,
+					name: op.name,
+					description: op.description.trim() ? op.description.trim() : undefined,
+					kind: op.kind,
+					config: {
+						enabled: Boolean(op.config.enabled),
+						required: Boolean(op.config.required),
+						hooks: op.config.hooks,
+						triggers: op.config.triggers,
+						activation,
+						order: Number(op.config.order),
+						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+						runConditions,
+						params: serializeKnowledgeKindParams(params, op.opId),
+					},
+				} as OperationInProfile;
 			}
 
 			if (op.kind === 'llm') {
@@ -436,14 +430,10 @@ export function fromOperationProfileForm(
 				const jsonCustomFlags = params.jsonCustomFlags.trim();
 				const jsonSchemaText = params.jsonSchemaText.trim();
 				const timeoutMs = Number.isFinite(params.timeoutMs) ? Math.max(1, Math.floor(params.timeoutMs)) : undefined;
-				const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts)
-					? Math.max(1, Math.floor(params.retry.maxAttempts))
-					: 1;
-				const retryBackoffMs = Number.isFinite(params.retry.backoffMs)
-					? Math.max(0, Math.floor(params.retry.backoffMs))
-					: 0;
+				const retryMaxAttempts = Number.isFinite(params.retry.maxAttempts) ? Math.max(1, Math.floor(params.retry.maxAttempts)) : 1;
+				const retryBackoffMs = Number.isFinite(params.retry.backoffMs) ? Math.max(0, Math.floor(params.retry.backoffMs)) : 0;
 				const retryOn = normalizeRetryOn(params.retry.retryOn);
-				const samplers = pickNumericSamplers(params.samplers);
+				const samplers = params.samplersEnabled ? pickNumericSamplers(params.samplers) : {};
 				const hasSamplers = Object.keys(samplers).length > 0;
 				let parsedJsonSchema: unknown = undefined;
 				if (jsonSchemaText.length > 0) {
@@ -468,6 +458,7 @@ export function fromOperationProfileForm(
 						activation,
 						order: Number(op.config.order),
 						dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+						runConditions,
 						params: {
 							params: {
 								providerId: params.providerId,
@@ -488,8 +479,9 @@ export function fromOperationProfileForm(
 										: undefined,
 								jsonSchema: typeof parsedJsonSchema === 'undefined' ? undefined : parsedJsonSchema,
 								strictSchemaValidation: params.strictSchemaValidation ? true : undefined,
-								samplerPresetId: samplerPresetId.length > 0 ? samplerPresetId : undefined,
-								samplers: hasSamplers ? samplers : undefined,
+								samplerPresetId:
+									params.samplersEnabled && samplerPresetId.length > 0 ? samplerPresetId : undefined,
+								samplers: params.samplersEnabled && hasSamplers ? samplers : undefined,
 								timeoutMs,
 								retry: {
 									maxAttempts: retryMaxAttempts,
@@ -497,7 +489,10 @@ export function fromOperationProfileForm(
 									retryOn,
 								},
 							},
-							output: params.output,
+							artifact: {
+								...params.artifact,
+								artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+							},
 						},
 					},
 				};
@@ -509,8 +504,8 @@ export function fromOperationProfileForm(
 			if (raw) {
 				try {
 					parsed = JSON.parse(raw) as unknown;
-				} catch (e) {
-					if (options?.validateJson) throw e;
+				} catch (error) {
+					if (options?.validateJson) throw error;
 					parsed = {};
 				}
 			}
@@ -520,7 +515,10 @@ export function fromOperationProfileForm(
 				opId: op.opId,
 				name: op.name,
 				description: op.description.trim() ? op.description.trim() : undefined,
-				kind: op.kind as Exclude<OperationKind, 'template' | 'llm'>,
+				kind: op.kind as Exclude<
+					OperationKind,
+					'template' | 'llm' | 'guard' | 'knowledge_search' | 'knowledge_reveal'
+				>,
 				config: {
 					enabled: Boolean(op.config.enabled),
 					required: Boolean(op.config.required),
@@ -529,38 +527,44 @@ export function fromOperationProfileForm(
 					activation,
 					order: Number(op.config.order),
 					dependsOn: op.config.dependsOn?.length ? op.config.dependsOn : undefined,
+					runConditions,
 					params: {
 						params: asObj,
-						output: params.output,
+						artifact: {
+							...params.artifact,
+							artifactId: params.artifact.artifactId || buildOperationArtifactId(op.opId),
+						},
 					},
 				},
-			};
+			} as OperationInProfile;
 		}),
 	};
 }
 
 export function makeDefaultOperation(): FormOperation {
+	const opId = uuidv4();
 	return {
-		opId: uuidv4(),
+		opId,
 		name: 'New operation',
 		description: '',
 		kind: 'template',
-		config: {
-			enabled: true,
-			required: false,
-			hooks: ['before_main_llm'],
-			triggers: ['generate', 'regenerate'],
-			activation: {
-				everyNTurns: 0,
-				everyNContextTokens: 0,
-			},
-			order: 10,
-			dependsOn: [],
-			params: {
-				template: '',
-				strictVariables: false,
-				output: makeDefaultArtifactOutput(),
-			},
+			config: {
+				enabled: true,
+				required: false,
+				hooks: ['before_main_llm'],
+				triggers: ['generate', 'regenerate'],
+				activation: {
+					everyNTurns: 0,
+					everyNContextTokens: 0,
+				},
+				order: 10,
+				dependsOn: [],
+				runConditions: [],
+				params: {
+					template: '',
+					strictVariables: false,
+					artifact: makeDefaultArtifactOutput(opId, 'template'),
+				},
 		},
 	};
 }

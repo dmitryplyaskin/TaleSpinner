@@ -1,14 +1,36 @@
 import { Liquid } from "liquidjs";
 
+import {
+  INTERNAL_MESSAGE_HELPER_FILTER,
+  preprocessSillyTavernTemplateSyntax,
+  type SillyTavernTemplateVariables,
+  stripSillyTavernTrimSentinel,
+} from "./sillytavern-template-syntax";
+
 export interface InstructionRenderContext {
   char: unknown;
   user: unknown;
   chat: unknown;
   messages: Array<{ role: string; content: string }>;
   rag: unknown;
-  // Persisted pipeline artifacts materialized as `art.<tag>.value/history`.
-  // v1: chat-scoped session only.
+  worldInfo?: {
+    activatedCount: number;
+    activatedEntries: Array<{
+      hash: string;
+      bookId: string;
+      bookName: string;
+      uid: number;
+      comment: string;
+      content: string;
+      matchedKeys: string[];
+      reasons: string[];
+    }>;
+    warnings: string[];
+  };
+  // Artifacts materialized as `art.<artifactId>.value/history`.
+  // `artByOpId` is a convenience alias for cross-operation references from templates.
   art?: Record<string, unknown>;
+  artByOpId?: Record<string, unknown>;
   now: string;
 
   // --- SillyTavern-like convenience variables (compat layer).
@@ -37,123 +59,132 @@ export interface InstructionRenderContext {
   lastAssistantMessage?: string;
 }
 
-const engine = new Liquid({
-  cache: true,
-  strictFilters: false,
-  strictVariables: false,
-});
+type RenderableMessage = { role: string; content: string };
 
 const DEFAULT_MAX_PASSES = 5;
 const DEFAULT_MAX_OUTPUT_CHARS = 200_000;
-const TRIM_SENTINEL = "__TS_LIQUID_TRIM_SENTINEL__";
-const MACRO_TAG_RE = /{{\s*([^{}]*?)\s*}}/g;
 
-function sanitizeOutletKey(value: string): string {
-  // Keep keys printable and stable for object lookup.
-  return value.trim().replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function sanitizeRenderableMessages(messages: unknown): RenderableMessage[] {
+  return Array.isArray(messages)
+    ? messages.filter(
+        (item): item is RenderableMessage =>
+          typeof item?.role === "string" && typeof item?.content === "string"
+      )
+    : [];
 }
 
-function clampRngValue(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value <= 0) return 0;
-  if (value >= 1) return 0.999_999_999_999;
-  return value;
+function isConversationRole(role: string): role is "user" | "assistant" {
+  return role === "user" || role === "assistant";
 }
 
-function pickRandomOption(options: string[], rng: () => number): string {
-  const idx = Math.floor(clampRngValue(rng()) * options.length);
-  return options[idx] ?? options[0] ?? "";
+function getConversationalMessages(messages: RenderableMessage[]): RenderableMessage[] {
+  return messages.filter((message) => isConversationRole(message.role));
 }
 
-function resolveRandomMacro(rawMacroBody: string, rng: () => number): string | null {
-  const prefix = "random::";
-  if (!rawMacroBody.startsWith(prefix)) return null;
-  const tail = rawMacroBody.slice(prefix.length);
-  if (!tail) return null;
-
-  const options = tail
-    .split("::")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (options.length === 0) return null;
-
-  return pickRandomOption(options, rng);
+function approxTokensByChars(chars: number): number {
+  if (!Number.isFinite(chars)) return 0;
+  const normalized = Math.max(0, Math.floor(chars));
+  if (normalized === 0) return 0;
+  return Math.ceil(normalized / 4);
 }
 
-function preprocessSillyTavernTemplateSyntax(
-  templateText: string,
-  options?: { rng?: () => number }
-): {
-  text: string;
-  hasTrimSentinel: boolean;
-} {
-  const rng = options?.rng ?? Math.random;
-  let hasTrimSentinel = false;
-  const text = templateText.replace(MACRO_TAG_RE, (full: string, rawMacroBody: string) => {
-    const macroBody = rawMacroBody.trim();
-    if (!macroBody) return full;
-
-    if (macroBody === "trim") {
-      hasTrimSentinel = true;
-      return TRIM_SENTINEL;
-    }
-
-    if (macroBody.startsWith("outlet::")) {
-      const rawKey = macroBody.slice("outlet::".length);
-      if (!rawKey.trim()) return full;
-      const key = sanitizeOutletKey(rawKey);
-      return `{{ outlet['${key}'] }}`;
-    }
-
-    if (macroBody.startsWith("random::")) {
-      const selected = resolveRandomMacro(macroBody, rng);
-      if (selected !== null) return selected;
-      // Keep malformed random macro literal in output.
-      return `{% raw %}${full}{% endraw %}`;
-    }
-
-    return full;
-  });
-
-  return { text, hasTrimSentinel };
+function normalizePositiveIntegerArg(value: unknown): number | null {
+  const raw =
+    typeof value === "string" && value.trim().length > 0 ? Number(value.trim()) : value;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  const normalized = Math.floor(raw);
+  return normalized > 0 ? normalized : null;
 }
 
-function isBlankLine(line: string): boolean {
-  return line.trim().length === 0;
+function formatMessagesAsText(messages: RenderableMessage[]): string {
+  return messages.map((message) => `${message.role}: ${message.content}`).join("\n");
 }
 
-function stripTrimSentinel(text: string): string {
-  if (!text.includes(TRIM_SENTINEL)) return text;
+function selectRecentMessages(
+  messages: RenderableMessage[],
+  count: number
+): RenderableMessage[] {
+  if (count <= 0) return [];
+  return messages.slice(-count);
+}
 
-  const normalized = text.replace(/\r\n/g, "\n");
-  const lines = normalized.split("\n");
-  const out: string[] = [];
-  let skipLeadingBlankLines = false;
+function selectRecentMessagesByTokenLimit(
+  messages: RenderableMessage[],
+  tokenLimit: number
+): RenderableMessage[] {
+  if (tokenLimit <= 0) return [];
+  const selected: RenderableMessage[] = [];
+  let accumulatedTokens = 0;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === TRIM_SENTINEL) {
-      while (out.length > 0 && isBlankLine(out[out.length - 1] ?? "")) out.pop();
-      skipLeadingBlankLines = true;
-      continue;
-    }
-
-    if (line.includes(TRIM_SENTINEL)) {
-      const replaced = line.split(TRIM_SENTINEL).join("");
-      if (!(skipLeadingBlankLines && isBlankLine(replaced))) {
-        out.push(replaced);
-      }
-      if (!isBlankLine(replaced)) skipLeadingBlankLines = false;
-      continue;
-    }
-
-    if (skipLeadingBlankLines && isBlankLine(line)) continue;
-    out.push(line);
-    if (!isBlankLine(line)) skipLeadingBlankLines = false;
+  for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+    const message = messages[idx];
+    if (!message) continue;
+    selected.push(message);
+    accumulatedTokens += approxTokensByChars(message.content.length);
+    if (accumulatedTokens >= tokenLimit) break;
   }
 
-  return out.join("\n");
+  selected.reverse();
+  return selected;
 }
+
+function resolveRecentMessagesHelper(
+  helperName: unknown,
+  rawArg: unknown,
+  messages: RenderableMessage[]
+): RenderableMessage[] | string {
+  const normalizedHelperName = typeof helperName === "string" ? helperName.trim() : "";
+  const normalizedArg = normalizePositiveIntegerArg(rawArg);
+  const emptyArrayResult: RenderableMessage[] = [];
+  const emptyTextResult = "";
+  const shouldReturnText = normalizedHelperName.endsWith("Text");
+  if (!normalizedArg) {
+    return shouldReturnText ? emptyTextResult : emptyArrayResult;
+  }
+
+  const conversationalMessages = getConversationalMessages(messages);
+  const selectedMessages =
+    normalizedHelperName === "recentMessages"
+      ? selectRecentMessages(conversationalMessages, normalizedArg)
+      : normalizedHelperName === "recentMessagesText"
+        ? selectRecentMessages(conversationalMessages, normalizedArg)
+        : normalizedHelperName === "recentMessagesByContextTokens"
+          ? selectRecentMessagesByTokenLimit(conversationalMessages, normalizedArg)
+          : normalizedHelperName === "recentMessagesByContextTokensText"
+            ? selectRecentMessagesByTokenLimit(conversationalMessages, normalizedArg)
+            : null;
+
+  if (!selectedMessages) {
+    return shouldReturnText ? emptyTextResult : emptyArrayResult;
+  }
+
+  return shouldReturnText ? formatMessagesAsText(selectedMessages) : selectedMessages;
+}
+
+function registerInternalFilters(liquid: Liquid): Liquid {
+  liquid.registerFilter(
+    INTERNAL_MESSAGE_HELPER_FILTER,
+    function (_input: unknown, helperName: unknown, rawArg: unknown) {
+      const filterContext = this as {
+        context?: { environments?: { messages?: unknown } };
+      };
+      const messages = sanitizeRenderableMessages(
+        filterContext.context?.environments?.messages
+      );
+      return resolveRecentMessagesHelper(helperName, rawArg, messages);
+    }
+  );
+  liquid.registerFilter("json", (input: unknown) => JSON.stringify(input));
+  return liquid;
+}
+
+const engine = registerInternalFilters(
+  new Liquid({
+    cache: true,
+    strictFilters: false,
+    strictVariables: false,
+  })
+);
 
 function normalizeToString(value: unknown): string {
   return typeof value === "string" ? value : String(value);
@@ -174,12 +205,7 @@ function findLastMessageByRole(
 function withDerivedMessageAliases(
   context: InstructionRenderContext
 ): InstructionRenderContext {
-  const messages = Array.isArray(context.messages)
-    ? context.messages.filter(
-        (item): item is { role: string; content: string } =>
-          typeof item?.role === "string" && typeof item?.content === "string"
-      )
-    : [];
+  const messages = sanitizeRenderableMessages(context.messages);
 
   // These aliases are derived from effective prompt-visible history.
   // before_main_llm: lastAssistantMessage is the latest assistant message before current user turn.
@@ -227,10 +253,13 @@ export async function renderLiquidTemplate(params: {
      * Useful for deterministic tests.
      */
     rng?: () => number;
+    stVariables?: SillyTavernTemplateVariables;
   };
 }): Promise<string> {
   const renderEngine = params.options?.strictVariables
-    ? new Liquid({ cache: true, strictFilters: false, strictVariables: true })
+    ? registerInternalFilters(
+        new Liquid({ cache: true, strictFilters: false, strictVariables: true })
+      )
     : engine;
   const renderContext = withDerivedMessageAliases(params.context);
   const maxPasses = params.options?.maxPasses ?? DEFAULT_MAX_PASSES;
@@ -239,6 +268,7 @@ export async function renderLiquidTemplate(params: {
 
   const firstPassPreprocessed = preprocessSillyTavernTemplateSyntax(params.templateText, {
     rng: params.options?.rng,
+    variables: params.options?.stVariables,
   });
   sawTrimSentinel = sawTrimSentinel || firstPassPreprocessed.hasTrimSentinel;
 
@@ -249,7 +279,7 @@ export async function renderLiquidTemplate(params: {
 
   // Additional passes: render again only if the output still looks like a template.
   // Important: if the output contains `{{` for non-template reasons (e.g. documentation/code),
-  // the next parse may throw — in that case we stop and return the previous output.
+  // the next parse may throw вЂ” in that case we stop and return the previous output.
   for (let pass = 2; pass <= maxPasses; pass++) {
     if (!mightContainLiquidSyntax(current)) break;
     if (current.length > maxOutputChars) break;
@@ -257,6 +287,7 @@ export async function renderLiquidTemplate(params: {
     try {
       const passPreprocessed = preprocessSillyTavernTemplateSyntax(current, {
         rng: params.options?.rng,
+        variables: params.options?.stVariables,
       });
       sawTrimSentinel = sawTrimSentinel || passPreprocessed.hasTrimSentinel;
       const next = normalizeToString(
@@ -270,8 +301,9 @@ export async function renderLiquidTemplate(params: {
   }
 
   if (sawTrimSentinel) {
-    return stripTrimSentinel(current);
+    return stripSillyTavernTrimSentinel(current);
   }
 
   return current;
 }
+

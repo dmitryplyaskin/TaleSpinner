@@ -17,18 +17,21 @@ describe("applyArtifactEffect", () => {
       profile: null,
       runStore: store,
       effect: {
-        tag: "tmp",
+        artifactId: "tmp",
+        format: "markdown",
         persistence: "run_only",
-        usage: "internal",
+        writeMode: "replace",
+        history: { enabled: true, maxItems: 20 },
         semantics: "intermediate",
         value: "v1",
       },
     });
 
     expect(out).toEqual({
-      usage: "internal",
+      format: "markdown",
       semantics: "intermediate",
       persistence: "run_only",
+      writeMode: "replace",
       value: "v1",
       history: ["v1"],
     });
@@ -45,9 +48,11 @@ describe("applyArtifactEffect", () => {
         profile: null,
         runStore: new RunArtifactStore(),
         effect: {
-          tag: "state",
+          artifactId: "state",
+          format: "markdown",
           persistence: "persisted",
-          usage: "prompt+ui",
+          writeMode: "replace",
+          history: { enabled: true, maxItems: 20 },
           semantics: "state",
           value: "v",
         },
@@ -57,9 +62,10 @@ describe("applyArtifactEffect", () => {
 
   test("delegates persisted write to ProfileSessionArtifactStore.upsert", async () => {
     const upsertSpy = vi.spyOn(ProfileSessionArtifactStore, "upsert").mockResolvedValue({
-      usage: "prompt+ui",
+      format: "json",
       semantics: "state",
       persistence: "persisted",
+      writeMode: "append",
       value: "persisted-v",
       history: ["persisted-v"],
     });
@@ -85,9 +91,11 @@ describe("applyArtifactEffect", () => {
       },
       runStore: new RunArtifactStore(),
       effect: {
-        tag: "world_state",
+        artifactId: "world_state",
+        format: "json",
         persistence: "persisted",
-        usage: "prompt+ui",
+        writeMode: "append",
+        history: { enabled: true, maxItems: 20 },
         semantics: "state",
         value: "persisted-v",
       },
@@ -98,15 +106,17 @@ describe("applyArtifactEffect", () => {
         ownerId: "global",
         sessionKey: "sess-1",
         tag: "world_state",
-        usage: "prompt+ui",
+        format: "json",
         semantics: "state",
+        writeMode: "append",
         value: "persisted-v",
       })
     );
     expect(out).toEqual({
-      usage: "prompt+ui",
+      format: "json",
       semantics: "state",
       persistence: "persisted",
+      writeMode: "append",
       value: "persisted-v",
       history: ["persisted-v"],
     });

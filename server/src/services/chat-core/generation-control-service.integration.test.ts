@@ -2,9 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { applyMigrations } from "../../db/apply-migrations";
 import { initDb, resetDbForTests } from "../../db/client";
@@ -14,9 +14,10 @@ import {
   entityProfiles,
   generationRuntimeControl,
 } from "../../db/schema";
-import { createGeneration } from "./generations-repository";
+
 import { getGenerationControlByGenerationId, markGenerationAbortRequested } from "./generation-control-repository";
 import { GenerationControlService } from "./generation-control-service";
+import { createGeneration } from "./generations-repository";
 
 async function waitFor(
   predicate: () => boolean,

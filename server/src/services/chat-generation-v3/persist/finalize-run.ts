@@ -1,8 +1,8 @@
+import { withDbTransaction } from "../../../db/client";
 import {
   finishGeneration,
   updateGenerationRunReports,
 } from "../../chat-core/generations-repository";
-import { withDbTransaction } from "../../../db/client";
 
 import type { RunContext, RunResult } from "../contracts";
 

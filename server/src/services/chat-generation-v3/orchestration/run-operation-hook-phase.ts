@@ -1,16 +1,16 @@
 import { commitEffectsPhase } from "../operations/commit-effects-phase";
 import { executeOperationsPhase } from "../operations/execute-operations-phase";
 
+import type { EmitRunEvent, StreamEventsWhile } from "./run-event-stream";
 import type { RunArtifactStore } from "../artifacts/run-artifact-store";
 import type {
   OperationSkipDetails,
   RunDebugStateSnapshotStage,
   RunEvent,
+  RunPersistenceTarget,
   RunState,
   UserTurnTarget,
-} from "../contracts";
-import type { EmitRunEvent, StreamEventsWhile } from "./run-event-stream";
-import type { PromptDraftMessage } from "../contracts";
+ PromptDraftMessage } from "../contracts";
 import type {
   OperationHook,
   OperationInProfile,
@@ -25,7 +25,7 @@ type ExecuteOperationHookPhaseParams = {
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
   executionMode: "concurrent" | "sequential";
   baseMessages: PromptDraftMessage[];
-  baseArtifacts: Record<string, { value: string; history: string[] }>;
+  baseArtifacts: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
   templateContext: {
     char: unknown;
@@ -44,6 +44,7 @@ type ExecuteOperationHookPhaseParams = {
   branchId: string;
   profile: OperationProfile | null;
   sessionKey: string | null;
+  persistenceTarget: RunPersistenceTarget;
   userTurnTarget?: UserTurnTarget;
   debugEnabled: boolean;
   emit: EmitRunEvent;
@@ -78,6 +79,11 @@ export async function* runOperationHookPhase(
       baseArtifacts: params.baseArtifacts,
       assistantText: params.assistantText,
       templateContext: params.templateContext,
+      knowledgeContext: {
+        ownerId: params.ownerId,
+        chatId: params.chatId,
+        branchId: params.branchId,
+      },
       abortSignal: params.abortSignal,
       onOperationStarted: (data) => params.emit("operation.started", data),
       onOperationFinished: (data) => params.emit("operation.finished", data),
@@ -100,6 +106,7 @@ export async function* runOperationHookPhase(
       sessionKey: params.sessionKey,
       runState: params.runState,
       runArtifactStore: params.runArtifactStore,
+      persistenceTarget: params.persistenceTarget,
       userTurnTarget: params.userTurnTarget,
       onUserTurnCanonicalized: (data) => {
         params.emit("turn.user.canonicalized", data);

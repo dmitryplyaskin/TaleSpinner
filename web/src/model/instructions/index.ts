@@ -11,19 +11,48 @@ import {
 import i18n from '../../i18n';
 import { $currentChat, setChatInstructionRequested, setOpenedChat } from '../chat-core';
 
-import type { InstructionDto } from '../../api/instructions';
-import type { InstructionMeta } from '@shared/types/instructions';
+import { createEmptyStBaseConfig } from './st-preset';
+
+import type { CreateInstructionDraft, InstructionDto } from '../../api/instructions';
+import type { InstructionMeta, StBaseConfig } from '@shared/types/instructions';
+
+export type InstructionEditorDraft =
+	| {
+			sourceInstructionId: string;
+			kind: 'basic';
+			name: string;
+			templateText: string;
+			meta?: InstructionMeta;
+	  }
+	| {
+			sourceInstructionId: string;
+			kind: 'st_base';
+			name: string;
+			stBase: StBaseConfig;
+			meta?: InstructionMeta;
+	  };
 
 function isInstructionDto(value: unknown): value is InstructionDto {
 	if (!value || typeof value !== 'object') return false;
 	const item = value as Record<string, unknown>;
-	return (
-		typeof item.id === 'string' &&
-		item.id.trim().length > 0 &&
-		typeof item.name === 'string' &&
-		typeof item.templateText === 'string' &&
-		(item.engine === 'liquidjs')
-	);
+	if (
+		typeof item.id !== 'string' ||
+		item.id.trim().length === 0 ||
+		typeof item.name !== 'string' ||
+		item.engine !== 'liquidjs'
+	) {
+		return false;
+	}
+
+	if (item.kind === 'basic') {
+		return typeof item.templateText === 'string';
+	}
+
+	if (item.kind === 'st_base') {
+		return typeof item.stBase === 'object' && item.stBase !== null;
+	}
+
+	return false;
 }
 
 function resolveCopyName(originalName: string, usedNames: Set<string>): string {
@@ -55,6 +84,7 @@ export const $selectedInstruction = combine($instructions, $selectedInstructionI
 });
 
 export const instructionSelected = createEvent<string>();
+export const instructionEditorDraftChanged = createEvent<InstructionEditorDraft | null>();
 
 const refreshRequested = createEvent();
 
@@ -63,14 +93,12 @@ sample({
 	target: loadInstructionsFx,
 });
 
-// Sync selection from current chat on chat open.
 sample({
 	clock: setOpenedChat,
 	fn: ({ chat }) => chat.instructionId,
 	target: setSelectedInstructionId,
 });
 
-// Pick a valid template when list or chat changes.
 sample({
 	clock: loadInstructionsFx.doneData,
 	source: { selectedId: $selectedInstructionId, chat: $currentChat },
@@ -86,7 +114,6 @@ sample({
 	target: setSelectedInstructionId,
 });
 
-// If the chat points to a missing instruction (e.g. it was deleted), move it to the first available instruction.
 sample({
 	clock: loadInstructionsFx.doneData,
 	source: $currentChat,
@@ -95,7 +122,6 @@ sample({
 	target: setChatInstructionRequested,
 });
 
-// If the chat has no instruction, auto-assign the first available instruction.
 sample({
 	clock: [setOpenedChat, loadInstructionsFx.doneData],
 	source: { chat: $currentChat, instructions: $instructions },
@@ -126,41 +152,45 @@ sample({
 	target: setChatInstructionRequested,
 });
 
-export const createInstructionFx = createEffect(
-	async (params: { name: string; templateText: string; meta?: InstructionMeta }) => {
-		return createInstruction({
-			name: params.name,
-			templateText: params.templateText,
-			meta: params.meta,
-		});
-	},
-);
+export const createInstructionFx = createEffect(async (params: CreateInstructionDraft) => createInstruction(params));
 
 export const updateInstructionFx = createEffect(
-	async (params: { id: string; name: string; templateText: string; meta?: InstructionMeta }) => {
-		return updateInstruction({
-			id: params.id,
-			name: params.name,
-			templateText: params.templateText,
-			meta: params.meta,
-		});
-	},
+	async (
+		params:
+			| { id: string; kind: 'basic'; name: string; templateText: string; meta?: InstructionMeta }
+			| { id: string; kind: 'st_base'; name: string; stBase: StBaseConfig; meta?: InstructionMeta }
+	) => updateInstruction(params),
 );
 
 export const deleteInstructionFx = createEffect(async (params: { id: string }) => deleteInstruction(params.id));
 
-export const createInstructionRequested = createEvent();
+export const $instructionEditorDraft = createStore<InstructionEditorDraft | null>(null)
+	.on(instructionEditorDraftChanged, (_, draft) => draft)
+	.reset(setSelectedInstructionId, deleteInstructionFx.doneData);
+
+export const createInstructionRequested = createEvent<{ kind: 'basic' | 'st_base' }>();
 export const duplicateInstructionRequested = createEvent<{ id: string }>();
-export const importInstructionRequested = createEvent<{ name: string; templateText: string; meta?: InstructionMeta }>();
-export const updateInstructionRequested = createEvent<{ id: string; name: string; templateText: string; meta?: InstructionMeta }>();
+export const importInstructionRequested = createEvent<CreateInstructionDraft>();
+export const updateInstructionRequested = createEvent<
+	| { id: string; kind: 'basic'; name: string; templateText: string; meta?: InstructionMeta }
+	| { id: string; kind: 'st_base'; name: string; stBase: StBaseConfig; meta?: InstructionMeta }
+>();
 export const deleteInstructionRequested = createEvent<{ id: string }>();
 
 sample({
 	clock: createInstructionRequested,
-	fn: () => ({
-		name: i18n.t('instructions.defaults.newInstruction'),
-		templateText: '{{char.name}}',
-	}),
+	fn: ({ kind }) =>
+		kind === 'basic'
+			? {
+					kind: 'basic' as const,
+					name: i18n.t('instructions.defaults.newInstruction'),
+					templateText: '{{char.name}}',
+			  }
+			: {
+				kind: 'st_base' as const,
+				name: i18n.t('instructions.defaults.newStBaseInstruction'),
+				stBase: createEmptyStBaseConfig(),
+			  },
 	target: createInstructionFx,
 });
 
@@ -168,14 +198,24 @@ sample({
 	clock: duplicateInstructionRequested,
 	source: $instructions,
 	filter: (items, payload) => items.some((t) => t.id === payload.id),
-	fn: (items, payload) => {
-		const tpl = items.find((t) => t.id === payload.id)!;
+	fn: (items, payload): CreateInstructionDraft => {
+		const instruction = items.find((t) => t.id === payload.id)!;
 		const usedNames = new Set(items.map((item) => item.name));
-		const name = resolveCopyName(tpl.name, usedNames);
+		const name = resolveCopyName(instruction.name, usedNames);
+		const meta = { ...(instruction.meta ?? {}), duplicatedFromId: instruction.id, source: 'duplicate' };
+		if (instruction.kind === 'st_base') {
+			return {
+				kind: 'st_base',
+				name,
+				stBase: structuredClone(instruction.stBase),
+				meta,
+			};
+		}
 		return {
+			kind: 'basic',
 			name,
-			templateText: tpl.templateText,
-			meta: { duplicatedFromId: tpl.id, source: 'duplicate' },
+			templateText: instruction.templateText,
+			meta,
 		};
 	},
 	target: createInstructionFx,
@@ -245,5 +285,4 @@ deleteInstructionFx.failData.watch((error) => {
 	});
 });
 
-// Initial load on app start. Expose a manual trigger as well.
 export const instructionsInitRequested = refreshRequested;

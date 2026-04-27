@@ -1,9 +1,13 @@
+import {
+  normalizeOperationArtifactConfig,
+  type LegacyOperationOutput,
+  type OperationInProfile,
+} from "@shared/types/operation-profiles";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { executeOperationsPhase } from "./execute-operations-phase";
 
 import type { InstructionRenderContext } from "../../chat-core/prompt-template-renderer";
-import type { OperationInProfile, OperationOutput } from "@shared/types/operation-profiles";
 
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +34,25 @@ vi.mock("../../llm/llm-gateway-adapter", () => ({
 
 type TemplateOp = Extract<OperationInProfile, { kind: "template" }>;
 type LlmOp = Extract<OperationInProfile, { kind: "llm" }>;
+type GuardOp = Extract<OperationInProfile, { kind: "guard" }>;
+
+function toArtifact(params: {
+  opId: string;
+  kind: "template" | "llm" | "compute";
+  title: string;
+  output: LegacyOperationOutput;
+  llmOutputMode?: "text" | "json";
+}) {
+  return normalizeOperationArtifactConfig({
+    opId: params.opId,
+    kind: params.kind,
+    title: params.title,
+    rawParams: {
+      output: params.output,
+      ...(params.llmOutputMode ? { params: { outputMode: params.llmOutputMode } } : {}),
+    },
+  });
+}
 
 function streamOf(
   events: Array<
@@ -62,7 +85,7 @@ function makeLlmOp(params: {
   opId: string;
   order: number;
   prompt: string;
-  output: OperationOutput;
+  output: LegacyOperationOutput;
   hooks?: LlmOp["config"]["hooks"];
   dependsOn?: string[];
   outputMode?: "text" | "json";
@@ -99,13 +122,19 @@ function makeLlmOp(params: {
           timeoutMs: params.timeoutMs,
           retry: params.retry,
         },
-        output: params.output,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "llm",
+          title: params.opId,
+          output: params.output,
+          llmOutputMode: params.outputMode,
+        }),
       },
     },
   };
 }
 
-function artifactOutput(tag: string): OperationOutput {
+function artifactOutput(tag: string): LegacyOperationOutput {
   return {
     type: "artifacts",
     writeArtifact: {
@@ -121,7 +150,7 @@ function makeTemplateOp(params: {
   opId: string;
   order: number;
   template: string;
-  output: OperationOutput;
+  output: LegacyOperationOutput;
   hooks?: TemplateOp["config"]["hooks"];
   dependsOn?: string[];
   required?: boolean;
@@ -142,7 +171,12 @@ function makeTemplateOp(params: {
       params: {
         template: params.template,
         strictVariables: params.strictVariables,
-        output: params.output,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "template",
+          title: params.opId,
+          output: params.output,
+        }),
       },
     },
   };
@@ -164,9 +198,78 @@ function makeComputeOp(params: {
       triggers: ["generate", "regenerate"],
       order: params.order,
       params: {
-        params: { noop: true },
-        output: artifactOutput(`compute_${params.opId}`),
+        params: { noop: true } as Record<string, unknown>,
+        artifact: toArtifact({
+          opId: params.opId,
+          kind: "compute",
+          title: params.opId,
+          output: artifactOutput(`compute_${params.opId}`),
+        }),
       },
+    },
+  };
+}
+
+function makeGuardOp(params: {
+  opId: string;
+  order: number;
+  engine: "liquid" | "aux_llm";
+  outputContract: Array<{ key: string; title: string }>;
+  template?: string;
+  system?: string;
+  prompt?: string;
+  dependsOn?: string[];
+}): GuardOp {
+  const artifact = normalizeOperationArtifactConfig({
+    opId: params.opId,
+    kind: "guard",
+    title: params.opId,
+    rawParams: {
+      artifact: {
+        artifactId: `artifact:${params.opId}`,
+        tag: `${params.opId.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}_state`,
+        title: `${params.opId} state`,
+        format: "json",
+        persistence: "run_only",
+        writeMode: "replace",
+        history: {
+          enabled: true,
+          maxItems: 20,
+        },
+        exposures: [],
+      },
+    },
+  });
+  const guardParams =
+    params.engine === "liquid"
+      ? {
+          engine: "liquid" as const,
+          outputContract: params.outputContract,
+          template: params.template ?? "{\"matched\": true}",
+          artifact,
+        }
+      : {
+          engine: "aux_llm" as const,
+          outputContract: params.outputContract,
+          providerId: "openrouter" as const,
+          credentialRef: "token-1",
+          system: params.system,
+          prompt: params.prompt ?? "Return guard JSON",
+          artifact,
+        };
+
+  return {
+    opId: params.opId,
+    name: params.opId,
+    kind: "guard",
+    config: {
+      enabled: true,
+      required: false,
+      hooks: ["before_main_llm"],
+      triggers: ["generate", "regenerate"],
+      order: params.order,
+      dependsOn: params.dependsOn,
+      params: guardParams,
     },
   };
 }
@@ -293,7 +396,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
       opId: "a",
-      tag: "greeting",
+      artifactId: "greeting",
       value: "hello",
     });
   });
@@ -335,7 +438,7 @@ describe("executeOperationsPhase", () => {
     expect(finished?.status).toBe("done");
     expect(finished?.result?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "greeting",
+      artifactId: "greeting",
       value: "hello",
     });
     expect(finished?.result?.debugSummary).toBe("artifact.upsert:5");
@@ -373,7 +476,7 @@ describe("executeOperationsPhase", () => {
     expect(byId.get("b")?.status).toBe("done");
     expect(byId.get("b")?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "seen=alpha",
     });
   });
@@ -423,7 +526,7 @@ describe("executeOperationsPhase", () => {
     expect(joined?.status).toBe("done");
     expect(joined?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "joined",
+      artifactId: "joined",
       value: "root-L|root-R",
     });
   });
@@ -458,7 +561,7 @@ describe("executeOperationsPhase", () => {
     expect(b?.status).toBe("done");
     expect(b?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "b",
+      artifactId: "b",
       value: "none",
     });
   });
@@ -523,6 +626,260 @@ describe("executeOperationsPhase", () => {
     expect(byId.get("b")).toMatchObject({
       status: "skipped",
       skipReason: "dependency_not_done",
+    });
+  });
+
+  test("executes liquid guard and stores json artifact", async () => {
+    const out = await executeOperationsPhase({
+      runId: "run-guard-liquid",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-liquid",
+          order: 10,
+          engine: "liquid",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+          template: "{\"isBattle\": true}",
+        }),
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out[0]).toMatchObject({
+      opId: "guard-liquid",
+      status: "done",
+    });
+    expect(out[0]?.effects[0]).toMatchObject({
+      type: "artifact.upsert",
+      format: "json",
+      value: {
+        isBattle: true,
+      },
+    });
+  });
+
+  test("fails liquid guard when rendered output is not valid json", async () => {
+    const out = await executeOperationsPhase({
+      runId: "run-guard-liquid-error",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-liquid",
+          order: 10,
+          engine: "liquid",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+          template: "not-json",
+        }),
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out[0]?.status).toBe("error");
+    expect(out[0]?.error?.code).toBe("GUARD_OUTPUT_PARSE_ERROR");
+  });
+
+  test("executes aux llm guard and validates json output", async () => {
+    mocks.llmGatewayStream.mockImplementation(() =>
+      streamOf([
+        { type: "delta", text: "{\"isBattle\":true}" },
+        { type: "done", status: "done" },
+      ])
+    );
+
+    const out = await executeOperationsPhase({
+      runId: "run-guard-aux",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-aux",
+          order: 10,
+          engine: "aux_llm",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+          prompt: "Return guard JSON",
+        }),
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out[0]?.status).toBe("done");
+    expect(out[0]?.effects[0]).toMatchObject({
+      type: "artifact.upsert",
+      format: "json",
+      value: {
+        isBattle: true,
+      },
+    });
+  });
+
+  test("fails aux llm guard when schema does not match output contract", async () => {
+    mocks.llmGatewayStream.mockImplementation(() =>
+      streamOf([
+        { type: "delta", text: "{\"isBattle\":\"yes\"}" },
+        { type: "done", status: "done" },
+      ])
+    );
+
+    const out = await executeOperationsPhase({
+      runId: "run-guard-aux-invalid",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-aux",
+          order: 10,
+          engine: "aux_llm",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+        }),
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    expect(out[0]?.status).toBe("error");
+    expect(out[0]?.error?.code).toBe("GUARD_OUTPUT_VALIDATION_ERROR");
+  });
+
+  test("skips downstream operation when guard condition does not match", async () => {
+    const out = await executeOperationsPhase({
+      runId: "run-guard-skip",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-liquid",
+          order: 10,
+          engine: "liquid",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+          template: "{\"isBattle\": false}",
+        }),
+        {
+          ...makeTemplateOp({
+            opId: "consumer",
+            order: 20,
+            dependsOn: ["guard-liquid"],
+            template: "combat",
+            output: artifactOutput("consumer_out"),
+          }),
+          config: {
+            ...makeTemplateOp({
+              opId: "consumer",
+              order: 20,
+              dependsOn: ["guard-liquid"],
+              template: "combat",
+              output: artifactOutput("consumer_out"),
+            }).config,
+            runConditions: [
+              {
+                type: "guard_output",
+                sourceOpId: "guard-liquid",
+                outputKey: "isBattle",
+                operator: "is_true",
+              },
+            ],
+          },
+        },
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    const byId = new Map(out.map((item) => [item.opId, item] as const));
+    expect(byId.get("guard-liquid")?.status).toBe("done");
+    expect(byId.get("consumer")).toMatchObject({
+      status: "skipped",
+      skipReason: "guard_not_matched",
+      skipDetails: {
+        guard: {
+          sourceOpId: "guard-liquid",
+          outputKey: "isBattle",
+          operator: "is_true",
+          actual: false,
+        },
+      },
+    });
+  });
+
+  test("runs downstream operation only when all guard conditions match", async () => {
+    const consumerBase = makeTemplateOp({
+      opId: "consumer",
+      order: 30,
+      dependsOn: ["guard-a", "guard-b"],
+      template: "combat-night",
+      output: artifactOutput("consumer_out"),
+    });
+    const out = await executeOperationsPhase({
+      runId: "run-guard-and",
+      hook: "before_main_llm",
+      trigger: "generate",
+      operations: [
+        makeGuardOp({
+          opId: "guard-a",
+          order: 10,
+          engine: "liquid",
+          outputContract: [{ key: "isBattle", title: "Battle" }],
+          template: "{\"isBattle\": true}",
+        }),
+        makeGuardOp({
+          opId: "guard-b",
+          order: 20,
+          engine: "liquid",
+          outputContract: [{ key: "isNight", title: "Night" }],
+          template: "{\"isNight\": true}",
+        }),
+        {
+          ...consumerBase,
+          config: {
+            ...consumerBase.config,
+            runConditions: [
+              {
+                type: "guard_output",
+                sourceOpId: "guard-a",
+                outputKey: "isBattle",
+                operator: "is_true",
+              },
+              {
+                type: "guard_output",
+                sourceOpId: "guard-b",
+                outputKey: "isNight",
+                operator: "is_true",
+              },
+            ],
+          },
+        },
+      ],
+      executionMode: "sequential",
+      baseMessages: makeBaseMessages(),
+      baseArtifacts: makeBaseArtifacts(),
+      assistantText: "",
+      templateContext: makeTemplateContext(),
+    });
+
+    const byId = new Map(out.map((item) => [item.opId, item] as const));
+    expect(byId.get("consumer")?.status).toBe("done");
+    expect(byId.get("consumer")?.effects[0]).toMatchObject({
+      type: "artifact.upsert",
+      value: "combat-night",
     });
   });
 
@@ -644,7 +1001,7 @@ describe("executeOperationsPhase", () => {
       templateContext: makeTemplateContext(),
     });
 
-    const effectTypes = out.map((r) => r.effects[0]?.type);
+    const effectTypes = out.map((r) => r.effects[1]?.type);
     expect(effectTypes).toEqual([
       "prompt.system_update",
       "prompt.append_after_last_user",
@@ -659,6 +1016,7 @@ describe("executeOperationsPhase", () => {
         promptSystem: string;
         messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
         art: Record<string, { value: string; history: string[] }>;
+        artByOpId?: Record<string, { value: string; history: string[] }>;
       };
       rendered: string;
     }>();
@@ -708,7 +1066,7 @@ describe("executeOperationsPhase", () => {
     const bResult = out.find((r) => r.opId === "b");
     expect(bResult?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "PROMPT|NOTE",
     });
 
@@ -717,6 +1075,7 @@ describe("executeOperationsPhase", () => {
     expect(bDebug?.liquidContext.promptSystem).toBe("sys\n\nPROMPT");
     expect(bDebug?.liquidContext.messages[2]).toEqual({ role: "system", content: "PROMPT" });
     expect(bDebug?.liquidContext.art.note?.value).toBe("NOTE");
+    expect(bDebug?.liquidContext.artByOpId?.c?.value).toBe("NOTE");
   });
 
   test("exposes promptSystem to template operations with dependency replay", async () => {
@@ -752,7 +1111,7 @@ describe("executeOperationsPhase", () => {
     const byId = new Map(out.map((item) => [item.opId, item] as const));
     expect(byId.get("read-system")?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "seen",
+      artifactId: "seen",
       value: "NEW_SYS",
     });
   });
@@ -823,7 +1182,7 @@ describe("executeOperationsPhase", () => {
     });
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_tag",
+      artifactId: "llm_tag",
       value: "LLM RESULT",
     });
   });
@@ -859,7 +1218,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.status).toBe("done");
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_json",
+      artifactId: "llm_json",
       value: '{"alpha":1,"beta":[2,3]}',
     });
   });
@@ -1156,7 +1515,7 @@ describe("executeOperationsPhase", () => {
     expect(out[0]?.status).toBe("done");
     expect(out[0]?.effects[0]).toMatchObject({
       type: "artifact.upsert",
-      tag: "llm_json_schema",
+      artifactId: "llm_json_schema",
     });
   });
 
@@ -1391,3 +1750,4 @@ describe("executeOperationsPhase", () => {
     }
   });
 });
+

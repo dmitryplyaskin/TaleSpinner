@@ -8,38 +8,15 @@
 				},
 			},
 			liquidDocs: {
+				title: 'Справка по Liquid',
 				open: 'Открыть документацию Liquid',
+				searchPlaceholder: 'Поиск по токенам, описаниям и примерам',
+				noSearchResults: 'По вашему запросу ничего не найдено',
 				sections: {
-					usage: 'Где используется',
 					variables: 'Переменные',
+					methods: 'Методы',
 					macros: 'Макросы',
 					examples: 'Примеры',
-				},
-				contexts: {
-					instruction: {
-						title: 'Liquid для инструкций',
-						usage: 'Используется при рендере инструкций чата перед генерацией.',
-					},
-					operationTemplate: {
-						title: 'Liquid для template-операции',
-						usage: 'Используется в operation kind=template для рендера payload эффектов.',
-					},
-					operationLlm: {
-						title: 'Liquid для llm-операции',
-						usage: 'Используется в operation kind=llm для рендера system и user prompt.',
-					},
-					entityProfile: {
-						title: 'Liquid для полей профиля',
-						usage: 'Liquid может раскрываться в текстовых полях профиля напрямую и косвенно через multi-pass в других шаблонах.',
-					},
-					worldInfoEntry: {
-						title: 'Liquid для World Info',
-						usage: 'Используется при рендере content записей World Info в runtime-контексте.',
-					},
-					chatManualEdit: {
-						title: 'Liquid для ручного редактирования',
-						usage: 'Используется при ручном редактировании части сообщения и рендере через Liquid.',
-					},
 				},
 				variables: {
 					char: 'Алиас объекта персонажа. Работает как строка и как объект.',
@@ -76,6 +53,16 @@
 					promptSystem: 'Итоговый system prompt в контексте операций.',
 					art: 'Map артефактов операций по тегам.',
 					artValue: 'Значение артефакта по тегу, например art.note.value.',
+				},
+				methods: {
+					recentMessages:
+						'Возвращает массив последних N сообщений диалога с ролями user/assistant в хронологическом порядке.',
+					recentMessagesText:
+						'Возвращает последние N сообщений диалога как текст в формате `role: content`, разделенный переводами строк.',
+					recentMessagesByContextTokens:
+						'Возвращает массив последних сообщений user/assistant, пока их примерный размер не достигнет tokenLimit. Подсчет токенов приблизительный и использует текущую эвристику приложения `ceil(chars / 4)` с округлением вверх по последнему сообщению.',
+					recentMessagesByContextTokensText:
+						'То же, что recentMessagesByContextTokens(tokenLimit), но в виде текста `role: content` с переводами строк. Подсчет токенов приблизительный и использует текущую эвристику приложения `ceil(chars / 4)`.',
 				},
 				macros: {
 					trim: 'Удаляет лишние пустые строки вокруг позиции макроса.',
@@ -118,6 +105,12 @@
 					},
 					chatManualEditHistory: {
 						title: 'Шаблон с учетом истории при ручном редактировании',
+					},
+					recentMessagesCount: {
+						title: 'Методы последних сообщений по количеству',
+					},
+					recentMessagesTokens: {
+						title: 'Методы последних сообщений по токен-бюджету',
 					},
 				},
 			},

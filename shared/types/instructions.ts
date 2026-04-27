@@ -1,26 +1,43 @@
-export type InstructionMode = "basic" | "st_advanced";
+export type InstructionKind = "basic" | "st_base";
 
-export type StPromptRole = "system" | "user" | "assistant";
-
-export type StPrompt = {
-  identifier: string;
-  name?: string;
-  role?: StPromptRole;
-  content?: string;
-  system_prompt?: boolean;
+export type InstructionMeta = {
+  [key: string]: unknown;
 };
 
-export type StPromptOrderEntry = {
+export type StBasePromptRole = "system" | "user" | "assistant";
+export type StBasePromptInjectionPosition = 0 | 1;
+
+export const ST_PROMPT_INJECTION_POSITION = {
+  RELATIVE: 0,
+  IN_CHAT: 1,
+} as const satisfies Record<string, StBasePromptInjectionPosition>;
+
+export const ST_PROMPT_DEFAULT_DEPTH = 4;
+export const ST_PROMPT_DEFAULT_ORDER = 100;
+
+export type StBasePrompt = {
+  identifier: string;
+  name?: string;
+  role?: StBasePromptRole;
+  content?: string;
+  system_prompt?: boolean;
+  marker?: boolean;
+  injection_position?: StBasePromptInjectionPosition;
+  injection_depth?: number;
+  injection_order?: number;
+};
+
+export type StBasePromptOrderEntry = {
   identifier: string;
   enabled: boolean;
 };
 
-export type StPromptOrder = {
+export type StBasePromptOrder = {
   character_id: number;
-  order: StPromptOrderEntry[];
+  order: StBasePromptOrderEntry[];
 };
 
-export type StAdvancedResponseConfig = {
+export type StBaseResponseConfig = {
   temperature?: number;
   top_p?: number;
   top_k?: number;
@@ -38,27 +55,30 @@ export type StAdvancedResponseConfig = {
   stream_openai?: boolean;
 };
 
-export type StAdvancedImportInfo = {
+export type StBaseImportInfo = {
   source: "sillytavern";
   fileName: string;
   importedAt: string;
 };
 
-export type StAdvancedConfig = {
+export type StBaseConfig = {
   rawPreset: Record<string, unknown>;
-  prompts: StPrompt[];
-  promptOrder: StPromptOrder[];
-  responseConfig: StAdvancedResponseConfig;
-  importInfo: StAdvancedImportInfo;
+  prompts: StBasePrompt[];
+  promptOrder: StBasePromptOrder[];
+  responseConfig: StBaseResponseConfig;
+  importInfo: StBaseImportInfo;
 };
 
-export type TsInstructionMetaV1 = {
-  version: 1;
-  mode: InstructionMode;
-  stAdvanced?: StAdvancedConfig | null;
+export type BasicInstruction = {
+  kind: "basic";
+  templateText: string;
+  meta?: InstructionMeta | null;
 };
 
-export type InstructionMeta = {
-  tsInstruction?: TsInstructionMetaV1;
-  [key: string]: unknown;
+export type StBaseInstruction = {
+  kind: "st_base";
+  stBase: StBaseConfig;
+  meta?: InstructionMeta | null;
 };
+
+export type InstructionDefinition = BasicInstruction | StBaseInstruction;

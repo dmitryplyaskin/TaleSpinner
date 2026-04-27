@@ -1,7 +1,6 @@
 import { HttpError } from "@core/middleware/error-handler";
 
 import { getEntryById, updateEntryMeta } from "../../../services/chat-entry-parts/entries-repository";
-
 import { mergeEntryPromptVisibilityMeta } from "../chat-entry-helpers";
 
 export type SetEntryPromptVisibilityInput = {

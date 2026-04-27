@@ -6,9 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { ragProviderModel } from '@model/rag-provider';
 import { toaster } from '@ui/toaster';
 
+import { PresetControls } from './preset-controls';
+
 import type { RagPreset, RagProviderConfig, RagProviderId } from '@shared/types/rag';
 
-import { PresetControls } from './preset-controls';
 
 const toProviderTokenKey = (providerId: RagProviderId, tokenId: string | null): string => `${providerId}:${tokenId ?? 'none'}`;
 

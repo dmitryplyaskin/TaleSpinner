@@ -1,9 +1,9 @@
-import { runOrchestrator } from "@core/operation-orchestrator";
-
+import { createTaskSkip, runOrchestrator } from "@core/operation-orchestrator";
 
 import { renderLiquidTemplate } from "../../chat-core/prompt-template-renderer";
 import {
-  mapOperationOutputToEffectType,
+  compileArtifactExposureEffect,
+  getArtifactPrimaryEffectType,
   type OperationFinishedEventData,
   type OperationExecutionResult,
   type OperationSkipDetails,
@@ -13,6 +13,9 @@ import {
 } from "../contracts";
 
 import { applyPromptEffect } from "./effect-handlers/prompt-effects";
+import { executeGuardOperation } from "./guard-operation-executor";
+import { evaluateGuardRunConditions } from "./guard-run-conditions";
+import { executeKnowledgeOperation } from "./knowledge-operation-executor";
 import { executeLlmOperation } from "./llm-operation-executor";
 
 import type { TaskResult } from "../../../core/operation-orchestrator/types";
@@ -21,9 +24,27 @@ import type { OperationHook, OperationInProfile, OperationTrigger } from "@share
 
 type PreviewState = {
   messages: PromptDraftMessage[];
-  artifacts: Record<string, { value: string; history: string[] }>;
+  artifacts: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
 };
+
+function getRuntimeArtifactKey(params: {
+  artifactId: string;
+  tag: string;
+}): string {
+  return params.tag;
+}
+
+function readArtifactValue(params: {
+  artifacts: Record<string, { value: unknown; history: unknown[] }>;
+  artifactId: string;
+  tag: string;
+}): { value: unknown; history: unknown[] } | undefined {
+  return (
+    params.artifacts[getRuntimeArtifactKey(params)] ??
+    params.artifacts[params.artifactId]
+  );
+}
 
 function resolvePromptSystem(messages: PromptDraftMessage[]): string {
   return messages
@@ -35,17 +56,6 @@ function resolvePromptSystem(messages: PromptDraftMessage[]): string {
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
-}
-
-function normalizePromptTimeRole(value: unknown): PromptDraftMessage["role"] {
-  if (value === "assistant" || value === "user" || value === "system") return value;
-  if (value === "developer") return "system";
-  return "system";
-}
-
-function normalizeDepthFromEnd(value: unknown): number {
-  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  return Math.abs(Math.floor(n));
 }
 
 function clonePreview(state: PreviewState): PreviewState {
@@ -61,60 +71,6 @@ function clonePreview(state: PreviewState): PreviewState {
   };
 }
 
-function toRuntimeEffect(params: {
-  opId: string;
-  output: OperationInProfile["config"]["params"]["output"];
-  rendered: string;
-}): RuntimeEffect {
-  const { opId, output, rendered } = params;
-  if (output.type === "artifacts") {
-    return {
-      type: "artifact.upsert",
-      opId,
-      tag: output.writeArtifact.tag,
-      persistence: output.writeArtifact.persistence,
-      usage: output.writeArtifact.usage,
-      semantics: output.writeArtifact.semantics,
-      value: rendered,
-    };
-  }
-
-  if (output.type === "turn_canonicalization") {
-    return output.canonicalization.target === "assistant"
-      ? { type: "turn.assistant.replace_text", opId, text: rendered }
-      : { type: "turn.user.replace_text", opId, text: rendered };
-  }
-
-  if (output.promptTime.kind === "system_update") {
-    return {
-      type: "prompt.system_update",
-      opId,
-      mode: output.promptTime.mode,
-      payload: rendered,
-      source: output.promptTime.source,
-    };
-  }
-
-  if (output.promptTime.kind === "append_after_last_user") {
-    return {
-      type: "prompt.append_after_last_user",
-      opId,
-      role: normalizePromptTimeRole(output.promptTime.role),
-      payload: rendered,
-      source: output.promptTime.source,
-    };
-  }
-
-  return {
-    type: "prompt.insert_at_depth",
-    opId,
-    role: normalizePromptTimeRole(output.promptTime.role),
-    depthFromEnd: normalizeDepthFromEnd(output.promptTime.depthFromEnd),
-    payload: rendered,
-    source: output.promptTime.source,
-  };
-}
-
 function applyEffectToPreview(state: PreviewState, effect: RuntimeEffect): PreviewState {
   if (
     effect.type === "prompt.system_update" ||
@@ -125,13 +81,16 @@ function applyEffectToPreview(state: PreviewState, effect: RuntimeEffect): Previ
   }
 
   if (effect.type === "artifact.upsert") {
-    const existing = state.artifacts[effect.tag];
-    const history = [...(existing?.history ?? []), effect.value];
+    const existing = state.artifacts[effect.artifactId];
+    const nextHistory = [...(existing?.history ?? []), effect.value];
+    const history = effect.history.enabled
+      ? nextHistory.slice(-effect.history.maxItems)
+      : [];
     return {
       ...state,
       artifacts: {
         ...state.artifacts,
-        [effect.tag]: {
+        [effect.artifactId]: {
           value: effect.value,
           history,
         },
@@ -148,6 +107,7 @@ function applyEffectToPreview(state: PreviewState, effect: RuntimeEffect): Previ
 
   const lastUserIdx = state.messages.map((m) => m.role).lastIndexOf("user");
   if (lastUserIdx < 0) return state;
+  if (effect.type === "ui.inline") return state;
   const nextMessages = state.messages.map((m, idx) =>
     idx === lastUserIdx ? { role: "user" as const, content: effect.text } : { ...m }
   );
@@ -169,15 +129,70 @@ function replayDependencyEffects(
   return state;
 }
 
-function buildTemplateContext(base: InstructionRenderContext, state: PreviewState): InstructionRenderContext {
+function mapArtifactsByOpId(
+  operations: OperationInProfile[],
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
+  for (const op of operations) {
+    const artifact = readArtifactValue({
+      artifacts,
+      artifactId: op.config.params.artifact.artifactId,
+      tag: op.config.params.artifact.tag,
+    });
+    if (!artifact) continue;
+    mapped[op.opId] = { value: artifact.value, history: [...artifact.history] };
+  }
+  return mapped;
+}
+
+function mapArtifactsForTemplate(
+  operations: OperationInProfile[],
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  const mapped: Record<string, { value: unknown; history: unknown[] }> = {};
+  for (const op of operations) {
+    const artifact = readArtifactValue({
+      artifacts,
+      artifactId: op.config.params.artifact.artifactId,
+      tag: op.config.params.artifact.tag,
+    });
+    if (!artifact) continue;
+    const snapshot = { value: artifact.value, history: [...artifact.history] };
+    mapped[op.config.params.artifact.tag] = snapshot;
+    mapped[op.config.params.artifact.artifactId] = snapshot;
+  }
+  return mapped;
+}
+
+function mapKnownArtifacts(
+  artifacts: Record<string, { value: unknown; history: unknown[] }>
+): Record<string, { value: unknown; history: unknown[] }> {
+  return Object.fromEntries(
+    Object.entries(artifacts).map(([key, value]) => [
+      key,
+      { value: value.value, history: [...value.history] },
+    ])
+  );
+}
+
+function buildTemplateContext(
+  base: InstructionRenderContext,
+  state: PreviewState,
+  operations: OperationInProfile[]
+): InstructionRenderContext {
+  const art = {
+    ...(base.art ?? {}),
+    ...mapKnownArtifacts(state.artifacts),
+    ...mapArtifactsForTemplate(operations, state.artifacts),
+  };
   return {
     ...base,
     promptSystem: resolvePromptSystem(state.messages),
-    art: {
-      ...(base.art ?? {}),
-      ...Object.fromEntries(
-        Object.entries(state.artifacts).map(([tag, value]) => [tag, { value: value.value, history: value.history }])
-      ),
+    art,
+    artByOpId: {
+      ...(base.artByOpId ?? {}),
+      ...mapArtifactsByOpId(operations, state.artifacts),
     },
     messages: state.messages.map((m) => ({ role: m.role, content: m.content })),
   };
@@ -186,7 +201,8 @@ function buildTemplateContext(base: InstructionRenderContext, state: PreviewStat
 function buildLiquidContextSnapshot(params: {
   base: InstructionRenderContext;
   state: PreviewState;
-}): {
+  operations: OperationInProfile[];
+  }): {
   char: unknown;
   user: unknown;
   chat: unknown;
@@ -194,7 +210,8 @@ function buildLiquidContextSnapshot(params: {
   now: string;
   promptSystem: string;
   messages: Array<{ role: PromptDraftMessage["role"]; content: string }>;
-  art: Record<string, { value: string; history: string[] }>;
+  art: Record<string, { value: unknown; history: unknown[] }>;
+  artByOpId?: Record<string, { value: unknown; history: unknown[] }>;
 } {
   return {
     char: params.base.char ?? {},
@@ -204,15 +221,13 @@ function buildLiquidContextSnapshot(params: {
     now: params.base.now,
     promptSystem: resolvePromptSystem(params.state.messages),
     messages: params.state.messages.map((m) => ({ role: m.role, content: m.content })),
-    art: Object.fromEntries(
-      Object.entries(params.state.artifacts).map(([tag, value]) => [
-        tag,
-        { value: value.value, history: [...value.history] },
-      ])
-    ),
+    art: {
+      ...mapKnownArtifacts(params.state.artifacts),
+      ...mapArtifactsForTemplate(params.operations, params.state.artifacts),
+    },
+    artByOpId: params.base.artByOpId as Record<string, { value: unknown; history: unknown[] }> | undefined,
   };
 }
-
 function normalizeBlockedByOpIds(input: string[] | undefined): string[] {
   if (!input || input.length === 0) return [];
   return Array.from(new Set(input)).sort((a, b) => a.localeCompare(b));
@@ -224,6 +239,11 @@ function resolveSkipReasonAndDetails(params: {
   blockedByOpIds?: string[];
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
 }): { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails } {
+  if (params.reason === "guard_not_matched") {
+    return {
+      skipReason: "guard_not_matched",
+    };
+  }
   const blockedByOpIds = normalizeBlockedByOpIds(
     params.blockedByOpIds?.length
       ? params.blockedByOpIds
@@ -268,6 +288,10 @@ function mapTaskResult(params: {
   task: TaskResult;
   op: OperationInProfile;
   activationSkippedByOpId: ReadonlyMap<string, NonNullable<OperationSkipDetails["activation"]>>;
+  runtimeSkippedMetaByOpId: ReadonlyMap<
+    string,
+    { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
+  >;
 }): OperationExecutionResult {
   const { task, op } = params;
   if (task.status === "done") {
@@ -331,6 +355,22 @@ function mapTaskResult(params: {
     };
   }
 
+  const runtimeSkipped = params.runtimeSkippedMetaByOpId.get(op.opId);
+  if (runtimeSkipped) {
+    return {
+      opId: op.opId,
+      name: op.name,
+      required: op.config.required,
+      hook: params.hook,
+      status: "skipped",
+      order: op.config.order,
+      dependsOn: op.config.dependsOn ?? [],
+      effects: [],
+      skipReason: runtimeSkipped.skipReason,
+      skipDetails: runtimeSkipped.skipDetails,
+    };
+  }
+
   const normalized = resolveSkipReasonAndDetails({
     reason: task.reason as OperationSkipReason,
     dependsOn: op.config.dependsOn ?? [],
@@ -362,9 +402,14 @@ export async function executeOperationsPhase(params: {
   >;
   executionMode: "concurrent" | "sequential";
   baseMessages: PromptDraftMessage[];
-  baseArtifacts: Record<string, { value: string; history: string[] }>;
+  baseArtifacts: Record<string, { value: unknown; history: unknown[] }>;
   assistantText: string;
   templateContext: InstructionRenderContext;
+  knowledgeContext?: {
+    ownerId: string;
+    chatId: string;
+    branchId: string | null;
+  };
   abortSignal?: AbortSignal;
   onOperationStarted?: (data: { hook: OperationHook; opId: string; name: string }) => void;
   onOperationFinished?: (data: OperationFinishedEventData) => void;
@@ -383,7 +428,8 @@ export async function executeOperationsPhase(params: {
       now: string;
       promptSystem: string;
       messages: Array<{ role: PromptDraftMessage["role"]; content: string }>;
-      art: Record<string, { value: string; history: string[] }>;
+      art: Record<string, { value: unknown; history: unknown[] }>;
+      artByOpId?: Record<string, { value: unknown; history: unknown[] }>;
     };
   }) => void;
 }): Promise<OperationExecutionResult[]> {
@@ -435,14 +481,36 @@ export async function executeOperationsPhase(params: {
   }
 
   const executableOps = runnableOperations.filter(
-    (op): op is Extract<OperationInProfile, { kind: "template" | "llm" }> =>
-      op.kind === "template" || op.kind === "llm"
+    (
+      op
+    ): op is Extract<
+      OperationInProfile,
+      { kind: "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal" }
+    > =>
+      op.kind === "template" ||
+      op.kind === "llm" ||
+      op.kind === "guard" ||
+      op.kind === "knowledge_search" ||
+      op.kind === "knowledge_reveal"
   );
   const executableOpsById = new Map(executableOps.map((op) => [op.opId, op]));
+  const operationsById = new Map(params.operations.map((op) => [op.opId, op] as const));
   const executableTaskIdSet = new Set(executableOps.map((op) => op.opId));
   const unsupportedOps = runnableOperations.filter(
-    (op): op is Exclude<OperationInProfile, Extract<OperationInProfile, { kind: "template" | "llm" }>> =>
-      op.kind !== "template" && op.kind !== "llm"
+    (
+      op
+    ): op is Exclude<
+      OperationInProfile,
+      Extract<
+        OperationInProfile,
+        { kind: "template" | "llm" | "guard" | "knowledge_search" | "knowledge_reveal" }
+      >
+    > =>
+      op.kind !== "template" &&
+      op.kind !== "llm" &&
+      op.kind !== "guard" &&
+      op.kind !== "knowledge_search" &&
+      op.kind !== "knowledge_reveal"
   );
 
   const effectsByOpId = new Map<string, RuntimeEffect[]>();
@@ -456,6 +524,10 @@ export async function executeOperationsPhase(params: {
   };
 
   const skippedEventMetaByTaskId = new Map<
+    string,
+    { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
+  >();
+  const runtimeSkippedMetaByTaskId = new Map<
     string,
     { skipReason: OperationSkipReason; skipDetails?: OperationSkipDetails }
   >();
@@ -477,8 +549,22 @@ export async function executeOperationsPhase(params: {
           dependsOn: op.config.dependsOn,
           run: async () => {
             const depPreview = replayDependencyEffects(baseState, op.config.dependsOn ?? [], effectsByOpId);
-            const liquidContext = buildTemplateContext(params.templateContext, depPreview);
-            let resolvedRendered = "";
+            const guardConditionResult = evaluateGuardRunConditions({
+              op,
+              operationsById,
+              artifacts: depPreview.artifacts,
+            });
+            if (!guardConditionResult.matched) {
+              runtimeSkippedMetaByTaskId.set(op.opId, {
+                skipReason: "guard_not_matched",
+                skipDetails: {
+                  guard: guardConditionResult.details,
+                },
+              });
+              throw createTaskSkip("runtime_condition", "guard_not_matched");
+            }
+            const liquidContext = buildTemplateContext(params.templateContext, depPreview, params.operations);
+            let resolvedRendered: unknown = "";
             let debugSummary: string | undefined;
 
             if (op.kind === "template") {
@@ -501,38 +587,91 @@ export async function executeOperationsPhase(params: {
               debugSummary = llmResult.debugSummary;
             }
 
-            const effect = toRuntimeEffect({
-              opId: op.opId,
-              output: op.config.params.output,
-              rendered: resolvedRendered,
-            });
+            if (op.kind === "guard") {
+              const guardResult = await executeGuardOperation({
+                op,
+                liquidContext,
+                abortSignal: params.abortSignal,
+              });
+              resolvedRendered = guardResult.value;
+              debugSummary = guardResult.debugSummary;
+            }
+
+            if (op.kind === "knowledge_search" || op.kind === "knowledge_reveal") {
+              if (!params.knowledgeContext) {
+                throw new Error("knowledgeContext is required for knowledge operations");
+              }
+              const knowledgeResult = await executeKnowledgeOperation({
+                op,
+                liquidContext,
+                artifacts: depPreview.artifacts,
+                knowledgeContext: params.knowledgeContext,
+              });
+              effectsByOpId.set(op.opId, knowledgeResult.effects);
+              taskResultByOpId.set(op.opId, {
+                effects: knowledgeResult.effects,
+                debugSummary: knowledgeResult.debugSummary,
+              });
+              return knowledgeResult;
+            }
+
+            const artifact = op.config.params.artifact;
+            const effects: RuntimeEffect[] = [
+              {
+                type: "artifact.upsert",
+                opId: op.opId,
+                artifactId: getRuntimeArtifactKey(artifact),
+                format: artifact.format,
+                persistence: artifact.persistence,
+                writeMode: artifact.writeMode,
+                history: artifact.history,
+                semantics: artifact.semantics ?? "intermediate",
+                value: resolvedRendered,
+              },
+              ...artifact.exposures.map((exposure) =>
+                compileArtifactExposureEffect({
+                  opId: op.opId,
+                  artifact,
+                  exposure,
+                  value: resolvedRendered,
+                })
+              ),
+            ];
+            const effect = effects[0];
             if (op.kind === "template") {
               params.onTemplateDebug?.({
                 hook: params.hook,
                 opId: op.opId,
                 name: op.name,
                 template: op.config.params.template,
-                rendered: resolvedRendered,
+                rendered:
+                  typeof resolvedRendered === "string"
+                    ? resolvedRendered
+                    : JSON.stringify(resolvedRendered),
                 effect,
                 liquidContext: buildLiquidContextSnapshot({
                   base: liquidContext,
                   state: depPreview,
+                  operations: params.operations,
                 }),
               });
             }
-            const effects: RuntimeEffect[] = [effect];
             effectsByOpId.set(op.opId, effects);
             taskResultByOpId.set(op.opId, {
               effects,
               debugSummary:
                 debugSummary ??
-                `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
+                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${normalizeText(
+                  typeof resolvedRendered === "string"
+                    ? resolvedRendered
+                    : JSON.stringify(resolvedRendered)
+                ).length}`,
             });
             return {
               effects,
               debugSummary:
                 debugSummary ??
-                `${mapOperationOutputToEffectType(op.config.params.output)}:${resolvedRendered.length}`,
+                `${getArtifactPrimaryEffectType(op.config.params.artifact)}:${normalizeText(resolvedRendered).length}`,
             };
           },
         })),
@@ -548,6 +687,13 @@ export async function executeOperationsPhase(params: {
           if (evt.type === "orch.task.skipped") {
             const op = executableOpsById.get(evt.data.taskId);
             if (!op) return;
+            if (evt.data.reason === "runtime_condition") {
+              const runtimeMeta = runtimeSkippedMetaByTaskId.get(op.opId);
+              if (runtimeMeta) {
+                skippedEventMetaByTaskId.set(op.opId, runtimeMeta);
+              }
+              return;
+            }
             const missingDeps =
               evt.data.reason === "dependency_missing"
                 ? (op.config.dependsOn ?? []).filter((depId) => !executableTaskIdSet.has(depId))
@@ -608,6 +754,7 @@ export async function executeOperationsPhase(params: {
             op,
             task,
             activationSkippedByOpId,
+            runtimeSkippedMetaByOpId: runtimeSkippedMetaByTaskId,
           });
         })
         .filter((item): item is OperationExecutionResult => Boolean(item))
@@ -643,3 +790,5 @@ export async function executeOperationsPhase(params: {
 
   return all;
 }
+
+

@@ -1,22 +1,25 @@
+import {
+	isSillyTavernPreset,
+	getSillyTavernPresetValidationError,
+	SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+} from '@shared/utils/sillytavern-preset';
+import {
+	cloneStPromptWithDefaults,
+	normalizeStPromptOrder,
+	normalizeStPrompts,
+} from '@shared/utils/st-prompts';
+
+import { ST_PROMPT_SOURCE_LABELS, ST_SYSTEM_PROMPT_DEFAULTS } from './st-preset-prompts';
+
+export { ST_PROMPT_SOURCE_LABELS, ST_SYSTEM_PROMPT_DEFAULTS } from './st-preset-prompts';
+
 import type {
-	InstructionMeta,
-	StAdvancedConfig,
-	StAdvancedResponseConfig,
-	StPrompt,
-	StPromptOrder,
-	TsInstructionMetaV1,
+	StBaseConfig,
+	StBasePrompt,
+	StBasePromptOrder,
+	StBaseResponseConfig,
 } from '@shared/types/instructions';
-
-const PROMPT_ORDER_PREFERRED_CHARACTER_ID = 100001;
-
-const ST_PRESET_DETECT_KEYS = new Set([
-	'chat_completion_source',
-	'prompts',
-	'prompt_order',
-	'openai_max_tokens',
-	'openai_model',
-	'temperature',
-]);
+import type { LlmProviderConfig, LlmProviderId } from '@shared/types/llm';
 
 export const ST_SENSITIVE_FIELDS = [
 	'reverse_proxy',
@@ -32,8 +35,9 @@ export const ST_SENSITIVE_FIELDS = [
 ] as const;
 
 type SensitiveImportMode = 'remove' | 'keep';
+type ConnectionFieldStatus = 'supported' | 'sensitive' | 'unsupported';
 
-type StResponseConfigKey = keyof StAdvancedResponseConfig;
+type StResponseConfigKey = keyof StBaseResponseConfig;
 type StResponseNumericKey =
 	| 'temperature'
 	| 'top_p'
@@ -65,9 +69,30 @@ const ST_RESPONSE_CONFIG_KEYS: StResponseConfigKey[] = [
 	'stream_openai',
 ];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const ST_CONNECTION_FIELDS: Array<{ key: string; status: ConnectionFieldStatus }> = [
+	{ key: 'chat_completion_source', status: 'supported' },
+	{ key: 'openai_model', status: 'supported' },
+	{ key: 'reverse_proxy', status: 'sensitive' },
+	{ key: 'proxy_password', status: 'sensitive' },
+	{ key: 'custom_url', status: 'sensitive' },
+	{ key: 'custom_include_body', status: 'sensitive' },
+	{ key: 'custom_exclude_body', status: 'sensitive' },
+	{ key: 'custom_include_headers', status: 'sensitive' },
+	{ key: 'vertexai_region', status: 'sensitive' },
+	{ key: 'vertexai_express_project_id', status: 'sensitive' },
+	{ key: 'azure_base_url', status: 'sensitive' },
+	{ key: 'azure_deployment_name', status: 'sensitive' },
+	{ key: 'openrouter_group_models', status: 'unsupported' },
+];
+
+export type StPresetBindingPlan = {
+	runtimePatch: {
+		activeProviderId?: LlmProviderId;
+		activeModel?: string | null;
+	} | null;
+	providerConfigPatches: Array<{ providerId: LlmProviderId; config: LlmProviderConfig }>;
+	warnings: string[];
+};
 
 function asString(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
@@ -84,66 +109,10 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
 	return typeof value === 'boolean' ? value : undefined;
 }
 
-function normalizeStPromptRole(value: unknown): StPrompt['role'] | undefined {
-	if (value === 'system' || value === 'user' || value === 'assistant') {
-		return value;
-	}
-	return undefined;
-}
-
-function normalizePrompt(value: unknown): StPrompt | null {
-	if (!isRecord(value)) return null;
-	const identifier = asString(value.identifier);
-	if (!identifier) return null;
-
-	const prompt: StPrompt = { identifier };
-	const name = asString(value.name);
-	if (name) prompt.name = name;
-	const role = normalizeStPromptRole(value.role);
-	if (role) prompt.role = role;
-	if (typeof value.content === 'string') prompt.content = value.content;
-	if (typeof value.system_prompt === 'boolean') {
-		prompt.system_prompt = value.system_prompt;
-	}
-	return prompt;
-}
-
-function normalizePromptOrderEntry(
-	value: unknown
-): { identifier: string; enabled: boolean } | null {
-	if (!isRecord(value)) return null;
-	const identifier = asString(value.identifier);
-	if (!identifier) return null;
-	return {
-		identifier,
-		enabled: typeof value.enabled === 'boolean' ? value.enabled : true,
-	};
-}
-
-function normalizePromptOrderItem(value: unknown): StPromptOrder | null {
-	if (!isRecord(value)) return null;
-	const rawCharacterId = value.character_id;
-	const characterId =
-		typeof rawCharacterId === 'number' && Number.isFinite(rawCharacterId)
-			? Math.floor(rawCharacterId)
-			: null;
-	if (characterId === null) return null;
-
-	const rawOrder = Array.isArray(value.order) ? value.order : [];
-	const order = rawOrder
-		.map(normalizePromptOrderEntry)
-		.filter((entry): entry is { identifier: string; enabled: boolean } => Boolean(entry));
-
-	return {
-		character_id: characterId,
-		order,
-	};
-}
-
 function normalizeResponseConfig(
 	preset: Record<string, unknown>
-): StAdvancedResponseConfig {
-	const responseConfig: StAdvancedResponseConfig = {};
+): StBaseResponseConfig {
+	const responseConfig: StBaseResponseConfig = {};
 	const numericKeys: StResponseNumericKey[] = [
 		'temperature',
 		'top_p',
@@ -182,38 +151,33 @@ function normalizeResponseConfig(
 	return responseConfig;
 }
 
-function normalizeMeta(meta: unknown): InstructionMeta {
-	if (!isRecord(meta)) return {};
-	return { ...meta };
-}
-
-export function getTsInstructionMeta(meta: unknown): TsInstructionMetaV1 | null {
-	if (!isRecord(meta) || !isRecord(meta.tsInstruction)) return null;
-	const tsInstruction = meta.tsInstruction;
-	if (tsInstruction.version !== 1) return null;
-	if (tsInstruction.mode !== 'basic' && tsInstruction.mode !== 'st_advanced') {
-		return null;
-	}
-	return tsInstruction as TsInstructionMetaV1;
-}
-
-export function withTsInstructionMeta(params: {
-	meta: unknown;
-	tsInstruction: TsInstructionMetaV1;
-}): InstructionMeta {
-	const normalized = normalizeMeta(params.meta);
+export function createEmptyStBaseConfig(): StBaseConfig {
 	return {
-		...normalized,
-		tsInstruction: params.tsInstruction,
+		rawPreset: {},
+		prompts: [],
+		promptOrder: [
+			{
+				character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+				order: [],
+			},
+		],
+		responseConfig: {},
+		importInfo: {
+			source: 'sillytavern',
+			fileName: 'manual',
+			importedAt: new Date().toISOString(),
+		},
 	};
 }
 
 export function detectStChatCompletionPreset(
 	input: unknown
 ): input is Record<string, unknown> {
-	if (!isRecord(input)) return false;
-	if (input.type === 'talespinner.instruction') return false;
-	return Object.keys(input).some((key) => ST_PRESET_DETECT_KEYS.has(key));
+	return isSillyTavernPreset(input);
+}
+
+export function getStPresetValidationError(input: unknown): string | null {
+	return getSillyTavernPresetValidationError(input);
 }
 
 export function hasSensitivePresetFields(preset: Record<string, unknown>): boolean {
@@ -230,23 +194,16 @@ export function stripSensitiveFieldsFromPreset(
 	return cloned;
 }
 
-export function normalizeStPrompts(input: unknown): StPrompt[] {
-	if (!Array.isArray(input)) return [];
-	return input.map(normalizePrompt).filter((item): item is StPrompt => Boolean(item));
-}
-
-export function normalizeStPromptOrder(input: unknown): StPromptOrder[] {
-	if (!Array.isArray(input)) return [];
-	return input
-		.map(normalizePromptOrderItem)
-		.filter((item): item is StPromptOrder => Boolean(item));
-}
-
-export function createStAdvancedConfigFromPreset(params: {
+export function createStBaseConfigFromPreset(params: {
 	preset: Record<string, unknown>;
 	fileName: string;
 	sensitiveImportMode: SensitiveImportMode;
-}): StAdvancedConfig {
+}): StBaseConfig {
+	const validationError = getSillyTavernPresetValidationError(params.preset);
+	if (validationError) {
+		throw new Error(validationError);
+	}
+
 	const rawPreset =
 		params.sensitiveImportMode === 'remove'
 			? stripSensitiveFieldsFromPreset(params.preset)
@@ -264,19 +221,11 @@ export function createStAdvancedConfigFromPreset(params: {
 	};
 }
 
-export function deriveInstructionTemplateText(stAdvanced: StAdvancedConfig): string {
-	const mainPrompt = stAdvanced.prompts.find((item) => item.identifier === 'main');
-	if (typeof mainPrompt?.content === 'string' && mainPrompt.content.trim().length > 0) {
-		return mainPrompt.content;
-	}
-	return '{{char.name}}';
-}
-
-export function resolvePreferredPromptOrder(stAdvanced: StAdvancedConfig): StPromptOrder {
+export function resolvePreferredPromptOrder(stBase: StBaseConfig): StBasePromptOrder {
 	const preferred =
-		stAdvanced.promptOrder.find(
-			(item) => item.character_id === PROMPT_ORDER_PREFERRED_CHARACTER_ID
-		) ?? stAdvanced.promptOrder[0];
+		stBase.promptOrder.find(
+			(item) => item.character_id === SILLY_TAVERN_PREFERRED_CHARACTER_ID
+		) ?? stBase.promptOrder[0];
 
 	if (preferred) {
 		return {
@@ -286,24 +235,36 @@ export function resolvePreferredPromptOrder(stAdvanced: StAdvancedConfig): StPro
 	}
 
 	return {
-		character_id: PROMPT_ORDER_PREFERRED_CHARACTER_ID,
-		order: stAdvanced.prompts.map((item) => ({
+		character_id: SILLY_TAVERN_PREFERRED_CHARACTER_ID,
+		order: stBase.prompts.map((item) => ({
 			identifier: item.identifier,
 			enabled: true,
 		})),
 	};
 }
 
-export function buildStPresetFromAdvanced(stAdvanced: StAdvancedConfig): Record<string, unknown> {
-	const preset = structuredClone(stAdvanced.rawPreset ?? {});
-	preset.prompts = stAdvanced.prompts.map((item) => ({ ...item }));
-	preset.prompt_order = stAdvanced.promptOrder.map((item) => ({
+export function getStPromptDefinition(identifier: string): StBasePrompt | null {
+	return ST_SYSTEM_PROMPT_DEFAULTS.find((item) => item.identifier === identifier) ?? null;
+}
+
+export function isSystemMarkerPrompt(prompt: StBasePrompt | null | undefined): boolean {
+	return prompt?.marker === true;
+}
+
+export function getStPromptSourceLabel(identifier: string): string | null {
+	return ST_PROMPT_SOURCE_LABELS[identifier] ?? null;
+}
+
+export function buildStPresetFromStBase(stBase: StBaseConfig): Record<string, unknown> {
+	const preset = structuredClone(stBase.rawPreset ?? {});
+	preset.prompts = stBase.prompts.map((item) => cloneStPromptWithDefaults(item));
+	preset.prompt_order = stBase.promptOrder.map((item) => ({
 		character_id: item.character_id,
 		order: item.order.map((orderItem) => ({ ...orderItem })),
 	}));
 
 	for (const key of ST_RESPONSE_CONFIG_KEYS) {
-		const value = stAdvanced.responseConfig[key];
+		const value = stBase.responseConfig[key];
 		if (typeof value === 'undefined') {
 			delete preset[key];
 			continue;
@@ -312,4 +273,51 @@ export function buildStPresetFromAdvanced(stAdvanced: StAdvancedConfig): Record<
 	}
 
 	return preset;
+}
+
+export function listConnectionFieldWarnings(preset: Record<string, unknown>): string[] {
+	const presentFields = ST_CONNECTION_FIELDS.filter(({ key }) =>
+		Object.prototype.hasOwnProperty.call(preset, key)
+	);
+	if (presentFields.length === 0) return [];
+
+	const warnings: string[] = [];
+	const sensitive = presentFields.filter((item) => item.status === 'sensitive').map((item) => item.key);
+	const unsupported = presentFields.filter((item) => item.status === 'unsupported').map((item) => item.key);
+
+	if (sensitive.length > 0) {
+		warnings.push(`Sensitive connection fields were preserved but not auto-applied: ${sensitive.join(', ')}`);
+	}
+	if (unsupported.length > 0) {
+		warnings.push(`Unsupported connection fields remain raw-only: ${unsupported.join(', ')}`);
+	}
+
+	return warnings;
+}
+
+export function createBestEffortLlmBindingPlan(stBase: StBaseConfig): StPresetBindingPlan {
+	const preset = stBase.rawPreset ?? {};
+	const warnings = [...listConnectionFieldWarnings(preset)];
+	const source = asString(preset.chat_completion_source);
+	const model = asString(preset.openai_model);
+
+	let activeProviderId: LlmProviderId | undefined;
+	if (source === 'openrouter') {
+		activeProviderId = 'openrouter';
+	} else if (source) {
+		activeProviderId = 'openai_compatible';
+		warnings.push(`Mapped ST source "${source}" to TaleSpinner provider "openai_compatible".`);
+	}
+
+	return {
+		runtimePatch:
+			activeProviderId || model
+				? {
+						activeProviderId,
+						activeModel: model ?? null,
+					}
+				: null,
+		providerConfigPatches: [],
+		warnings,
+	};
 }

@@ -887,7 +887,6 @@ describe("batch update entry parts helpers", () => {
 
     const plan = buildBatchUpdatePartPlan({
       variantParts: parts,
-      nowMs: 100,
       body: {
         variantId: "variant-1",
         mainPartId: "part-alt",
@@ -923,14 +922,14 @@ describe("batch update entry parts helpers", () => {
         expect.objectContaining({
           partId: "part-alt",
           channel: "main",
-          order: 0,
+          order: 10,
           replacesPartId: null,
           payload: "alt edited",
         }),
         expect.objectContaining({
           partId: "part-main",
           channel: "aux",
-          order: 10,
+          order: 0,
           payload: "main edited",
         }),
         expect.objectContaining({
@@ -942,6 +941,115 @@ describe("batch update entry parts helpers", () => {
         }),
       ])
     );
+  });
+
+  test("buildBatchUpdatePartPlan preserves explicit order when main changes", () => {
+    const parts: Part[] = [
+      makePart({ partId: "first", channel: "main", order: 0, payload: "first" }),
+      makePart({ partId: "second", channel: "aux", order: 10, payload: "second" }),
+      makePart({ partId: "third", channel: "aux", order: 20, payload: "third" }),
+    ];
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: parts,
+      body: {
+        variantId: "variant-1",
+        mainPartId: "second",
+        orderedPartIds: ["first", "second", "third"],
+        parts: parts.map((part) => ({
+          partId: part.partId,
+          deleted: false,
+          visibility: { ui: "always", prompt: true },
+          payload: part.payload,
+        })),
+      },
+    });
+
+    expect(plan.patches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ partId: "first", channel: "aux", order: 0 }),
+        expect.objectContaining({ partId: "second", channel: "main", order: 10 }),
+        expect.objectContaining({ partId: "third", channel: "aux", order: 20 }),
+      ])
+    );
+  });
+
+  test("buildBatchUpdatePartPlan separates hard deletes from soft-delete patches", () => {
+    const parts: Part[] = [
+      makePart({ partId: "keep", channel: "main", order: 0, payload: "keep" }),
+      makePart({ partId: "remove", channel: "aux", order: 10, payload: "remove" }),
+    ];
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: parts,
+      body: {
+        variantId: "variant-1",
+        mainPartId: "keep",
+        orderedPartIds: ["keep"],
+        parts: [
+          {
+            partId: "keep",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "keep",
+          },
+          {
+            partId: "remove",
+            deleted: true,
+            visibility: { ui: "always", prompt: true },
+            payload: "remove",
+          },
+        ],
+      },
+    });
+
+    expect(plan.deletedPartIds).toEqual(["remove"]);
+    expect(plan.patches.map((item) => item.partId)).toEqual(["keep"]);
+    expect(plan.patches).not.toContainEqual(expect.objectContaining({ partId: "remove", softDeleted: true }));
+  });
+
+  test("buildBatchUpdatePartPlan creates new user blocks", () => {
+    const parts: Part[] = [
+      makePart({ partId: "existing-main", channel: "main", order: 0, payload: "main" }),
+    ];
+
+    const plan = buildBatchUpdatePartPlan({
+      variantParts: parts,
+      body: {
+        variantId: "variant-1",
+        mainPartId: "new-block",
+        orderedPartIds: ["existing-main", "new-block"],
+        parts: [
+          {
+            partId: "existing-main",
+            deleted: false,
+            visibility: { ui: "always", prompt: true },
+            payload: "main",
+          },
+          {
+            clientPartId: "new-block",
+            channel: "aux",
+            payloadFormat: "markdown",
+            visibility: { ui: "always", prompt: true },
+            payload: "new text",
+          },
+        ],
+      },
+    });
+
+    expect(plan.creates).toEqual([
+      expect.objectContaining({
+        clientPartId: "new-block",
+        channel: "main",
+        order: 10,
+        payload: "new text",
+        payloadFormat: "markdown",
+        source: "user",
+      }),
+    ]);
+    expect(plan.patches).toEqual([
+      expect.objectContaining({ partId: "existing-main", channel: "aux", order: 0 }),
+    ]);
   });
 
   test("buildBatchUpdatePartPlan rejects non-text main", () => {
